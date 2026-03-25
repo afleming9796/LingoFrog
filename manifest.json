@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "GhostType",
+  "version": "1.0.0",
+  "description": "Local autocomplete powered by your own writing. No AI, no cloud — just your words, suggested back to you.",
+  "permissions": ["storage", "activeTab"],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://mail.google.com/*",
+        "https://docs.google.com/*",
+        "https://www.linkedin.com/*",
+        "https://slack.com/*",
+        "https://app.slack.com/*"
+      ],
+      "js": ["trie.js", "content.js"],
+      "css": ["ghosttype.css"]
+    }
+  ]
+}

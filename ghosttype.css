@@ -1,0 +1,137 @@
+/* ghosttype.css — Styles for GhostType suggestion UI and link prompt */
+
+.ghosttype-ghost {
+  color: #9ca0b0 !important;
+  opacity: 0.6 !important;
+  font-style: italic !important;
+  pointer-events: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  border: none !important;
+  background: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.ghosttype-box {
+  display: none;
+  position: fixed;
+  z-index: 2147483647;
+  min-width: 300px;
+  max-width: 440px;
+  background: #1e1e2e;
+  border: 1px solid #45475a;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2);
+  font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', 'Cascadia Code', monospace;
+  font-size: 12px;
+  padding: 4px 0;
+  overflow: hidden;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.ghosttype-header {
+  color: #6c7086;
+  font-size: 10px;
+  padding: 4px 12px 4px;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid #313244;
+  margin-bottom: 2px;
+}
+
+.ghosttype-item {
+  display: flex;
+  align-items: center;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+  gap: 8px;
+}
+
+.ghosttype-item:hover { background: #292940; }
+.ghosttype-item.ghosttype-selected { background: #313244; }
+.ghosttype-item.ghosttype-selected .ghosttype-text { color: #f5c2e7; }
+.ghosttype-item.ghosttype-selected .ghosttype-num { background: #f5c2e7; color: #1e1e2e; }
+
+.ghosttype-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: #45475a;
+  color: #9ca0b0;
+  font-size: 10px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.ghosttype-text {
+  color: #cdd6f4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+.ghosttype-hint {
+  color: #585b70;
+  font-size: 10px;
+  padding: 4px 12px 4px;
+  border-top: 1px solid #313244;
+  margin-top: 2px;
+}
+
+/* ── Link Prompt ─────────────────────────────────────────── */
+
+.ghosttype-link-prompt {
+  display: none;
+  position: fixed;
+  z-index: 2147483647;
+  align-items: center;
+  gap: 6px;
+  background: #1e1e2e;
+  border: 1px solid #89b4fa;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(137, 180, 250, 0.15);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-size: 11px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+}
+
+.ghosttype-link-prompt:hover {
+  border-color: #b4befe;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 0 2px rgba(137, 180, 250, 0.25);
+}
+
+.ghosttype-lp-icon { font-size: 12px; flex-shrink: 0; }
+.ghosttype-lp-label { color: #cdd6f4; }
+.ghosttype-lp-label strong { color: #f5c2e7; font-weight: 600; }
+
+.ghosttype-lp-url {
+  color: #89b4fa;
+  font-size: 10px;
+  opacity: 0.7;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ghosttype-lp-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #45475a;
+  color: #cdd6f4;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: 2px;
+  letter-spacing: 0.3px;
+}
