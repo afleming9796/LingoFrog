@@ -197,6 +197,9 @@ class Corpus {
     this.config = {
       maxSuggestions: 5,
       triggerAfterChars: 8,
+      enabled: true,
+      autoComplete: true,
+      autoLink: true,
     };
   }
 

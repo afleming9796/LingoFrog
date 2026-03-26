@@ -185,6 +185,23 @@
       line-height: 1.5;
     }
     .import-hint code { color: #a6e3a1; background: #313244; padding: 1px 4px; border-radius: 3px; }
+
+    .toggle-switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute; inset: 0; cursor: pointer;
+      background: #45475a; border-radius: 22px; transition: background 0.2s;
+    }
+    .toggle-slider::before {
+      content: ''; position: absolute; left: 3px; top: 3px;
+      width: 16px; height: 16px; background: #cdd6f4;
+      border-radius: 50%; transition: transform 0.2s;
+    }
+    .toggle-switch input:checked + .toggle-slider { background: #f5c2e7; }
+    .toggle-switch input:checked + .toggle-slider::before { transform: translateX(18px); }
+
+    .setting-row.disabled .setting-label,
+    .setting-row.disabled .setting-desc { opacity: 0.4; }
   </style>
 </head>
 <body>
@@ -266,6 +283,36 @@
 
   <!-- Settings Tab -->
   <div class="tab-content" id="tab-settings">
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">GhostType enabled</div>
+        <div class="setting-desc">Master on/off switch for the extension</div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="set-enabled" checked>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+    <div class="setting-row" id="row-autocomplete">
+      <div>
+        <div class="setting-label">Auto-complete suggestions</div>
+        <div class="setting-desc">Show phrase completions as you type</div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="set-autocomplete" checked>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+    <div class="setting-row" id="row-autolink">
+      <div>
+        <div class="setting-label">Auto-link hyperlinks</div>
+        <div class="setting-desc">Prompt to linkify trigger phrases</div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="set-autolink" checked>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
     <div class="setting-row">
       <div>
         <div class="setting-label">Trigger after</div>

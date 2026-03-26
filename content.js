@@ -383,7 +383,7 @@
 
   function buildCompletionFragment(text) {
     const fragment = document.createDocumentFragment();
-    const links = corpus.linkRules.findLinks(text);
+    const links = corpus.config.autoLink === false ? [] : corpus.linkRules.findLinks(text);
 
     if (links.length === 0) {
       fragment.appendChild(document.createTextNode(text));
@@ -493,6 +493,13 @@
     debounceTimer = setTimeout(() => {
       removeGhostText();
 
+      // Master kill switch
+      if (corpus.config.enabled === false) {
+        hideSuggestions();
+        hideLinkPrompt();
+        return;
+      }
+
       const el = document.activeElement;
       if (!isEditableField(el)) {
         hideSuggestions();
@@ -504,7 +511,9 @@
       const typed = getTypedText(el);
 
       // ── Autocomplete ──
-      if (typed.length < corpus.config.triggerAfterChars) {
+      if (corpus.config.autoComplete === false) {
+        hideSuggestions();
+      } else if (typed.length < corpus.config.triggerAfterChars) {
         hideSuggestions();
       } else {
         const suggestions = corpus.getCompletions(typed);
@@ -517,7 +526,11 @@
       }
 
       // ── Link trigger detection ──
-      checkForLinkTriggers();
+      if (corpus.config.autoLink === false) {
+        hideLinkPrompt();
+      } else {
+        checkForLinkTriggers();
+      }
 
     }, 150);
   }
@@ -629,13 +642,20 @@
   }
 
   chrome.storage.onChanged.addListener((changes) => {
-    if (changes.ghosttype_phrases || changes.ghosttype_link_rules) {
+    if (changes.ghosttype_phrases || changes.ghosttype_link_rules || changes.ghosttype_config) {
       corpus.load().then(() => {
         console.log(
           '[GhostType] Updated —',
           corpus.phrases.size, 'phrases,',
-          corpus.linkRules.rules.size, 'link rules'
+          corpus.linkRules.rules.size, 'link rules,',
+          'enabled:', corpus.config.enabled !== false
         );
+
+        // If extension was just disabled, clean up any visible UI
+        if (corpus.config.enabled === false) {
+          hideSuggestions();
+          hideLinkPrompt();
+        }
       });
     }
   });
