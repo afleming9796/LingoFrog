@@ -1,6 +1,6 @@
 # GhostType — Chrome Extension
 
-Like a best friend, ghost-type finishes your sentences and helps insert relevant hyperlinks. Accept suggested completions with "tab". Add suggested hyperlinks with cmd/ctrl + L. Only works in chrome + gmail (on browser)
+Like a best friend, ghost-type finishes your sentences and inserts relevant hyperlinks. Accept suggested completions with "tab". Add suggested hyperlinks with cmd/ctrl + L. Only works in chrome + gmail (on browser). 
 
 ## Install (Developer Mode)
 
@@ -12,7 +12,7 @@ Like a best friend, ghost-type finishes your sentences and helps insert relevant
 
 ## Setup
 
-1. Create a file with your sentences you'd like to auto complete. 
+1. Create a file with your phrases you'd like to auto complete. 
 1. Click the GhostType icon in the toolbar
 2. Paste the content of your text file or drag-and-drop `.txt` files into the file drop area
 4. Click **Import Text**
@@ -27,6 +27,7 @@ Like a best friend, ghost-type finishes your sentences and helps insert relevant
 - **Tab** accepts the top suggestion
 - **↑/↓** arrows cycle through options
 - **Esc** dismisses suggestions
+- **Cmd+L** accepts hyperlink suggestions 
 
 ## Settings
 
@@ -40,4 +41,6 @@ Click the extension icon → **Settings** tab:
 
 You should maintain your corpus of phrases outside of the browser extension. You may need to clear the corpus and re-import your phrases after code updates. Note that you can lower the trigger threshold (i.e. number of characters) for suggestions. 
 
-Feature requests and PRs are welcome. 
+Phrases don't support special formatting or hyperlinks, but hyperlinks will get added based matching phrases in the links tab.
+
+GitHub issues and PRs are welcome. 
