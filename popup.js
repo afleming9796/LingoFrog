@@ -38,7 +38,9 @@ function updateStats() {
   statPhrases.textContent = stats.totalPhrases.toLocaleString();
   statLinks.textContent = stats.totalLinkRules;
   statActive.textContent = '●';
-  statActive.style.color = stats.totalPhrases > 0 ? '#a6e3a1' : '#f38ba8';
+  const isEnabled = corpus.config.enabled !== false;
+  statActive.style.color = isEnabled ? (stats.totalPhrases > 0 ? '#a6e3a1' : '#f38ba8') : '#6c7086';
+  statActive.title = isEnabled ? 'Enabled' : 'Disabled';
 }
 
 function updatePhraseList() {
@@ -120,8 +122,23 @@ function loadSettings() {
     if (data.ghosttype_config) {
       $('#set-trigger').value = data.ghosttype_config.triggerAfterChars || 8;
       $('#set-max').value = data.ghosttype_config.maxSuggestions || 5;
+      $('#set-enabled').checked = data.ghosttype_config.enabled !== false;
+      $('#set-autocomplete').checked = data.ghosttype_config.autoComplete !== false;
+      $('#set-autolink').checked = data.ghosttype_config.autoLink !== false;
     }
+    updateToggleStates();
   });
+}
+
+function updateToggleStates() {
+  const masterEnabled = $('#set-enabled').checked;
+  const rowAutoComplete = $('#row-autocomplete');
+  const rowAutoLink = $('#row-autolink');
+
+  rowAutoComplete.classList.toggle('disabled', !masterEnabled);
+  rowAutoLink.classList.toggle('disabled', !masterEnabled);
+  $('#set-autocomplete').disabled = !masterEnabled;
+  $('#set-autolink').disabled = !masterEnabled;
 }
 
 function showStatus(el, message, type) {
@@ -266,13 +283,19 @@ btnSaveSettings.addEventListener('click', () => {
   const config = {
     triggerAfterChars: parseInt($('#set-trigger').value) || 8,
     maxSuggestions: parseInt($('#set-max').value) || 5,
+    enabled: $('#set-enabled').checked,
+    autoComplete: $('#set-autocomplete').checked,
+    autoLink: $('#set-autolink').checked,
   };
 
   chrome.storage.local.set({ ghosttype_config: config }, () => {
     corpus.config = { ...corpus.config, ...config };
     showStatus(settingsStatus, '✓ Settings saved', 'success');
+    updateStats();
   });
 });
+
+$('#set-enabled').addEventListener('change', updateToggleStates);
 
 // ── Start ──────────────────────────────────────────────────
 
