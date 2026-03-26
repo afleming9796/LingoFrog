@@ -44,3 +44,6 @@ You should maintain your corpus of phrases outside of the browser extension. You
 Phrases don't support special formatting or hyperlinks, but hyperlinks will get added based matching phrases in the links tab.
 
 GitHub issues and PRs are welcome. 
+
+## If Developing 
+While developing and testing different versions, you may find yourself needing remove the extension via chrome://extensions and then add it back in, in which case you'll lose your attached corpous of phrases and links. It's best to export your phrases and links in this case and then import them back. 
