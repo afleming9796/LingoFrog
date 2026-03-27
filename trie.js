@@ -181,6 +181,28 @@ class LinkRules {
     return resolved;
   }
 
+  exportText() {
+    return this.getAll().map((r) => `${r.trigger}; ${r.url}`).join('\n');
+  }
+
+  async importBulk(text) {
+    const lines = text.split('\n');
+    let added = 0;
+    for (let line of lines) {
+      line = line.trim();
+      if (!line) continue;
+      const sepIdx = line.indexOf(';');
+      if (sepIdx === -1) continue;
+      const phrase = line.slice(0, sepIdx).trim();
+      const url = line.slice(sepIdx + 1).trim();
+      if (!phrase || !url) continue;
+      this.addRule(phrase, url);
+      added++;
+    }
+    await this.save();
+    return added;
+  }
+
   clear() {
     this.rules.clear();
   }
@@ -343,6 +365,43 @@ class Corpus {
       // phrase is the original-cased key; trie indexes lowercase, stores original
       this.trie.insert(phrase, phrase, score);
     }
+  }
+
+  exportText() {
+    return [...this.phrases.keys()].join('\n');
+  }
+
+  getAllPhrases(filter = '') {
+    const result = [];
+    const filterLower = filter.toLowerCase();
+    for (const [phrase, data] of this.phrases) {
+      if (filterLower && !phrase.toLowerCase().includes(filterLower)) continue;
+      result.push({
+        phrase,
+        frequency: data.frequency,
+        score: this._computeScore(phrase, data),
+      });
+    }
+    result.sort((a, b) => b.score - a.score);
+    return result;
+  }
+
+  async deletePhrase(phrase) {
+    this.phrases.delete(phrase);
+    this._rebuildTrie();
+    await this.save();
+  }
+
+  async editPhrase(oldPhrase, newPhrase) {
+    newPhrase = newPhrase.trim();
+    if (!newPhrase || newPhrase === oldPhrase) return false;
+    const data = this.phrases.get(oldPhrase);
+    if (!data) return false;
+    this.phrases.delete(oldPhrase);
+    this.phrases.set(newPhrase, data);
+    this._rebuildTrie();
+    await this.save();
+    return true;
   }
 
   getStats() {

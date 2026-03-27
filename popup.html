@@ -144,10 +144,24 @@
     }
     .setting-input:focus { border-color: #f5c2e7; }
 
-    .phrase-list { list-style: none; margin-top: 8px; }
+    .phrase-list { list-style: none; margin-top: 8px; max-height: 260px; overflow-y: auto; }
     .phrase-item { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 11px; border-bottom: 1px solid #31324488; }
     .phrase-freq { background: #313244; color: #9ca0b0; border-radius: 4px; padding: 1px 6px; font-size: 10px; font-weight: 600; flex-shrink: 0; }
-    .phrase-text { color: #bac2de; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .phrase-text { color: #bac2de; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; cursor: pointer; }
+    .phrase-text:hover { color: #f5c2e7; }
+    .phrase-delete { background: none; border: none; color: #f38ba8; cursor: pointer; font-size: 14px; padding: 0 4px; flex-shrink: 0; opacity: 0.5; transition: opacity 0.15s; }
+    .phrase-delete:hover { opacity: 1; }
+    .phrase-edit-input {
+      flex: 1;
+      background: #181825;
+      border: 1px solid #f5c2e7;
+      border-radius: 4px;
+      color: #cdd6f4;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 11px;
+      padding: 2px 6px;
+      outline: none;
+    }
 
     .link-form { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
     .link-form-row { display: flex; gap: 6px; align-items: center; }
@@ -272,12 +286,23 @@
     <div class="status" id="link-status"></div>
 
     <ul class="link-rule-list" id="link-rule-list"></ul>
+
+    <button class="btn btn-primary" id="btn-export-links" style="margin-top: 12px;">Copy All to Clipboard</button>
+
+    <div style="margin-top: 12px;">
+      <div style="color: #6c7086; font-size: 10px; margin-bottom: 6px;">Bulk import — one per line: <code style="color: #a6e3a1; background: #313244; padding: 1px 4px; border-radius: 3px;">phrase; https://url</code></div>
+      <textarea id="link-bulk-area" style="min-height: 80px;" placeholder="pricing page; https://example.com/pricing&#10;docs; https://docs.example.com"></textarea>
+      <button class="btn btn-primary" id="btn-bulk-import-links">Import Links</button>
+    </div>
+    <div class="status" id="link-bulk-status"></div>
   </div>
 
   <!-- Corpus Tab -->
   <div class="tab-content" id="tab-corpus">
-    <div style="color: #6c7086; font-size: 11px; margin-bottom: 8px;">Top phrases (by score):</div>
+    <input type="text" id="phrase-search" placeholder="Search phrases..." style="margin-bottom: 8px;">
     <ul class="phrase-list" id="phrase-list"></ul>
+    <button class="btn btn-primary" id="btn-export-phrases">Copy All to Clipboard</button>
+    <div class="status" id="corpus-status"></div>
     <button class="btn btn-danger" id="btn-clear">Clear Entire Corpus</button>
   </div>
 
