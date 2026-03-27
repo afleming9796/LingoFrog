@@ -381,57 +381,24 @@
     return div.innerHTML;
   }
 
-  function buildCompletionFragment(text, contextPrefix) {
+  function buildCompletionFragment(text) {
     const fragment = document.createDocumentFragment();
-    // How many characters of contextPrefix are consumed into the fragment
-    // (the caller must delete this many chars from the DOM before the cursor).
-    let prefixConsumed = 0;
-
-    if (corpus.config.autoLink === false) {
-      fragment.appendChild(document.createTextNode(text));
-      return { fragment, prefixConsumed };
-    }
-
-    // Search for links in the combined context (prefix + completion) so that
-    // trigger phrases spanning the typed/completed boundary are found.
-    const prefix = contextPrefix || '';
-    const combined = prefix + text;
-    const allLinks = corpus.linkRules.findLinks(combined);
-
-    // Keep only links that overlap into the completion portion (index >= prefix.length)
-    const links = [];
-    for (const link of allLinks) {
-      if (link.end <= prefix.length) continue; // entirely in prefix, skip
-      links.push(link); // keep original indices into `combined`
-    }
+    const links = corpus.config.autoLink === false ? [] : corpus.linkRules.findLinks(text);
 
     if (links.length === 0) {
       fragment.appendChild(document.createTextNode(text));
-      return { fragment, prefixConsumed };
+      return fragment;
     }
 
-    // Determine how far back into the prefix the earliest spanning link starts
-    const earliestStart = Math.min(...links.map(l => l.start));
-    prefixConsumed = Math.max(0, prefix.length - earliestStart);
-
-    // Build the fragment from the consumed portion of the combined string
-    const fragmentText = combined.slice(earliestStart);
-    // Shift link indices relative to fragmentText
-    const shifted = links.map(l => ({
-      ...l,
-      start: l.start - earliestStart,
-      end: l.end - earliestStart,
-    }));
-
     let cursor = 0;
-    for (const link of shifted) {
+    for (const link of links) {
       if (link.start > cursor) {
-        fragment.appendChild(document.createTextNode(fragmentText.slice(cursor, link.start)));
+        fragment.appendChild(document.createTextNode(text.slice(cursor, link.start)));
       }
 
       const a = document.createElement('a');
       a.href = link.url;
-      a.textContent = fragmentText.slice(link.start, link.end);
+      a.textContent = text.slice(link.start, link.end);
       a.target = '_blank';
       a.rel = 'noopener';
       fragment.appendChild(a);
@@ -439,11 +406,73 @@
       cursor = link.end;
     }
 
-    if (cursor < fragmentText.length) {
-      fragment.appendChild(document.createTextNode(fragmentText.slice(cursor)));
+    if (cursor < text.length) {
+      fragment.appendChild(document.createTextNode(text.slice(cursor)));
     }
 
-    return { fragment, prefixConsumed };
+    return fragment;
+  }
+
+  /**
+   * After a tab-completion is inserted as plain text, scan the text node
+   * the cursor is in for link-rule matches and auto-apply them.
+   * This runs *after* the DOM already contains the full phrase, so
+   * boundary issues between typed/completed text don't arise.
+   */
+  function applyLinksAroundCursor() {
+    if (corpus.config.autoLink === false) return;
+    if (corpus.linkRules.rules.size === 0) return;
+
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+
+    const range = sel.getRangeAt(0);
+    if (!range.collapsed) return;
+
+    let textNode = range.startContainer;
+    if (textNode.nodeType !== Node.TEXT_NODE) return;
+    if (textNode.parentNode && textNode.parentNode.tagName === 'A') return;
+
+    const text = textNode.textContent;
+    const matches = corpus.linkRules.findLinks(text);
+    if (matches.length === 0) return;
+
+    // Apply every match, working right-to-left to keep indices stable
+    const parent = textNode.parentNode;
+    if (!parent) return;
+
+    for (let i = matches.length - 1; i >= 0; i--) {
+      const m = matches[i];
+      const before = text.slice(0, m.start);
+      const linked = text.slice(m.start, m.end);
+      const after = text.slice(m.end);
+
+      const a = document.createElement('a');
+      a.href = m.url;
+      a.textContent = linked;
+      a.target = '_blank';
+      a.rel = 'noopener';
+
+      // Split: keep "before" in the original text node, insert <a> + "after" after it
+      if (after) {
+        parent.insertBefore(document.createTextNode(after), textNode.nextSibling);
+      }
+      parent.insertBefore(a, textNode.nextSibling);
+      textNode.textContent = before;
+
+      // Place cursor after the last link we process (the rightmost one, i.e. i === 0)
+      if (i === 0) {
+        const newRange = document.createRange();
+        if (a.nextSibling && a.nextSibling.nodeType === Node.TEXT_NODE) {
+          newRange.setStart(a.nextSibling, 0);
+        } else {
+          newRange.setStartAfter(a);
+        }
+        newRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+      }
+    }
   }
 
   // ── Completion Logic ────────────────────────────────────────
@@ -582,26 +611,22 @@
     const range = sel.getRangeAt(0);
     range.collapse(false);
 
-    // Pass the typed prefix so link rules spanning the typed/completed
-    // boundary can be detected (fixes #12).
-    const typedPrefix = selected.full.substring(0, selected.full.length - completion.length);
-    const { fragment, prefixConsumed } = buildCompletionFragment(completion, typedPrefix);
-
-    // If a link spans the typed/completed boundary, delete the prefix
-    // characters from the DOM so the full trigger phrase can be wrapped
-    // in a single <a> tag inside the fragment.
-    if (prefixConsumed > 0 && range.startContainer.nodeType === Node.TEXT_NODE) {
-      const deleteFrom = Math.max(0, range.startOffset - prefixConsumed);
-      range.startContainer.deleteData(deleteFrom, range.startOffset - deleteFrom);
-      range.setStart(range.startContainer, deleteFrom);
-      range.collapse(true);
-    }
-
-    range.insertNode(fragment);
+    // Step 1: insert the completion as plain text
+    const textNode = document.createTextNode(completion);
+    range.insertNode(textNode);
 
     range.collapse(false);
     sel.removeAllRanges();
     sel.addRange(range);
+
+    // Step 2: now that the DOM contains the full phrase, scan the
+    // text node the cursor sits in for link-rule matches and auto-
+    // wrap them (fixes #12 — no boundary issues since it's all one
+    // text node after the browser merges adjacent text).
+    if (range.startContainer.nodeType === Node.TEXT_NODE) {
+      range.startContainer.parentNode.normalize();
+    }
+    applyLinksAroundCursor();
 
     if (activeElement) {
       activeElement.dispatchEvent(new Event('input', { bubbles: true }));
