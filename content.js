@@ -414,65 +414,58 @@
   }
 
   /**
-   * After a tab-completion is inserted as plain text, scan the text node
-   * the cursor is in for link-rule matches and auto-apply them.
-   * This runs *after* the DOM already contains the full phrase, so
+   * Scan a text node for link-rule matches and wrap them in <a> tags.
+   * Called after tab-completion inserts plain text and normalize() merges
+   * adjacent text nodes, so the full phrase lives in one node and
    * boundary issues between typed/completed text don't arise.
+   * Returns the last DOM node produced (text or <a>), so the caller
+   * can position the cursor after it.  Returns null if nothing changed.
    */
-  function applyLinksAroundCursor() {
-    if (corpus.config.autoLink === false) return;
-    if (corpus.linkRules.rules.size === 0) return;
-
-    const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0) return;
-
-    const range = sel.getRangeAt(0);
-    if (!range.collapsed) return;
-
-    let textNode = range.startContainer;
-    if (textNode.nodeType !== Node.TEXT_NODE) return;
-    if (textNode.parentNode && textNode.parentNode.tagName === 'A') return;
+  function applyLinksInTextNode(textNode) {
+    if (corpus.config.autoLink === false) return null;
+    if (corpus.linkRules.rules.size === 0) return null;
+    if (!textNode || textNode.nodeType !== Node.TEXT_NODE) return null;
+    if (textNode.parentNode && textNode.parentNode.tagName === 'A') return null;
 
     const text = textNode.textContent;
     const matches = corpus.linkRules.findLinks(text);
-    if (matches.length === 0) return;
+    if (matches.length === 0) return null;
 
-    // Apply every match, working right-to-left to keep indices stable
     const parent = textNode.parentNode;
-    if (!parent) return;
+    if (!parent) return null;
 
-    for (let i = matches.length - 1; i >= 0; i--) {
-      const m = matches[i];
-      const before = text.slice(0, m.start);
-      const linked = text.slice(m.start, m.end);
-      const after = text.slice(m.end);
+    // We process left-to-right by building the replacement nodes,
+    // then swap out the original text node.
+    const frag = document.createDocumentFragment();
+    let cursor = 0;
+    let lastNode = null;
+
+    for (const m of matches) {
+      if (m.start > cursor) {
+        lastNode = document.createTextNode(text.slice(cursor, m.start));
+        frag.appendChild(lastNode);
+      }
 
       const a = document.createElement('a');
       a.href = m.url;
-      a.textContent = linked;
+      a.textContent = text.slice(m.start, m.end);
       a.target = '_blank';
       a.rel = 'noopener';
+      frag.appendChild(a);
+      lastNode = a;
 
-      // Split: keep "before" in the original text node, insert <a> + "after" after it
-      if (after) {
-        parent.insertBefore(document.createTextNode(after), textNode.nextSibling);
-      }
-      parent.insertBefore(a, textNode.nextSibling);
-      textNode.textContent = before;
-
-      // Place cursor after the last link we process (the rightmost one, i.e. i === 0)
-      if (i === 0) {
-        const newRange = document.createRange();
-        if (a.nextSibling && a.nextSibling.nodeType === Node.TEXT_NODE) {
-          newRange.setStart(a.nextSibling, 0);
-        } else {
-          newRange.setStartAfter(a);
-        }
-        newRange.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(newRange);
-      }
+      cursor = m.end;
     }
+
+    if (cursor < text.length) {
+      lastNode = document.createTextNode(text.slice(cursor));
+      frag.appendChild(lastNode);
+    }
+
+    parent.insertBefore(frag, textNode);
+    parent.removeChild(textNode);
+
+    return lastNode;
   }
 
   // ── Completion Logic ────────────────────────────────────────
@@ -615,18 +608,40 @@
     const textNode = document.createTextNode(completion);
     range.insertNode(textNode);
 
-    range.collapse(false);
-    sel.removeAllRanges();
-    sel.addRange(range);
+    // Step 2: merge adjacent text nodes so the typed prefix and the
+    // completion become one node (e.g. "How to ac" + "tivate your
+    // license" → "How to activate your license"), then scan for
+    // link-rule matches and auto-wrap them (fixes #12).
+    const parent = textNode.parentNode;
+    if (parent) {
+      // normalize() merges adjacent text nodes.  The inserted textNode
+      // may be absorbed into its previous sibling, so grab a reference
+      // to whichever node survives that contains our text.
+      const prevSibling = textNode.previousSibling;
+      parent.normalize();
+      const mergedNode = (prevSibling && prevSibling.nodeType === Node.TEXT_NODE)
+        ? prevSibling   // textNode was merged into its predecessor
+        : textNode;     // textNode is still the live node
 
-    // Step 2: now that the DOM contains the full phrase, scan the
-    // text node the cursor sits in for link-rule matches and auto-
-    // wrap them (fixes #12 — no boundary issues since it's all one
-    // text node after the browser merges adjacent text).
-    if (range.startContainer.nodeType === Node.TEXT_NODE) {
-      range.startContainer.parentNode.normalize();
+      const lastNode = applyLinksInTextNode(mergedNode);
+
+      // Place cursor at the end of the last node produced by link wrapping
+      // (or the merged text node itself if no links were applied).
+      const cursorTarget = lastNode || mergedNode;
+      const newRange = document.createRange();
+      if (cursorTarget.nodeType === Node.TEXT_NODE) {
+        newRange.setStart(cursorTarget, cursorTarget.length);
+      } else {
+        newRange.setStartAfter(cursorTarget);
+      }
+      newRange.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+    } else {
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
     }
-    applyLinksAroundCursor();
 
     if (activeElement) {
       activeElement.dispatchEvent(new Event('input', { bubbles: true }));
