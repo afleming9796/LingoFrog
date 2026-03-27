@@ -81,7 +81,7 @@
       text.className = 'ghosttype-text';
       const display = s.completion.length > 60 ? s.completion.slice(0, 60) + '…' : s.completion;
 
-      const links = corpus.linkRules.findLinks(s.completion);
+      const links = corpus.linkRules.findLinks(s.full);
       if (links.length > 0) {
         text.innerHTML = '🔗 ' + escapeHtml(display);
       } else {
@@ -413,6 +413,61 @@
     return fragment;
   }
 
+  /**
+   * Scan a text node for link-rule matches and wrap them in <a> tags.
+   * Called after tab-completion inserts plain text and normalize() merges
+   * adjacent text nodes, so the full phrase lives in one node and
+   * boundary issues between typed/completed text don't arise.
+   * Returns the last DOM node produced (text or <a>), so the caller
+   * can position the cursor after it.  Returns null if nothing changed.
+   */
+  function applyLinksInTextNode(textNode) {
+    if (corpus.config.autoLink === false) return null;
+    if (corpus.linkRules.rules.size === 0) return null;
+    if (!textNode || textNode.nodeType !== Node.TEXT_NODE) return null;
+    if (textNode.parentNode && textNode.parentNode.tagName === 'A') return null;
+
+    const text = textNode.textContent;
+    const matches = corpus.linkRules.findLinks(text);
+    if (matches.length === 0) return null;
+
+    const parent = textNode.parentNode;
+    if (!parent) return null;
+
+    // We process left-to-right by building the replacement nodes,
+    // then swap out the original text node.
+    const frag = document.createDocumentFragment();
+    let cursor = 0;
+    let lastNode = null;
+
+    for (const m of matches) {
+      if (m.start > cursor) {
+        lastNode = document.createTextNode(text.slice(cursor, m.start));
+        frag.appendChild(lastNode);
+      }
+
+      const a = document.createElement('a');
+      a.href = m.url;
+      a.textContent = text.slice(m.start, m.end);
+      a.target = '_blank';
+      a.rel = 'noopener';
+      frag.appendChild(a);
+      lastNode = a;
+
+      cursor = m.end;
+    }
+
+    if (cursor < text.length) {
+      lastNode = document.createTextNode(text.slice(cursor));
+      frag.appendChild(lastNode);
+    }
+
+    parent.insertBefore(frag, textNode);
+    parent.removeChild(textNode);
+
+    return lastNode;
+  }
+
   // ── Completion Logic ────────────────────────────────────────
 
   function getTypedText(element) {
@@ -549,12 +604,44 @@
     const range = sel.getRangeAt(0);
     range.collapse(false);
 
-    const fragment = buildCompletionFragment(completion);
-    range.insertNode(fragment);
+    // Step 1: insert the completion as plain text
+    const textNode = document.createTextNode(completion);
+    range.insertNode(textNode);
 
-    range.collapse(false);
-    sel.removeAllRanges();
-    sel.addRange(range);
+    // Step 2: merge adjacent text nodes so the typed prefix and the
+    // completion become one node (e.g. "How to ac" + "tivate your
+    // license" → "How to activate your license"), then scan for
+    // link-rule matches and auto-wrap them (fixes #12).
+    const parent = textNode.parentNode;
+    if (parent) {
+      // normalize() merges adjacent text nodes.  The inserted textNode
+      // may be absorbed into its previous sibling, so grab a reference
+      // to whichever node survives that contains our text.
+      const prevSibling = textNode.previousSibling;
+      parent.normalize();
+      const mergedNode = (prevSibling && prevSibling.nodeType === Node.TEXT_NODE)
+        ? prevSibling   // textNode was merged into its predecessor
+        : textNode;     // textNode is still the live node
+
+      const lastNode = applyLinksInTextNode(mergedNode);
+
+      // Place cursor at the end of the last node produced by link wrapping
+      // (or the merged text node itself if no links were applied).
+      const cursorTarget = lastNode || mergedNode;
+      const newRange = document.createRange();
+      if (cursorTarget.nodeType === Node.TEXT_NODE) {
+        newRange.setStart(cursorTarget, cursorTarget.length);
+      } else {
+        newRange.setStartAfter(cursorTarget);
+      }
+      newRange.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+    } else {
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
 
     if (activeElement) {
       activeElement.dispatchEvent(new Event('input', { bubbles: true }));
