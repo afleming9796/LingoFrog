@@ -12,3 +12,5 @@
 # Chrome extension development
 *.crx
 *.pem
+
+.claude/
