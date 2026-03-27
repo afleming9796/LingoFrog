@@ -81,7 +81,7 @@
       text.className = 'ghosttype-text';
       const display = s.completion.length > 60 ? s.completion.slice(0, 60) + '…' : s.completion;
 
-      const links = corpus.linkRules.findLinks(s.completion);
+      const links = corpus.linkRules.findLinks(s.full);
       if (links.length > 0) {
         text.innerHTML = '🔗 ' + escapeHtml(display);
       } else {
@@ -381,9 +381,30 @@
     return div.innerHTML;
   }
 
-  function buildCompletionFragment(text) {
+  function buildCompletionFragment(text, contextPrefix) {
     const fragment = document.createDocumentFragment();
-    const links = corpus.config.autoLink === false ? [] : corpus.linkRules.findLinks(text);
+
+    if (corpus.config.autoLink === false) {
+      fragment.appendChild(document.createTextNode(text));
+      return fragment;
+    }
+
+    // Search for links in the combined context (prefix + completion) so that
+    // trigger phrases spanning the typed/completed boundary are found.
+    const prefix = contextPrefix || '';
+    const combined = prefix + text;
+    const allLinks = corpus.linkRules.findLinks(combined);
+
+    // Keep only links that overlap into the completion portion (index >= prefix.length)
+    const links = [];
+    for (const link of allLinks) {
+      if (link.end <= prefix.length) continue; // entirely in prefix, skip
+      links.push({
+        ...link,
+        start: Math.max(link.start, prefix.length) - prefix.length,
+        end: link.end - prefix.length,
+      });
+    }
 
     if (links.length === 0) {
       fragment.appendChild(document.createTextNode(text));
@@ -549,7 +570,10 @@
     const range = sel.getRangeAt(0);
     range.collapse(false);
 
-    const fragment = buildCompletionFragment(completion);
+    // Pass the typed prefix so link rules spanning the typed/completed
+    // boundary can be detected (fixes #12).
+    const typedPrefix = selected.full.substring(0, selected.full.length - completion.length);
+    const fragment = buildCompletionFragment(completion, typedPrefix);
     range.insertNode(fragment);
 
     range.collapse(false);
