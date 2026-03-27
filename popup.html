@@ -108,19 +108,14 @@
     .btn-danger:hover { background: #31324422; border-color: #f38ba8; }
     .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    .file-drop {
-      border: 2px dashed #45475a;
-      border-radius: 8px;
-      padding: 20px;
-      text-align: center;
-      color: #6c7086;
-      font-size: 12px;
-      cursor: pointer;
-      transition: all 0.15s;
-      margin-bottom: 10px;
+    .import-type-toggle { display: flex; gap: 2px; margin-bottom: 10px; background: #181825; border-radius: 6px; padding: 3px; }
+    .import-type-btn {
+      flex: 1; padding: 6px 0; text-align: center; font-size: 11px; font-weight: 600;
+      color: #6c7086; background: transparent; border: none; cursor: pointer;
+      border-radius: 4px; transition: all 0.15s;
     }
-    .file-drop:hover, .file-drop.dragover { border-color: #f5c2e7; color: #cdd6f4; background: #313244; }
-    .file-drop input { display: none; }
+    .import-type-btn:hover { color: #cdd6f4; }
+    .import-type-btn.active { color: #f5c2e7; background: #313244; }
 
     .status { font-size: 11px; padding: 8px 12px; border-radius: 6px; margin-top: 8px; display: none; }
     .status.success { display: block; background: #1e3a2f; color: #a6e3a1; border: 1px solid #2d5a3f; }
@@ -163,11 +158,7 @@
       outline: none;
     }
 
-    .link-form { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
-    .link-form-row { display: flex; gap: 6px; align-items: center; }
-    .link-form-row label { font-size: 10px; color: #6c7086; width: 50px; flex-shrink: 0; text-transform: uppercase; letter-spacing: 0.3px; }
-
-    .link-rule-list { list-style: none; margin-top: 4px; max-height: 200px; overflow-y: auto; }
+    .link-rule-list { list-style: none; margin-top: 8px; max-height: 260px; overflow-y: auto; }
     .link-rule-item { display: flex; align-items: center; gap: 6px; padding: 6px 0; font-size: 11px; border-bottom: 1px solid #31324488; }
     .link-rule-trigger { color: #f5c2e7; font-weight: 600; flex-shrink: 0; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .link-rule-arrow { color: #45475a; flex-shrink: 0; }
@@ -175,18 +166,6 @@
     .link-rule-delete { background: none; border: none; color: #f38ba8; cursor: pointer; font-size: 14px; padding: 0 4px; flex-shrink: 0; opacity: 0.5; transition: opacity 0.15s; }
     .link-rule-delete:hover { opacity: 1; }
     .link-empty { color: #585b70; font-size: 11px; padding: 12px 0; text-align: center; }
-
-    .link-example {
-      background: #181825;
-      border: 1px solid #313244;
-      border-radius: 6px;
-      padding: 8px 10px;
-      margin-bottom: 10px;
-      font-size: 10px;
-      color: #6c7086;
-      line-height: 1.5;
-    }
-    .link-example code { color: #f5c2e7; background: #313244; padding: 1px 4px; border-radius: 3px; }
 
     .import-hint {
       background: #181825;
@@ -241,7 +220,7 @@
   </div>
 
   <div class="tabs">
-    <button class="tab active" data-tab="import">Phrases</button>
+    <button class="tab active" data-tab="import">Import</button>
     <button class="tab" data-tab="links">Links</button>
     <button class="tab" data-tab="corpus">Corpus</button>
     <button class="tab" data-tab="settings">Settings</button>
@@ -249,14 +228,14 @@
 
   <!-- Import Tab -->
   <div class="tab-content active" id="tab-import">
-    <div class="import-hint">
-      One phrase per line. Casing is preserved on insertion.<br>
-      e.g. <code>Thanks for the quick turnaround</code>
+    <div class="import-type-toggle">
+      <button class="import-type-btn active" data-type="phrases">Phrases</button>
+      <button class="import-type-btn" data-type="links">Links</button>
     </div>
 
-    <div class="file-drop" id="file-drop">
-      <div>📄 Drop .txt files here (one phrase per line)</div>
-      <input type="file" id="file-input" accept=".txt,.md,.csv" multiple>
+    <div class="import-hint" id="import-hint">
+      One phrase per line. Casing is preserved on insertion.<br>
+      e.g. <code>Thanks for the quick turnaround</code>
     </div>
 
     <textarea id="paste-area" placeholder="Paste phrases here, one per line...&#10;&#10;Thanks for the quick turnaround&#10;Please see the attached document&#10;Let me know if you have any questions&#10;I'd be happy to discuss further"></textarea>
@@ -267,34 +246,11 @@
 
   <!-- Links Tab -->
   <div class="tab-content" id="tab-links">
-    <div class="link-example">
-      When you type a trigger phrase, press <code>⌘L</code> to linkify it.<br>
-      e.g. <code>pricing page</code> → <code>https://example.com/pricing</code>
-    </div>
-
-    <div class="link-form">
-      <div class="link-form-row">
-        <label>Phrase</label>
-        <input type="text" id="link-trigger" placeholder="pricing page">
-      </div>
-      <div class="link-form-row">
-        <label>URL</label>
-        <input type="url" id="link-url" placeholder="https://example.com/pricing">
-      </div>
-    </div>
-    <button class="btn btn-primary" id="btn-add-link">Add Link Rule</button>
-    <div class="status" id="link-status"></div>
-
+    <input type="text" id="link-search" placeholder="Search links..." style="margin-bottom: 8px;">
     <ul class="link-rule-list" id="link-rule-list"></ul>
-
-    <button class="btn btn-primary" id="btn-export-links" style="margin-top: 12px;">Copy All to Clipboard</button>
-
-    <div style="margin-top: 12px;">
-      <div style="color: #6c7086; font-size: 10px; margin-bottom: 6px;">Bulk import — one per line: <code style="color: #a6e3a1; background: #313244; padding: 1px 4px; border-radius: 3px;">phrase; https://url</code></div>
-      <textarea id="link-bulk-area" style="min-height: 80px;" placeholder="pricing page; https://example.com/pricing&#10;docs; https://docs.example.com"></textarea>
-      <button class="btn btn-primary" id="btn-bulk-import-links">Import Links</button>
-    </div>
-    <div class="status" id="link-bulk-status"></div>
+    <button class="btn btn-primary" id="btn-export-links">Copy All to Clipboard</button>
+    <div class="status" id="link-status"></div>
+    <button class="btn btn-danger" id="btn-clear-links">Clear All Links</button>
   </div>
 
   <!-- Corpus Tab -->
