@@ -1,5 +1,5 @@
 /**
- * popup.js — GhostType popup logic.
+ * popup.js — TypeLess popup logic.
  */
 
 const corpus = new Corpus();
@@ -174,13 +174,13 @@ function updateLinkRuleList() {
 }
 
 function loadSettings() {
-  chrome.storage.local.get(['ghosttype_config'], (data) => {
-    if (data.ghosttype_config) {
-      $('#set-trigger').value = data.ghosttype_config.triggerAfterChars || 8;
-      $('#set-max').value = data.ghosttype_config.maxSuggestions || 5;
-      $('#set-enabled').checked = data.ghosttype_config.enabled !== false;
-      $('#set-autocomplete').checked = data.ghosttype_config.autoComplete !== false;
-      $('#set-autolink').checked = data.ghosttype_config.autoLink !== false;
+  chrome.storage.local.get(['typeless_config'], (data) => {
+    if (data.typeless_config) {
+      $('#set-trigger').value = data.typeless_config.triggerAfterChars || 8;
+      $('#set-max').value = data.typeless_config.maxSuggestions || 5;
+      $('#set-enabled').checked = data.typeless_config.enabled !== false;
+      $('#set-autocomplete').checked = data.typeless_config.autoComplete !== false;
+      $('#set-autolink').checked = data.typeless_config.autoLink !== false;
     }
     updateToggleStates();
   });
@@ -345,7 +345,7 @@ btnSaveSettings.addEventListener('click', () => {
     autoLink: $('#set-autolink').checked,
   };
 
-  chrome.storage.local.set({ ghosttype_config: config }, () => {
+  chrome.storage.local.set({ typeless_config: config }, () => {
     corpus.config = { ...corpus.config, ...config };
     showStatus(settingsStatus, '\u2713 Settings saved', 'success');
     updateStats();

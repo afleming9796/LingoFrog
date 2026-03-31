@@ -1,5 +1,5 @@
 /**
- * content.js — GhostType content script.
+ * content.js — TypeLess content script.
  *
  * Tab       → accept autocomplete suggestion
  * Cmd+L     → accept link prompt (linkify detected phrase)
@@ -33,7 +33,7 @@
     attachListeners();
     initialized = true;
     console.log(
-      '[GhostType] Loaded —',
+      '[TypeLess] Loaded —',
       corpus.phrases.size, 'phrases,',
       corpus.linkRules.rules.size, 'link rules'
     );
@@ -43,13 +43,13 @@
 
   function createSuggestionUI() {
     suggestionBox = document.createElement('div');
-    suggestionBox.id = 'ghosttype-suggestions';
-    suggestionBox.className = 'ghosttype-box';
+    suggestionBox.id = 'typeless-suggestions';
+    suggestionBox.className = 'typeless-box';
     document.body.appendChild(suggestionBox);
 
     ghostSpan = document.createElement('span');
-    ghostSpan.id = 'ghosttype-ghost';
-    ghostSpan.className = 'ghosttype-ghost';
+    ghostSpan.id = 'typeless-ghost';
+    ghostSpan.className = 'typeless-ghost';
   }
 
   function showSuggestions(suggestions, anchorRect) {
@@ -64,21 +64,21 @@
     suggestionBox.innerHTML = '';
 
     const header = document.createElement('div');
-    header.className = 'ghosttype-header';
-    header.textContent = '⌨ GhostType';
+    header.className = 'typeless-header';
+    header.textContent = '⌨ TypeLess';
     suggestionBox.appendChild(header);
 
     suggestions.forEach((s, i) => {
       const item = document.createElement('div');
-      item.className = 'ghosttype-item' + (i === 0 ? ' ghosttype-selected' : '');
+      item.className = 'typeless-item' + (i === 0 ? ' typeless-selected' : '');
       item.dataset.index = i;
 
       const num = document.createElement('span');
-      num.className = 'ghosttype-num';
+      num.className = 'typeless-num';
       num.textContent = `${i + 1}`;
 
       const text = document.createElement('span');
-      text.className = 'ghosttype-text';
+      text.className = 'typeless-text';
       const display = s.completion.length > 60 ? s.completion.slice(0, 60) + '…' : s.completion;
 
       const links = corpus.linkRules.findLinks(s.full);
@@ -102,7 +102,7 @@
     });
 
     const hint = document.createElement('div');
-    hint.className = 'ghosttype-hint';
+    hint.className = 'typeless-hint';
     hint.textContent = 'Tab accept · ↑↓ cycle · Esc close';
     suggestionBox.appendChild(hint);
 
@@ -135,9 +135,9 @@
 
   function updateSelection(newIndex) {
     selectedIndex = newIndex;
-    const items = suggestionBox.querySelectorAll('.ghosttype-item');
+    const items = suggestionBox.querySelectorAll('.typeless-item');
     items.forEach((item, i) => {
-      item.classList.toggle('ghosttype-selected', i === selectedIndex);
+      item.classList.toggle('typeless-selected', i === selectedIndex);
     });
     if (currentSuggestions[selectedIndex]) {
       showGhostText(currentSuggestions[selectedIndex].completion);
@@ -156,7 +156,7 @@
     if (!range.collapsed) return;
 
     ghostSpan = document.createElement('span');
-    ghostSpan.className = 'ghosttype-ghost';
+    ghostSpan.className = 'typeless-ghost';
     ghostSpan.textContent = text;
     ghostSpan.contentEditable = 'false';
 
@@ -170,7 +170,7 @@
   }
 
   function removeGhostText() {
-    const existing = document.querySelectorAll('.ghosttype-ghost');
+    const existing = document.querySelectorAll('.typeless-ghost');
     existing.forEach((el) => el.remove());
   }
 
@@ -178,8 +178,8 @@
 
   function createLinkPromptUI() {
     linkPromptBox = document.createElement('div');
-    linkPromptBox.id = 'ghosttype-link-prompt';
-    linkPromptBox.className = 'ghosttype-link-prompt';
+    linkPromptBox.id = 'typeless-link-prompt';
+    linkPromptBox.className = 'typeless-link-prompt';
     document.body.appendChild(linkPromptBox);
   }
 
@@ -191,19 +191,19 @@
     linkPromptBox.innerHTML = '';
 
     const icon = document.createElement('span');
-    icon.className = 'ghosttype-lp-icon';
+    icon.className = 'typeless-lp-icon';
     icon.textContent = '🔗';
 
     const label = document.createElement('span');
-    label.className = 'ghosttype-lp-label';
+    label.className = 'typeless-lp-label';
     label.innerHTML = 'Link <strong>' + escapeHtml(trigger) + '</strong>';
 
     const urlHint = document.createElement('span');
-    urlHint.className = 'ghosttype-lp-url';
+    urlHint.className = 'typeless-lp-url';
     urlHint.textContent = domain;
 
     const hint = document.createElement('span');
-    hint.className = 'ghosttype-lp-hint';
+    hint.className = 'typeless-lp-hint';
     hint.textContent = '⌘L';
 
     linkPromptBox.appendChild(icon);
@@ -298,7 +298,7 @@
         activeElement.dispatchEvent(new Event('input', { bubbles: true }));
       }
     } catch (e) {
-      console.error('[GhostType] Link prompt apply error:', e);
+      console.error('[TypeLess] Link prompt apply error:', e);
     }
 
     hideLinkPrompt();
@@ -503,7 +503,7 @@
       // Skip ghost text nodes
       if (currentNode.parentNode &&
           currentNode.parentNode.classList &&
-          currentNode.parentNode.classList.contains('ghosttype-ghost')) {
+          currentNode.parentNode.classList.contains('typeless-ghost')) {
         continue;
       }
 
@@ -729,10 +729,10 @@
   }
 
   chrome.storage.onChanged.addListener((changes) => {
-    if (changes.ghosttype_phrases || changes.ghosttype_link_rules || changes.ghosttype_config) {
+    if (changes.typeless_phrases || changes.typeless_link_rules || changes.typeless_config) {
       corpus.load().then(() => {
         console.log(
-          '[GhostType] Updated —',
+          '[TypeLess] Updated —',
           corpus.phrases.size, 'phrases,',
           corpus.linkRules.rules.size, 'link rules,',
           'enabled:', corpus.config.enabled !== false

@@ -1,6 +1,6 @@
-/* ghosttype.css — Styles for GhostType suggestion UI and link prompt */
+/* typeless.css — Styles for TypeLess suggestion UI and link prompt */
 
-.ghosttype-ghost {
+.typeless-ghost {
   color: #9ca0b0 !important;
   opacity: 0.6 !important;
   font-style: italic !important;
@@ -13,7 +13,7 @@
   margin: 0 !important;
 }
 
-.ghosttype-box {
+.typeless-box {
   display: none;
   position: fixed;
   z-index: 2147483647;
@@ -31,7 +31,7 @@
   -webkit-backdrop-filter: blur(12px);
 }
 
-.ghosttype-header {
+.typeless-header {
   color: #6c7086;
   font-size: 10px;
   padding: 4px 12px 4px;
@@ -40,7 +40,7 @@
   margin-bottom: 2px;
 }
 
-.ghosttype-item {
+.typeless-item {
   display: flex;
   align-items: center;
   padding: 5px 12px;
@@ -49,12 +49,12 @@
   gap: 8px;
 }
 
-.ghosttype-item:hover { background: #292940; }
-.ghosttype-item.ghosttype-selected { background: #313244; }
-.ghosttype-item.ghosttype-selected .ghosttype-text { color: #f5c2e7; }
-.ghosttype-item.ghosttype-selected .ghosttype-num { background: #f5c2e7; color: #1e1e2e; }
+.typeless-item:hover { background: #292940; }
+.typeless-item.typeless-selected { background: #313244; }
+.typeless-item.typeless-selected .typeless-text { color: #f5c2e7; }
+.typeless-item.typeless-selected .typeless-num { background: #f5c2e7; color: #1e1e2e; }
 
-.ghosttype-num {
+.typeless-num {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -68,7 +68,7 @@
   flex-shrink: 0;
 }
 
-.ghosttype-text {
+.typeless-text {
   color: #cdd6f4;
   white-space: nowrap;
   overflow: hidden;
@@ -76,7 +76,7 @@
   line-height: 1.4;
 }
 
-.ghosttype-hint {
+.typeless-hint {
   color: #585b70;
   font-size: 10px;
   padding: 4px 12px 4px;
@@ -86,7 +86,7 @@
 
 /* ── Link Prompt ─────────────────────────────────────────── */
 
-.ghosttype-link-prompt {
+.typeless-link-prompt {
   display: none;
   position: fixed;
   z-index: 2147483647;
@@ -104,16 +104,16 @@
   white-space: nowrap;
 }
 
-.ghosttype-link-prompt:hover {
+.typeless-link-prompt:hover {
   border-color: #b4befe;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 0 2px rgba(137, 180, 250, 0.25);
 }
 
-.ghosttype-lp-icon { font-size: 12px; flex-shrink: 0; }
-.ghosttype-lp-label { color: #cdd6f4; }
-.ghosttype-lp-label strong { color: #f5c2e7; font-weight: 600; }
+.typeless-lp-icon { font-size: 12px; flex-shrink: 0; }
+.typeless-lp-label { color: #cdd6f4; }
+.typeless-lp-label strong { color: #f5c2e7; font-weight: 600; }
 
-.ghosttype-lp-url {
+.typeless-lp-url {
   color: #89b4fa;
   font-size: 10px;
   opacity: 0.7;
@@ -122,7 +122,7 @@
   text-overflow: ellipsis;
 }
 
-.ghosttype-lp-hint {
+.typeless-lp-hint {
   display: inline-flex;
   align-items: center;
   justify-content: center;
