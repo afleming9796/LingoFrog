@@ -1,5 +1,5 @@
 /**
- * trie.js — Prefix trie, corpus manager, and link rules for GhostType.
+ * trie.js — Prefix trie, corpus manager, and link rules for TypeLess.
  *
  * Exact prefix matching only. Case-insensitive matching,
  * case-preserving insertion. Score = frequency × recencyBoost.
@@ -102,9 +102,9 @@ class LinkRules {
 
   async load() {
     return new Promise((resolve) => {
-      chrome.storage.local.get(['ghosttype_link_rules'], (data) => {
-        if (data.ghosttype_link_rules) {
-          this.rules = new Map(Object.entries(data.ghosttype_link_rules));
+      chrome.storage.local.get(['typeless_link_rules'], (data) => {
+        if (data.typeless_link_rules) {
+          this.rules = new Map(Object.entries(data.typeless_link_rules));
         }
         resolve();
       });
@@ -114,7 +114,7 @@ class LinkRules {
   async save() {
     const obj = Object.fromEntries(this.rules);
     return new Promise((resolve) => {
-      chrome.storage.local.set({ ghosttype_link_rules: obj }, resolve);
+      chrome.storage.local.set({ typeless_link_rules: obj }, resolve);
     });
   }
 
@@ -227,13 +227,13 @@ class Corpus {
 
   async load() {
     return new Promise((resolve) => {
-      chrome.storage.local.get(['ghosttype_phrases', 'ghosttype_config'], (data) => {
-        if (data.ghosttype_config) {
-          Object.assign(this.config, data.ghosttype_config);
+      chrome.storage.local.get(['typeless_phrases', 'typeless_config'], (data) => {
+        if (data.typeless_config) {
+          Object.assign(this.config, data.typeless_config);
         }
 
-        if (data.ghosttype_phrases) {
-          this.phrases = new Map(Object.entries(data.ghosttype_phrases));
+        if (data.typeless_phrases) {
+          this.phrases = new Map(Object.entries(data.typeless_phrases));
         }
 
         this._rebuildTrie();
@@ -245,7 +245,7 @@ class Corpus {
   async save() {
     const obj = Object.fromEntries(this.phrases);
     return new Promise((resolve) => {
-      chrome.storage.local.set({ ghosttype_phrases: obj }, resolve);
+      chrome.storage.local.set({ typeless_phrases: obj }, resolve);
     });
   }
 
@@ -431,7 +431,7 @@ class Corpus {
     this.phrases.clear();
     this.trie.clear();
     await new Promise((resolve) => {
-      chrome.storage.local.remove(['ghosttype_phrases'], resolve);
+      chrome.storage.local.remove(['typeless_phrases'], resolve);
     });
   }
 }
