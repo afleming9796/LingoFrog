@@ -1,6 +1,6 @@
 # TypeLess — Chrome Extension
 
-Like a best friend, TypeLess finishes your sentences and inserts relevant hyperlinks. Accept suggested completions with "tab". Add suggested hyperlinks with cmd/ctrl + L. Only works in chrome + gmail (on browser).
+Like a best friend, TypeLess finishes your sentences and inserts relevant hyperlinks. Accept suggested completions with "tab". Add suggested hyperlinks with cmd + L. Only works in chrome + gmail (on browser).
 
 ## Install (Developer Mode)
 
