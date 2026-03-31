@@ -39,9 +39,11 @@ Click the extension icon → **Settings** tab:
 
 ## Tips
 
-You should maintain your corpus of phrases outside of the browser extension. You may need to clear the corpus and re-import your phrases after code updates. Note that you can lower the trigger threshold (i.e. number of characters) for suggestions.
+You should maintain your corpus of phrases outside of the browser extension. You may need to clear the corpus and re-import your phrases after code updates. 
 
-Phrases don't support special formatting or hyperlinks, but hyperlinks will get added based matching phrases in the links tab.
+Note that you can lower the trigger threshold (i.e. number of characters) for suggestions.
+
+Phrases don't support special formatting or hyperlinks, but hyperlinks will get added based on matching link text. 
 
 GitHub issues and PRs are welcome.
 
