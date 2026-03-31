@@ -4,29 +4,25 @@ Like a best friend, TypeLess finishes your sentences and inserts relevant hyperl
 
 ## Install (Developer Mode)
 
-1. Open Chrome and go to `chrome://extensions/`
-2. Enable **Developer mode** (toggle in top-right)
-3. Click **Load unpacked**
-4. Select this `typeless-ext` folder
-5. The TypeLess icon (⌨) will appear in your toolbar
+1. Download this repo locally 
+2. Open Chrome and go to `chrome://extensions/`
+3. Enable **Developer mode** (toggle in top-right)
+4. Click **Load unpacked**
+5. Select this repo
+6. The TypeLess icon will appear in the puzzle-piece Extensions icon 
 
 ## Setup
 
-1. Create a file with your phrases you'd like to auto complete.
-1. Click the TypeLess icon in the toolbar
-2. Paste the content of your text file or drag-and-drop `.txt` files into the file drop area
-4. Click **Import Text**
-5. Done — start typing in Gmail and suggestions will appear
-6. You might need to refresh your screen
+1. Add your favorite phrases and links via the import tab.
+2. Start typing in Gmail and suggestions will appear. You might need to refresh your screen
+3. Consider exporting your phrases and links to a local txt file (also useful for bulk editing)
 
 ## How It Works
 
 - **Type in Gmail** — after a few characters, TypeLess checks your corpus for matching phrases
-- **Gray ghost text** appears inline showing the top completion
 - **A dropdown** shows up to relevant matches
 - **Tab** accepts the top suggestion
 - **↑/↓** arrows cycle through options
-- **Esc** dismisses suggestions
 - **Cmd+L** accepts hyperlink suggestions
 
 ## Settings
