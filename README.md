@@ -15,7 +15,8 @@ Like a best friend, TypeLess finishes your sentences and inserts relevant hyperl
 
 1. Add your favorite phrases and links via the import tab.
 2. Start typing in Gmail and suggestions will appear. You might need to refresh your screen
-3. Consider exporting your phrases and links to a local txt file (also useful for bulk editing)
+3. Use Cmd+L to insert hyperlinks based on matches. If you highlight a phrase, CMD+L will open a drop down of links to insert.
+4. Consider exporting your phrases and links to a local txt file (also useful for bulk editing)
 
 ## How It Works
 
@@ -24,6 +25,7 @@ Like a best friend, TypeLess finishes your sentences and inserts relevant hyperl
 - **Tab** accepts the top suggestion
 - **↑/↓** arrows cycle through options
 - **Cmd+L** accepts hyperlink suggestions
+- **Highlight + CMD+L** brings up dropdown of your links to insert
 
 ## Settings
 
