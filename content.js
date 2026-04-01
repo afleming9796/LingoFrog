@@ -3,6 +3,7 @@
  *
  * Tab       → accept autocomplete suggestion
  * Cmd+L     → accept link prompt (linkify detected phrase)
+ *              OR open link search when text is selected
  * Esc       → dismiss either
  * Keep typing → dismisses link prompt
  */
@@ -23,6 +24,14 @@
   let linkPromptBox = null;
   let pendingLink = null;
 
+  // ── Link Search Popup State ────────────────────────────────
+  let linkSearchBox = null;
+  let linkSearchInput = null;
+  let linkSearchList = null;
+  let linkSearchResults = [];
+  let linkSearchIndex = 0;
+  let linkSearchSelection = null; // { range, text } saved when popup opens
+
   // ── Initialization ──────────────────────────────────────────
 
   async function init() {
@@ -30,6 +39,7 @@
     await corpus.load();
     createSuggestionUI();
     createLinkPromptUI();
+    createLinkSearchUI();
     attachListeners();
     initialized = true;
     console.log(
@@ -302,6 +312,218 @@
     }
 
     hideLinkPrompt();
+  }
+
+  // ── Link Search Popup ────────────────────────────────────────
+
+  function createLinkSearchUI() {
+    linkSearchBox = document.createElement('div');
+    linkSearchBox.id = 'typeless-link-search';
+    linkSearchBox.className = 'typeless-link-search';
+
+    const header = document.createElement('div');
+    header.className = 'typeless-ls-header';
+    header.textContent = '🔗 Insert Link';
+    linkSearchBox.appendChild(header);
+
+    linkSearchInput = document.createElement('input');
+    linkSearchInput.className = 'typeless-ls-input';
+    linkSearchInput.type = 'text';
+    linkSearchInput.placeholder = 'Search links…';
+    linkSearchBox.appendChild(linkSearchInput);
+
+    linkSearchList = document.createElement('div');
+    linkSearchList.className = 'typeless-ls-list';
+    linkSearchBox.appendChild(linkSearchList);
+
+    const hint = document.createElement('div');
+    hint.className = 'typeless-ls-hint';
+    hint.textContent = '↑↓ navigate · Enter or ⌘L insert · Esc close';
+    linkSearchBox.appendChild(hint);
+
+    document.body.appendChild(linkSearchBox);
+
+    linkSearchInput.addEventListener('input', () => {
+      renderLinkSearchResults(linkSearchInput.value);
+    });
+
+    linkSearchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (linkSearchResults.length) {
+          linkSearchIndex = (linkSearchIndex + 1) % linkSearchResults.length;
+          updateLinkSearchSelection();
+        }
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (linkSearchResults.length) {
+          linkSearchIndex = (linkSearchIndex - 1 + linkSearchResults.length) % linkSearchResults.length;
+          updateLinkSearchSelection();
+        }
+      } else if (e.key === 'Enter' || ((e.metaKey || e.ctrlKey) && e.key === 'l')) {
+        e.preventDefault();
+        e.stopPropagation();
+        acceptLinkSearch();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        hideLinkSearch();
+      }
+    });
+  }
+
+  function showLinkSearch() {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+
+    const range = sel.getRangeAt(0);
+    const text = sel.toString().trim();
+    if (!text) return;
+
+    linkSearchSelection = { range: range.cloneRange(), text };
+
+    const rect = range.getBoundingClientRect();
+    let left = rect.left;
+    let top = rect.bottom + 6;
+
+    const boxWidth = 320;
+    if (left + boxWidth > window.innerWidth) {
+      left = window.innerWidth - boxWidth - 10;
+    }
+    if (top + 260 > window.innerHeight) {
+      top = rect.top - 260;
+    }
+
+    linkSearchBox.style.left = left + 'px';
+    linkSearchBox.style.top = top + 'px';
+    linkSearchBox.style.display = 'block';
+
+    linkSearchInput.value = '';
+    renderLinkSearchResults('');
+
+    // Focus the input after a tick so the selection isn't clobbered
+    setTimeout(() => linkSearchInput.focus(), 0);
+  }
+
+  function hideLinkSearch() {
+    if (linkSearchBox) linkSearchBox.style.display = 'none';
+    linkSearchResults = [];
+    linkSearchIndex = 0;
+    linkSearchSelection = null;
+  }
+
+  function renderLinkSearchResults(filter) {
+    const all = corpus.linkRules.getAll();
+    const lower = filter.toLowerCase();
+    linkSearchResults = lower
+      ? all.filter((r) => r.trigger.includes(lower) || r.url.toLowerCase().includes(lower))
+      : all;
+
+    linkSearchIndex = 0;
+    linkSearchList.innerHTML = '';
+
+    if (linkSearchResults.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'typeless-ls-empty';
+      empty.textContent = filter ? 'No matching links' : 'No link rules defined';
+      linkSearchList.appendChild(empty);
+      return;
+    }
+
+    linkSearchResults.forEach((r, i) => {
+      const item = document.createElement('div');
+      item.className = 'typeless-ls-item' + (i === 0 ? ' typeless-ls-selected' : '');
+      item.dataset.index = i;
+
+      const trigger = document.createElement('span');
+      trigger.className = 'typeless-ls-trigger';
+      trigger.textContent = r.trigger;
+
+      const url = document.createElement('span');
+      url.className = 'typeless-ls-url';
+      url.textContent = r.url.replace(/^https?:\/\//, '').split('/')[0];
+
+      item.appendChild(trigger);
+      item.appendChild(url);
+
+      item.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        linkSearchIndex = i;
+        acceptLinkSearch();
+      });
+
+      linkSearchList.appendChild(item);
+    });
+  }
+
+  function updateLinkSearchSelection() {
+    const items = linkSearchList.querySelectorAll('.typeless-ls-item');
+    items.forEach((item, i) => {
+      item.classList.toggle('typeless-ls-selected', i === linkSearchIndex);
+    });
+    // Scroll selected item into view
+    const selected = items[linkSearchIndex];
+    if (selected) selected.scrollIntoView({ block: 'nearest' });
+  }
+
+  function acceptLinkSearch() {
+    if (!linkSearchSelection || linkSearchResults.length === 0) {
+      hideLinkSearch();
+      return;
+    }
+
+    const chosen = linkSearchResults[linkSearchIndex];
+    const { range } = linkSearchSelection;
+
+    try {
+      const a = document.createElement('a');
+      a.href = chosen.url;
+      a.target = '_blank';
+      a.rel = 'noopener';
+
+      // Extract the selected content as the link text
+      range.surroundContents(a);
+
+      // Place cursor after the link
+      const sel = window.getSelection();
+      const newRange = document.createRange();
+      newRange.setStartAfter(a);
+      newRange.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+
+      if (activeElement) {
+        activeElement.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    } catch (e) {
+      // surroundContents fails if selection spans multiple elements;
+      // fall back to replacing the range with a link containing the text
+      try {
+        const text = range.toString();
+        range.deleteContents();
+        const a = document.createElement('a');
+        a.href = chosen.url;
+        a.textContent = text;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        range.insertNode(a);
+
+        const sel = window.getSelection();
+        const newRange = document.createRange();
+        newRange.setStartAfter(a);
+        newRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+
+        if (activeElement) {
+          activeElement.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      } catch (err) {
+        console.error('[TypeLess] Link search insert error:', err);
+      }
+    }
+
+    hideLinkSearch();
   }
 
   function checkForLinkTriggers() {
@@ -692,6 +914,18 @@
         }
       }
 
+      // ── Link search popup: Esc dismisses (keyboard handled by its own input) ──
+      if (linkSearchBox && linkSearchBox.style.display === 'block') {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          hideLinkSearch();
+          return;
+        }
+        // Let the search input handle everything else
+        return;
+      }
+
       // ── Link prompt: Cmd+L, Esc, or typing dismisses ──
       if (pendingLink) {
         if ((e.metaKey || e.ctrlKey) && e.key === 'l') {
@@ -708,12 +942,28 @@
           setTimeout(() => hideLinkPrompt(), 0);
         }
       }
+
+      // ── Cmd+L with selected text: open link search ──
+      if ((e.metaKey || e.ctrlKey) && e.key === 'l') {
+        const sel = window.getSelection();
+        if (sel && !sel.isCollapsed && sel.toString().trim()) {
+          const el = document.activeElement;
+          if (isEditableField(el)) {
+            e.preventDefault();
+            e.stopPropagation();
+            activeElement = el;
+            showLinkSearch();
+            return;
+          }
+        }
+      }
     }, true);
 
     document.addEventListener('click', (e) => {
-      if (!suggestionBox?.contains(e.target) && !linkPromptBox?.contains(e.target)) {
+      if (!suggestionBox?.contains(e.target) && !linkPromptBox?.contains(e.target) && !linkSearchBox?.contains(e.target)) {
         hideSuggestions();
         hideLinkPrompt();
+        hideLinkSearch();
       }
     }, true);
 
