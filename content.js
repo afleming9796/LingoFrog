@@ -570,6 +570,13 @@
 
     const match = matches[matches.length - 1];
 
+    // Auto-dismiss: if the user keeps typing more than 5 chars past the
+    // matched phrase, hide the prompt (fixes #18).
+    if (offset - match.end > 5) {
+      if (pendingLink) hideLinkPrompt();
+      return;
+    }
+
     if (pendingLink &&
         pendingLink.textNode === textNode &&
         pendingLink.trigger === match.trigger &&
