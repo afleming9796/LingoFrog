@@ -174,13 +174,13 @@ function updateLinkRuleList() {
 }
 
 function loadSettings() {
-  chrome.storage.local.get(['typeless_config'], (data) => {
-    if (data.typeless_config) {
-      $('#set-trigger').value = data.typeless_config.triggerAfterChars || 8;
-      $('#set-max').value = data.typeless_config.maxSuggestions || 5;
-      $('#set-enabled').checked = data.typeless_config.enabled !== false;
-      $('#set-autocomplete').checked = data.typeless_config.autoComplete !== false;
-      $('#set-autolink').checked = data.typeless_config.autoLink !== false;
+  chrome.storage.local.get(['lingofrog_config'], (data) => {
+    if (data.lingofrog_config) {
+      $('#set-trigger').value = data.lingofrog_config.triggerAfterChars || 8;
+      $('#set-max').value = data.lingofrog_config.maxSuggestions || 5;
+      $('#set-enabled').checked = data.lingofrog_config.enabled !== false;
+      $('#set-autocomplete').checked = data.lingofrog_config.autoComplete !== false;
+      $('#set-autolink').checked = data.lingofrog_config.autoLink !== false;
     }
     updateToggleStates();
   });
@@ -345,7 +345,7 @@ btnSaveSettings.addEventListener('click', () => {
     autoLink: $('#set-autolink').checked,
   };
 
-  chrome.storage.local.set({ typeless_config: config }, () => {
+  chrome.storage.local.set({ lingofrog_config: config }, () => {
     corpus.config = { ...corpus.config, ...config };
     showStatus(settingsStatus, '\u2713 Settings saved', 'success');
     updateStats();
