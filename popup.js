@@ -1,5 +1,5 @@
 /**
- * popup.js — TypeLess popup logic.
+ * popup.js — LingoFrog popup logic.
  */
 
 const corpus = new Corpus();
