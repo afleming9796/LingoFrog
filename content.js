@@ -49,6 +49,31 @@
     );
   }
 
+  // Clamp a popup to stay within the viewport. Must be called after
+  // the popup is visible so getBoundingClientRect reports the rendered
+  // size. If the popup would overflow vertically, flip above the anchor.
+  function clampToViewport(el, anchorRect) {
+    const margin = 10;
+    const rect = el.getBoundingClientRect();
+    let left = rect.left;
+    let top = rect.top;
+
+    if (left + rect.width > window.innerWidth - margin) {
+      left = window.innerWidth - rect.width - margin;
+    }
+    if (left < margin) left = margin;
+
+    if (top + rect.height > window.innerHeight - margin) {
+      top = anchorRect
+        ? anchorRect.top - rect.height - 4
+        : window.innerHeight - rect.height - margin;
+    }
+    if (top < margin) top = margin;
+
+    el.style.left = left + 'px';
+    el.style.top = top + 'px';
+  }
+
   // ── Suggestion Box UI ───────────────────────────────────────
 
   function createSuggestionUI() {
@@ -122,22 +147,12 @@
     suggestionBox.appendChild(hint);
 
     if (anchorRect) {
-      const boxWidth = 380;
-      let left = anchorRect.left;
-      let top = anchorRect.bottom + 4;
-
-      if (left + boxWidth > window.innerWidth) {
-        left = window.innerWidth - boxWidth - 10;
-      }
-      if (top + 250 > window.innerHeight) {
-        top = anchorRect.top - 250;
-      }
-
-      suggestionBox.style.left = left + 'px';
-      suggestionBox.style.top = top + 'px';
+      suggestionBox.style.left = anchorRect.left + 'px';
+      suggestionBox.style.top = (anchorRect.bottom + 4) + 'px';
     }
 
     suggestionBox.style.display = 'block';
+    if (anchorRect) clampToViewport(suggestionBox, anchorRect);
     showGhostText(suggestions[0].completion);
   }
 
@@ -226,19 +241,13 @@
     linkPromptBox.appendChild(urlHint);
     linkPromptBox.appendChild(hint);
 
-    let left = anchorRect.left;
     let top = anchorRect.top - 32;
+    if (top < 10) top = anchorRect.bottom + 4;
 
-    if (top < 10) {
-      top = anchorRect.bottom + 4;
-    }
-    if (left + 300 > window.innerWidth) {
-      left = window.innerWidth - 310;
-    }
-
-    linkPromptBox.style.left = left + 'px';
+    linkPromptBox.style.left = anchorRect.left + 'px';
     linkPromptBox.style.top = top + 'px';
     linkPromptBox.style.display = 'flex';
+    clampToViewport(linkPromptBox, anchorRect);
 
     linkPromptBox.onclick = (e) => {
       e.preventDefault();
@@ -387,20 +396,10 @@
     linkSearchSelection = { range: range.cloneRange(), text };
 
     const rect = range.getBoundingClientRect();
-    let left = rect.left;
-    let top = rect.bottom + 6;
-
-    const boxWidth = 320;
-    if (left + boxWidth > window.innerWidth) {
-      left = window.innerWidth - boxWidth - 10;
-    }
-    if (top + 260 > window.innerHeight) {
-      top = rect.top - 260;
-    }
-
-    linkSearchBox.style.left = left + 'px';
-    linkSearchBox.style.top = top + 'px';
+    linkSearchBox.style.left = rect.left + 'px';
+    linkSearchBox.style.top = (rect.bottom + 6) + 'px';
     linkSearchBox.style.display = 'block';
+    clampToViewport(linkSearchBox, rect);
 
     linkSearchInput.value = '';
     renderLinkSearchResults('');
