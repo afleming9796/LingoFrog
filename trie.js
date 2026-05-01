@@ -102,9 +102,9 @@ class LinkRules {
 
   async load() {
     return new Promise((resolve) => {
-      chrome.storage.local.get(['typeless_link_rules'], (data) => {
-        if (data.typeless_link_rules) {
-          this.rules = new Map(Object.entries(data.typeless_link_rules));
+      chrome.storage.local.get(['lingofrog_link_rules'], (data) => {
+        if (data.lingofrog_link_rules) {
+          this.rules = new Map(Object.entries(data.lingofrog_link_rules));
         }
         resolve();
       });
@@ -114,7 +114,7 @@ class LinkRules {
   async save() {
     const obj = Object.fromEntries(this.rules);
     return new Promise((resolve) => {
-      chrome.storage.local.set({ typeless_link_rules: obj }, resolve);
+      chrome.storage.local.set({ lingofrog_link_rules: obj }, resolve);
     });
   }
 
@@ -227,13 +227,13 @@ class Corpus {
 
   async load() {
     return new Promise((resolve) => {
-      chrome.storage.local.get(['typeless_phrases', 'typeless_config'], (data) => {
-        if (data.typeless_config) {
-          Object.assign(this.config, data.typeless_config);
+      chrome.storage.local.get(['lingofrog_phrases', 'lingofrog_config'], (data) => {
+        if (data.lingofrog_config) {
+          Object.assign(this.config, data.lingofrog_config);
         }
 
-        if (data.typeless_phrases) {
-          this.phrases = new Map(Object.entries(data.typeless_phrases));
+        if (data.lingofrog_phrases) {
+          this.phrases = new Map(Object.entries(data.lingofrog_phrases));
         }
 
         this._rebuildTrie();
@@ -245,7 +245,7 @@ class Corpus {
   async save() {
     const obj = Object.fromEntries(this.phrases);
     return new Promise((resolve) => {
-      chrome.storage.local.set({ typeless_phrases: obj }, resolve);
+      chrome.storage.local.set({ lingofrog_phrases: obj }, resolve);
     });
   }
 
@@ -431,7 +431,7 @@ class Corpus {
     this.phrases.clear();
     this.trie.clear();
     await new Promise((resolve) => {
-      chrome.storage.local.remove(['typeless_phrases'], resolve);
+      chrome.storage.local.remove(['lingofrog_phrases'], resolve);
     });
   }
 }

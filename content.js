@@ -990,7 +990,7 @@
   }
 
   chrome.storage.onChanged.addListener((changes) => {
-    if (changes.typeless_phrases || changes.typeless_link_rules || changes.typeless_config) {
+    if (changes.lingofrog_phrases || changes.lingofrog_link_rules || changes.lingofrog_config) {
       corpus.load().then(() => {
         console.log(
           '[LingoFrog] Updated —',
