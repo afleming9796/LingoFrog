@@ -4,8 +4,20 @@
   "version": "1.0.0",
   "description": "Local autocomplete powered by your own writing. No AI, no cloud — just your words, suggested back to you.",
   "permissions": ["storage", "activeTab"],
+  "icons": {
+    "16": "icon16.png",
+    "32": "icon32.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
   "action": {
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "32": "icon32.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
   },
   "content_scripts": [
     {
