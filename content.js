@@ -101,7 +101,7 @@
     const header = document.createElement('div');
     header.className = 'lingofrog-header';
     const headerIcon = document.createElement('img');
-    headerIcon.src = chrome.runtime.getURL('icon48.png');
+    headerIcon.src = chrome.runtime.getURL('icons/icon48.png');
     headerIcon.className = 'lingofrog-header-icon';
     headerIcon.alt = '';
     header.appendChild(headerIcon);
