@@ -75,7 +75,12 @@
 
     const header = document.createElement('div');
     header.className = 'lingofrog-header';
-    header.textContent = '⌨ LingoFrog';
+    const headerIcon = document.createElement('img');
+    headerIcon.src = chrome.runtime.getURL('icon48.png');
+    headerIcon.className = 'lingofrog-header-icon';
+    headerIcon.alt = '';
+    header.appendChild(headerIcon);
+    header.appendChild(document.createTextNode('LingoFrog'));
     suggestionBox.appendChild(header);
 
     suggestions.forEach((s, i) => {

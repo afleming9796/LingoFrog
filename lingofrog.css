@@ -30,12 +30,21 @@
 }
 
 .lingofrog-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   color: #7a7a7a;
   font-size: 10px;
-  padding: 4px 12px 4px;
+  padding: 5px 12px;
   letter-spacing: 0.5px;
   border-bottom: 1px solid #ececec;
   margin-bottom: 2px;
+}
+
+.lingofrog-header-icon {
+  width: 14px;
+  height: 14px;
+  display: block;
 }
 
 .lingofrog-item {
