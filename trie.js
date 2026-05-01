@@ -1,5 +1,5 @@
 /**
- * trie.js — Prefix trie, corpus manager, and link rules for TypeLess.
+ * trie.js — Prefix trie, corpus manager, and link rules for LingoFrog.
  *
  * Exact prefix matching only. Case-insensitive matching,
  * case-preserving insertion. Score = frequency × recencyBoost.

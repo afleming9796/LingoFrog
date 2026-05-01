@@ -1,5 +1,5 @@
 /**
- * content.js — TypeLess content script.
+ * content.js — LingoFrog content script.
  *
  * Tab       → accept autocomplete suggestion
  * Cmd+L     → accept link prompt (linkify detected phrase)
@@ -43,7 +43,7 @@
     attachListeners();
     initialized = true;
     console.log(
-      '[TypeLess] Loaded —',
+      '[LingoFrog] Loaded —',
       corpus.phrases.size, 'phrases,',
       corpus.linkRules.rules.size, 'link rules'
     );
@@ -53,13 +53,13 @@
 
   function createSuggestionUI() {
     suggestionBox = document.createElement('div');
-    suggestionBox.id = 'typeless-suggestions';
-    suggestionBox.className = 'typeless-box';
+    suggestionBox.id = 'lingofrog-suggestions';
+    suggestionBox.className = 'lingofrog-box';
     document.body.appendChild(suggestionBox);
 
     ghostSpan = document.createElement('span');
-    ghostSpan.id = 'typeless-ghost';
-    ghostSpan.className = 'typeless-ghost';
+    ghostSpan.id = 'lingofrog-ghost';
+    ghostSpan.className = 'lingofrog-ghost';
   }
 
   function showSuggestions(suggestions, anchorRect) {
@@ -74,21 +74,21 @@
     suggestionBox.innerHTML = '';
 
     const header = document.createElement('div');
-    header.className = 'typeless-header';
-    header.textContent = '⌨ TypeLess';
+    header.className = 'lingofrog-header';
+    header.textContent = '⌨ LingoFrog';
     suggestionBox.appendChild(header);
 
     suggestions.forEach((s, i) => {
       const item = document.createElement('div');
-      item.className = 'typeless-item' + (i === 0 ? ' typeless-selected' : '');
+      item.className = 'lingofrog-item' + (i === 0 ? ' lingofrog-selected' : '');
       item.dataset.index = i;
 
       const num = document.createElement('span');
-      num.className = 'typeless-num';
+      num.className = 'lingofrog-num';
       num.textContent = `${i + 1}`;
 
       const text = document.createElement('span');
-      text.className = 'typeless-text';
+      text.className = 'lingofrog-text';
       const display = s.completion.length > 60 ? s.completion.slice(0, 60) + '…' : s.completion;
 
       const links = corpus.linkRules.findLinks(s.full);
@@ -112,7 +112,7 @@
     });
 
     const hint = document.createElement('div');
-    hint.className = 'typeless-hint';
+    hint.className = 'lingofrog-hint';
     hint.textContent = 'Tab accept · ↑↓ cycle · Esc close';
     suggestionBox.appendChild(hint);
 
@@ -145,9 +145,9 @@
 
   function updateSelection(newIndex) {
     selectedIndex = newIndex;
-    const items = suggestionBox.querySelectorAll('.typeless-item');
+    const items = suggestionBox.querySelectorAll('.lingofrog-item');
     items.forEach((item, i) => {
-      item.classList.toggle('typeless-selected', i === selectedIndex);
+      item.classList.toggle('lingofrog-selected', i === selectedIndex);
     });
     if (currentSuggestions[selectedIndex]) {
       showGhostText(currentSuggestions[selectedIndex].completion);
@@ -166,7 +166,7 @@
     if (!range.collapsed) return;
 
     ghostSpan = document.createElement('span');
-    ghostSpan.className = 'typeless-ghost';
+    ghostSpan.className = 'lingofrog-ghost';
     ghostSpan.textContent = text;
     ghostSpan.contentEditable = 'false';
 
@@ -180,7 +180,7 @@
   }
 
   function removeGhostText() {
-    const existing = document.querySelectorAll('.typeless-ghost');
+    const existing = document.querySelectorAll('.lingofrog-ghost');
     existing.forEach((el) => el.remove());
   }
 
@@ -188,8 +188,8 @@
 
   function createLinkPromptUI() {
     linkPromptBox = document.createElement('div');
-    linkPromptBox.id = 'typeless-link-prompt';
-    linkPromptBox.className = 'typeless-link-prompt';
+    linkPromptBox.id = 'lingofrog-link-prompt';
+    linkPromptBox.className = 'lingofrog-link-prompt';
     document.body.appendChild(linkPromptBox);
   }
 
@@ -201,19 +201,19 @@
     linkPromptBox.innerHTML = '';
 
     const icon = document.createElement('span');
-    icon.className = 'typeless-lp-icon';
+    icon.className = 'lingofrog-lp-icon';
     icon.textContent = '🔗';
 
     const label = document.createElement('span');
-    label.className = 'typeless-lp-label';
+    label.className = 'lingofrog-lp-label';
     label.innerHTML = 'Link <strong>' + escapeHtml(trigger) + '</strong>';
 
     const urlHint = document.createElement('span');
-    urlHint.className = 'typeless-lp-url';
+    urlHint.className = 'lingofrog-lp-url';
     urlHint.textContent = domain;
 
     const hint = document.createElement('span');
-    hint.className = 'typeless-lp-hint';
+    hint.className = 'lingofrog-lp-hint';
     hint.textContent = '⌘L';
 
     linkPromptBox.appendChild(icon);
@@ -308,7 +308,7 @@
         activeElement.dispatchEvent(new Event('input', { bubbles: true }));
       }
     } catch (e) {
-      console.error('[TypeLess] Link prompt apply error:', e);
+      console.error('[LingoFrog] Link prompt apply error:', e);
     }
 
     hideLinkPrompt();
@@ -318,26 +318,26 @@
 
   function createLinkSearchUI() {
     linkSearchBox = document.createElement('div');
-    linkSearchBox.id = 'typeless-link-search';
-    linkSearchBox.className = 'typeless-link-search';
+    linkSearchBox.id = 'lingofrog-link-search';
+    linkSearchBox.className = 'lingofrog-link-search';
 
     const header = document.createElement('div');
-    header.className = 'typeless-ls-header';
+    header.className = 'lingofrog-ls-header';
     header.textContent = '🔗 Insert Link';
     linkSearchBox.appendChild(header);
 
     linkSearchInput = document.createElement('input');
-    linkSearchInput.className = 'typeless-ls-input';
+    linkSearchInput.className = 'lingofrog-ls-input';
     linkSearchInput.type = 'text';
     linkSearchInput.placeholder = 'Search links…';
     linkSearchBox.appendChild(linkSearchInput);
 
     linkSearchList = document.createElement('div');
-    linkSearchList.className = 'typeless-ls-list';
+    linkSearchList.className = 'lingofrog-ls-list';
     linkSearchBox.appendChild(linkSearchList);
 
     const hint = document.createElement('div');
-    hint.className = 'typeless-ls-hint';
+    hint.className = 'lingofrog-ls-hint';
     hint.textContent = '↑↓ navigate · Enter or ⌘L insert · Esc close';
     linkSearchBox.appendChild(hint);
 
@@ -423,7 +423,7 @@
 
     if (linkSearchResults.length === 0) {
       const empty = document.createElement('div');
-      empty.className = 'typeless-ls-empty';
+      empty.className = 'lingofrog-ls-empty';
       empty.textContent = filter ? 'No matching links' : 'No link rules defined';
       linkSearchList.appendChild(empty);
       return;
@@ -431,15 +431,15 @@
 
     linkSearchResults.forEach((r, i) => {
       const item = document.createElement('div');
-      item.className = 'typeless-ls-item' + (i === 0 ? ' typeless-ls-selected' : '');
+      item.className = 'lingofrog-ls-item' + (i === 0 ? ' lingofrog-ls-selected' : '');
       item.dataset.index = i;
 
       const trigger = document.createElement('span');
-      trigger.className = 'typeless-ls-trigger';
+      trigger.className = 'lingofrog-ls-trigger';
       trigger.textContent = r.trigger;
 
       const url = document.createElement('span');
-      url.className = 'typeless-ls-url';
+      url.className = 'lingofrog-ls-url';
       url.textContent = r.url.replace(/^https?:\/\//, '').split('/')[0];
 
       item.appendChild(trigger);
@@ -457,9 +457,9 @@
   }
 
   function updateLinkSearchSelection() {
-    const items = linkSearchList.querySelectorAll('.typeless-ls-item');
+    const items = linkSearchList.querySelectorAll('.lingofrog-ls-item');
     items.forEach((item, i) => {
-      item.classList.toggle('typeless-ls-selected', i === linkSearchIndex);
+      item.classList.toggle('lingofrog-ls-selected', i === linkSearchIndex);
     });
     // Scroll selected item into view
     const selected = items[linkSearchIndex];
@@ -519,7 +519,7 @@
           activeElement.dispatchEvent(new Event('input', { bubbles: true }));
         }
       } catch (err) {
-        console.error('[TypeLess] Link search insert error:', err);
+        console.error('[LingoFrog] Link search insert error:', err);
       }
     }
 
@@ -732,7 +732,7 @@
       // Skip ghost text nodes
       if (currentNode.parentNode &&
           currentNode.parentNode.classList &&
-          currentNode.parentNode.classList.contains('typeless-ghost')) {
+          currentNode.parentNode.classList.contains('lingofrog-ghost')) {
         continue;
       }
 
@@ -989,7 +989,7 @@
     if (changes.typeless_phrases || changes.typeless_link_rules || changes.typeless_config) {
       corpus.load().then(() => {
         console.log(
-          '[TypeLess] Updated —',
+          '[LingoFrog] Updated —',
           corpus.phrases.size, 'phrases,',
           corpus.linkRules.rules.size, 'link rules,',
           'enabled:', corpus.config.enabled !== false

@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "TypeLess",
+  "name": "LingoFrog",
   "version": "1.0.0",
   "description": "Local autocomplete powered by your own writing. No AI, no cloud — just your words, suggested back to you.",
   "permissions": ["storage", "activeTab"],
@@ -17,7 +17,7 @@
         "https://app.slack.com/*"
       ],
       "js": ["trie.js", "content.js"],
-      "css": ["typeless.css"]
+      "css": ["lingofrog.css"]
     }
   ]
 }

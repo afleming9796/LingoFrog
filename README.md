@@ -1,6 +1,6 @@
-# TypeLess — Chrome Extension
+# LingoFrog — Chrome Extension
 
-Like a best friend, TypeLess finishes your sentences and inserts relevant hyperlinks. Accept suggested completions with "tab". Add suggested hyperlinks with cmd + L. Only works in chrome + gmail (on browser).
+Like a best friend, LingoFrog finishes your sentences and inserts relevant hyperlinks. Accept suggested completions with "tab". Add suggested hyperlinks with cmd + L. Only works in chrome + gmail (on browser).
 
 ## Install (Developer Mode)
 
@@ -9,7 +9,7 @@ Like a best friend, TypeLess finishes your sentences and inserts relevant hyperl
 3. Enable **Developer mode** (toggle in top-right)
 4. Click **Load unpacked**
 5. Select this repo
-6. The TypeLess icon will appear in the puzzle-piece Extensions icon 
+6. The LingoFrog icon will appear in the puzzle-piece Extensions icon 
 
 ## Setup
 
@@ -20,7 +20,7 @@ Like a best friend, TypeLess finishes your sentences and inserts relevant hyperl
 
 ## How It Works
 
-- **Type in Gmail** — after a few characters, TypeLess checks your corpus for matching phrases
+- **Type in Gmail** — after a few characters, LingoFrog checks your corpus for matching phrases
 - **A dropdown** shows up to relevant matches
 - **Tab** accepts the top suggestion
 - **↑/↓** arrows cycle through options
