@@ -211,13 +211,16 @@ function updateToggleStates() {
   $('#set-autolink').disabled = !masterEnabled;
 }
 
-function showStatus(el, message, type) {
+function showStatus(el, message, type, duration) {
   el.textContent = message;
   el.className = 'status ' + type;
   // Scroll into view in case the status sits below the popup's viewport,
   // which can happen once the body hits Chrome's max popup height.
   el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  setTimeout(() => { el.className = 'status'; }, 3000);
+  // Errors persist longer than success messages so users have time to
+  // read what went wrong before it disappears.
+  const ms = duration ?? (type === 'error' ? 7000 : 3000);
+  setTimeout(() => { el.className = 'status'; }, ms);
 }
 
 // ── Tab Switching ──────────────────────────────────────────
@@ -665,6 +668,12 @@ btnAddUtmRoot.addEventListener('click', () => {
   utmDraftRoot = { host: '', params: [{ key: '', value: '' }] };
   utmExpandedHost = null;
   updateUtmList();
+});
+
+$('#utm-jump-link').addEventListener('click', (e) => {
+  e.preventDefault();
+  const target = $('#utm-section-anchor');
+  if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
 // ── Start ──────────────────────────────────────────────────

@@ -168,7 +168,17 @@
       outline: none;
     }
 
-    .link-rule-list { list-style: none; margin-top: 8px; max-height: 260px; overflow-y: auto; }
+    .link-rule-list { list-style: none; margin-top: 8px; max-height: 180px; overflow-y: auto; }
+    .utm-jump-link {
+      display: inline-block;
+      font-size: 10px;
+      color: #4d7a2e;
+      text-decoration: none;
+      margin-left: 8px;
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
+    .utm-jump-link:hover { background: #e7f0dc; text-decoration: underline; }
     .link-rule-item { display: flex; align-items: center; gap: 6px; padding: 6px 0; font-size: 11px; border-bottom: 1px solid #ececec; }
     .link-rule-trigger { color: #4d7a2e; font-weight: 600; flex-shrink: 0; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .link-rule-arrow { color: #b5b5b5; flex-shrink: 0; }
@@ -314,13 +324,16 @@
 
   <!-- Links Tab -->
   <div class="tab-content" id="tab-links">
-    <input type="text" id="link-search" placeholder="Search links..." style="margin-bottom: 8px;">
+    <div style="display: flex; align-items: center; margin-bottom: 8px;">
+      <input type="text" id="link-search" placeholder="Search links..." style="flex: 1;">
+      <a href="javascript:void(0)" id="utm-jump-link" class="utm-jump-link">UTM params ↓</a>
+    </div>
     <ul class="link-rule-list" id="link-rule-list"></ul>
     <button class="btn btn-primary" id="btn-export-links">Copy All to Clipboard</button>
     <div class="status" id="link-status"></div>
     <button class="btn btn-danger" id="btn-clear-links">Clear All Links</button>
 
-    <div class="utm-section">
+    <div class="utm-section" id="utm-section-anchor">
       <div class="utm-section-header">
         <div class="utm-section-title">UTM Parameters</div>
         <button class="btn-link" id="btn-add-utm-root">+ Add root</button>
