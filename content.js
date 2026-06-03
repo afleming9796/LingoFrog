@@ -284,7 +284,7 @@
       const after = currentText.slice(actualEnd);
 
       const a = document.createElement('a');
-      a.href = url;
+      a.href = corpus.utmRules.applyTo(url);
       a.textContent = matchedText;
       a.target = '_blank';
       a.rel = 'noopener';
@@ -680,7 +680,7 @@
       }
 
       const a = document.createElement('a');
-      a.href = m.url;
+      a.href = corpus.utmRules.applyTo(m.url);
       a.textContent = text.slice(m.start, m.end);
       a.target = '_blank';
       a.rel = 'noopener';
@@ -990,7 +990,12 @@
   }
 
   chrome.storage.onChanged.addListener((changes) => {
-    if (changes.lingofrog_phrases || changes.lingofrog_link_rules || changes.lingofrog_config) {
+    if (
+      changes.lingofrog_phrases ||
+      changes.lingofrog_link_rules ||
+      changes.lingofrog_utm_rules ||
+      changes.lingofrog_config
+    ) {
       corpus.load().then(() => {
         console.log(
           '[LingoFrog] Updated —',
