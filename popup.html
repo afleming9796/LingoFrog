@@ -206,6 +206,63 @@
 
     .setting-row.disabled .setting-label,
     .setting-row.disabled .setting-desc { opacity: 0.4; }
+
+    /* UTM Parameters section */
+    .utm-section { margin-top: 18px; padding-top: 14px; border-top: 1px solid #e2e2e2; }
+    .utm-section-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .utm-section-title { font-size: 12px; font-weight: 600; color: #1a1a1a; }
+    .utm-section-desc { font-size: 10px; color: #7a7a7a; margin-top: 4px; line-height: 1.4; }
+    .utm-section-desc code { color: #4d7a2e; background: #e7f0dc; padding: 1px 4px; border-radius: 3px; }
+    .btn-link {
+      background: none; border: none; color: #4d7a2e; cursor: pointer;
+      font-size: 11px; font-weight: 600; padding: 2px 4px; border-radius: 4px;
+    }
+    .btn-link:hover { background: #e7f0dc; }
+    .btn-link:disabled { color: #a0a0a0; cursor: not-allowed; background: none; }
+
+    .utm-list { list-style: none; margin-top: 8px; }
+    .utm-empty { color: #a0a0a0; font-size: 11px; padding: 10px 0; text-align: center; }
+
+    .utm-item { border: 1px solid #e2e2e2; border-radius: 8px; background: #ffffff; margin-bottom: 6px; overflow: hidden; }
+    .utm-item-header {
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 10px; cursor: pointer; user-select: none;
+    }
+    .utm-item-header:hover { background: #f7f7f7; }
+    .utm-item.expanded .utm-item-header { background: #f3f3f3; border-bottom: 1px solid #e2e2e2; cursor: default; }
+    .utm-item-caret { color: #a0a0a0; font-size: 10px; flex-shrink: 0; transition: transform 0.15s; }
+    .utm-item.expanded .utm-item-caret { transform: rotate(90deg); }
+    .utm-item-host { font-size: 12px; color: #1a1a1a; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .utm-item-count { font-size: 10px; color: #7a7a7a; flex-shrink: 0; }
+    .utm-item-delete {
+      background: none; border: none; color: #b04848; cursor: pointer;
+      font-size: 14px; padding: 0 4px; flex-shrink: 0; opacity: 0.5; transition: opacity 0.15s;
+    }
+    .utm-item-delete:hover { opacity: 1; }
+    .utm-item-host-input {
+      flex: 1; background: #ffffff; border: 1px solid #6da34d;
+      border-radius: 6px; color: #1a1a1a; font-size: 12px; padding: 4px 8px;
+      font-family: 'SF Mono', 'Fira Code', monospace; outline: none;
+    }
+
+    .utm-item-body { padding: 8px 10px 10px; display: none; }
+    .utm-item.expanded .utm-item-body { display: block; }
+    .utm-param-row { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; }
+    .utm-param-key, .utm-param-value {
+      flex: 1; min-width: 0; background: #ffffff; border: 1px solid #dcdcdc;
+      border-radius: 6px; padding: 4px 8px; font-size: 11px;
+      font-family: 'SF Mono', 'Fira Code', monospace; color: #1a1a1a; outline: none;
+    }
+    .utm-param-key:focus, .utm-param-value:focus { border-color: #6da34d; }
+    .utm-param-eq { color: #a0a0a0; font-size: 11px; flex-shrink: 0; }
+    .utm-param-remove {
+      background: none; border: none; color: #b04848; cursor: pointer;
+      font-size: 12px; padding: 0 4px; flex-shrink: 0; opacity: 0.5;
+    }
+    .utm-param-remove:hover { opacity: 1; }
+
+    .utm-item-actions { display: flex; gap: 6px; margin-top: 6px; align-items: center; justify-content: space-between; }
+    .utm-item-actions .btn-primary { width: auto; margin-top: 0; padding: 5px 12px; font-size: 11px; }
   </style>
 </head>
 <body>
@@ -262,6 +319,18 @@
     <button class="btn btn-primary" id="btn-export-links">Copy All to Clipboard</button>
     <div class="status" id="link-status"></div>
     <button class="btn btn-danger" id="btn-clear-links">Clear All Links</button>
+
+    <div class="utm-section">
+      <div class="utm-section-header">
+        <div class="utm-section-title">UTM Parameters</div>
+        <button class="btn-link" id="btn-add-utm-root">+ Add root</button>
+      </div>
+      <div class="utm-section-desc">
+        Append UTM parameters automatically when inserting a link whose host matches a configured root. <code>www.</code> and apex hosts are treated as equivalent. Up to 3 parameters per root.
+      </div>
+      <ul class="utm-list" id="utm-list"></ul>
+      <div class="status" id="utm-status"></div>
+    </div>
   </div>
 
   <!-- Corpus Tab -->
