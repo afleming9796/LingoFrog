@@ -209,6 +209,114 @@ class LinkRules {
 }
 
 
+// ── UTM Rules ─────────────────────────────────────────────────
+//
+// Maps a host (exact match, e.g. "metabase.com") to up to 3 UTM
+// parameter entries: [{ key, value }, ...]. When a LingoFrog-applied
+// link's host matches an entry, missing UTM keys are appended to its
+// URL. Existing keys in the stored URL are NEVER overwritten — the
+// configured params act as defaults that fill in gaps.
+
+class UtmRules {
+  constructor() {
+    this.rules = new Map();
+  }
+
+  async load() {
+    return new Promise((resolve) => {
+      chrome.storage.local.get(['lingofrog_utm_rules'], (data) => {
+        if (data.lingofrog_utm_rules) {
+          this.rules = new Map(Object.entries(data.lingofrog_utm_rules));
+        }
+        resolve();
+      });
+    });
+  }
+
+  async save() {
+    const obj = Object.fromEntries(this.rules);
+    return new Promise((resolve) => {
+      chrome.storage.local.set({ lingofrog_utm_rules: obj }, resolve);
+    });
+  }
+
+  /**
+   * Returns the params array for a host (lowercased), or [] if none.
+   */
+  getForHost(host) {
+    if (!host) return [];
+    return this.rules.get(host.toLowerCase()) || [];
+  }
+
+  /**
+   * Replaces the params array for a host. `params` is an array of
+   * { key, value } pairs; entries with empty key/value are dropped,
+   * and the array is capped at MAX_PARAMS.
+   */
+  setForHost(host, params) {
+    const clean = (params || [])
+      .map((p) => ({ key: (p.key || '').trim(), value: (p.value || '').trim() }))
+      .filter((p) => p.key && p.value)
+      .slice(0, UtmRules.MAX_PARAMS);
+    this.rules.set(host.toLowerCase().trim(), clean);
+  }
+
+  removeHost(host) {
+    this.rules.delete(host.toLowerCase().trim());
+  }
+
+  getAll() {
+    return [...this.rules.entries()].map(([host, params]) => ({ host, params }));
+  }
+
+  clear() {
+    this.rules.clear();
+  }
+
+  /**
+   * Apply this rule set to a URL string. Returns the (possibly
+   * modified) URL. Non-http(s), invalid, or unmatched URLs are
+   * returned unchanged. Existing query keys in the input URL win
+   * over configured ones.
+   *
+   * Host matching is exact, with a `www.`-equivalence fallback:
+   * a URL host of `www.example.com` will fall back to a rule keyed
+   * on `example.com` (and vice versa) if there's no exact match.
+   * An explicit empty params array on the exact host suppresses the
+   * fallback — that's how a user signals "no UTMs for this host."
+   */
+  applyTo(urlString) {
+    if (!urlString) return urlString;
+    let url;
+    try {
+      url = new URL(urlString);
+    } catch (e) {
+      return urlString;
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return urlString;
+
+    const host = url.hostname.toLowerCase();
+    let params = this.rules.get(host);
+    if (params === undefined) {
+      const alt = host.startsWith('www.') ? host.slice(4) : 'www.' + host;
+      params = this.rules.get(alt);
+    }
+    if (!params || !params.length) return urlString;
+
+    let mutated = false;
+    for (const { key, value } of params) {
+      if (!url.searchParams.has(key)) {
+        url.searchParams.set(key, value);
+        mutated = true;
+      }
+    }
+    return mutated ? url.toString() : urlString;
+  }
+}
+
+UtmRules.MAX_PARAMS = 3;
+
+
 // ── Corpus ────────────────────────────────────────────────────
 
 class Corpus {
@@ -216,6 +324,7 @@ class Corpus {
     this.trie = new PhraseTrie();
     this.phrases = new Map(); // original phrase -> { frequency, source, importedAt, lastUsed }
     this.linkRules = new LinkRules();
+    this.utmRules = new UtmRules();
     this.config = {
       maxSuggestions: 5,
       triggerAfterChars: 8,
@@ -237,7 +346,7 @@ class Corpus {
         }
 
         this._rebuildTrie();
-        this.linkRules.load().then(resolve);
+        Promise.all([this.linkRules.load(), this.utmRules.load()]).then(() => resolve());
       });
     });
   }
