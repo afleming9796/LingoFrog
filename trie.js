@@ -278,6 +278,12 @@ class UtmRules {
    * modified) URL. Non-http(s), invalid, or unmatched URLs are
    * returned unchanged. Existing query keys in the input URL win
    * over configured ones.
+   *
+   * Host matching is exact, with a `www.`-equivalence fallback:
+   * a URL host of `www.example.com` will fall back to a rule keyed
+   * on `example.com` (and vice versa) if there's no exact match.
+   * An explicit empty params array on the exact host suppresses the
+   * fallback — that's how a user signals "no UTMs for this host."
    */
   applyTo(urlString) {
     if (!urlString) return urlString;
@@ -289,8 +295,13 @@ class UtmRules {
     }
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return urlString;
 
-    const params = this.getForHost(url.hostname);
-    if (!params.length) return urlString;
+    const host = url.hostname.toLowerCase();
+    let params = this.rules.get(host);
+    if (params === undefined) {
+      const alt = host.startsWith('www.') ? host.slice(4) : 'www.' + host;
+      params = this.rules.get(alt);
+    }
+    if (!params || !params.length) return urlString;
 
     let mutated = false;
     for (const { key, value } of params) {
