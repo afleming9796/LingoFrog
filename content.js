@@ -481,7 +481,7 @@
 
     try {
       const a = document.createElement('a');
-      a.href = chosen.url;
+      a.href = corpus.utmRules.applyTo(chosen.url);
       a.target = '_blank';
       a.rel = 'noopener';
 
@@ -506,7 +506,7 @@
         const text = range.toString();
         range.deleteContents();
         const a = document.createElement('a');
-        a.href = chosen.url;
+        a.href = corpus.utmRules.applyTo(chosen.url);
         a.textContent = text;
         a.target = '_blank';
         a.rel = 'noopener';
