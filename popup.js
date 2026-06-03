@@ -26,8 +26,19 @@ const btnExportAll = $('#btn-export-all');
 const backupStatus = $('#backup-status');
 const linkSearch = $('#link-search');
 const btnClearLinks = $('#btn-clear-links');
+const utmList = $('#utm-list');
+const utmStatus = $('#utm-status');
+const btnAddUtmRoot = $('#btn-add-utm-root');
 
 let importType = 'phrases';
+
+// UI state for the UTM section. `expandedHost` is the host of the row
+// currently expanded for editing (null = none). `draftRoot` represents
+// an in-progress "add new root" entry that hasn't been saved yet.
+let utmExpandedHost = null;
+let utmDraftRoot = null; // { host: '', params: [{key, value}] } when active
+
+const HOST_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/;
 
 // ── Initialize ─────────────────────────────────────────────
 
@@ -36,6 +47,7 @@ async function init() {
   updateStats();
   updatePhraseList();
   updateLinkRuleList();
+  updateUtmList();
   loadSettings();
 }
 
@@ -199,13 +211,16 @@ function updateToggleStates() {
   $('#set-autolink').disabled = !masterEnabled;
 }
 
-function showStatus(el, message, type) {
+function showStatus(el, message, type, duration) {
   el.textContent = message;
   el.className = 'status ' + type;
   // Scroll into view in case the status sits below the popup's viewport,
   // which can happen once the body hits Chrome's max popup height.
   el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  setTimeout(() => { el.className = 'status'; }, 3000);
+  // Errors persist longer than success messages so users have time to
+  // read what went wrong before it disappears.
+  const ms = duration ?? (type === 'error' ? 7000 : 3000);
+  setTimeout(() => { el.className = 'status'; }, ms);
 }
 
 // ── Tab Switching ──────────────────────────────────────────
@@ -383,6 +398,282 @@ btnExportAll.addEventListener('click', async () => {
     `✓ Copied ${phraseCount} phrase${phraseCount === 1 ? '' : 's'} and ${linkCount} link rule${linkCount === 1 ? '' : 's'}`,
     'success'
   );
+});
+
+// ── Links: UTM Parameters ─────────────────────────────────
+
+function updateUtmList() {
+  utmList.innerHTML = '';
+
+  const rules = corpus.utmRules.getAll();
+
+  if (utmDraftRoot) {
+    utmList.appendChild(renderUtmDraft());
+  }
+
+  if (rules.length === 0 && !utmDraftRoot) {
+    const empty = document.createElement('div');
+    empty.className = 'utm-empty';
+    empty.textContent = 'No UTM rules yet. Add one above to apply parameters automatically.';
+    utmList.appendChild(empty);
+    return;
+  }
+
+  for (const { host, params } of rules) {
+    utmList.appendChild(renderUtmRow(host, params));
+  }
+}
+
+function renderUtmRow(host, params) {
+  const li = document.createElement('li');
+  li.className = 'utm-item';
+  li.dataset.host = host;
+
+  const isExpanded = utmExpandedHost === host;
+  if (isExpanded) li.classList.add('expanded');
+
+  // ── Header ──
+  const header = document.createElement('div');
+  header.className = 'utm-item-header';
+
+  const caret = document.createElement('span');
+  caret.className = 'utm-item-caret';
+  caret.textContent = '▶';
+
+  const hostEl = document.createElement('span');
+  hostEl.className = 'utm-item-host';
+  hostEl.textContent = host;
+
+  const count = document.createElement('span');
+  count.className = 'utm-item-count';
+  count.textContent = `${params.length} param${params.length === 1 ? '' : 's'}`;
+
+  const del = document.createElement('button');
+  del.className = 'utm-item-delete';
+  del.textContent = '×';
+  del.title = 'Remove root';
+  del.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (!confirm(`Remove UTM rule for "${host}"?`)) return;
+    corpus.utmRules.removeHost(host);
+    await corpus.utmRules.save();
+    if (utmExpandedHost === host) utmExpandedHost = null;
+    updateUtmList();
+    showStatus(utmStatus, `✓ Removed ${host}`, 'success');
+  });
+
+  header.appendChild(caret);
+  header.appendChild(hostEl);
+  header.appendChild(count);
+  header.appendChild(del);
+
+  header.addEventListener('click', () => {
+    if (isExpanded) {
+      utmExpandedHost = null;
+    } else {
+      utmExpandedHost = host;
+    }
+    updateUtmList();
+  });
+
+  li.appendChild(header);
+
+  // ── Body (only rendered when expanded) ──
+  if (isExpanded) {
+    li.appendChild(renderUtmBody({
+      params,
+      onSave: async (newParams) => {
+        corpus.utmRules.setForHost(host, newParams);
+        await corpus.utmRules.save();
+        updateUtmList();
+        showStatus(utmStatus, `✓ Saved ${host}`, 'success');
+      },
+    }));
+  }
+
+  return li;
+}
+
+function renderUtmDraft() {
+  const li = document.createElement('li');
+  li.className = 'utm-item expanded';
+  li.dataset.host = '__draft__';
+
+  // ── Header with host input ──
+  const header = document.createElement('div');
+  header.className = 'utm-item-header';
+
+  const caret = document.createElement('span');
+  caret.className = 'utm-item-caret';
+  caret.textContent = '▶';
+
+  const hostInput = document.createElement('input');
+  hostInput.className = 'utm-item-host-input';
+  hostInput.placeholder = 'example.com';
+  hostInput.value = utmDraftRoot.host || '';
+  hostInput.autocomplete = 'off';
+  hostInput.spellcheck = false;
+  hostInput.addEventListener('input', () => {
+    utmDraftRoot.host = hostInput.value;
+  });
+
+  const cancel = document.createElement('button');
+  cancel.className = 'utm-item-delete';
+  cancel.textContent = '×';
+  cancel.title = 'Cancel';
+  cancel.addEventListener('click', () => {
+    utmDraftRoot = null;
+    updateUtmList();
+  });
+
+  header.appendChild(caret);
+  header.appendChild(hostInput);
+  header.appendChild(cancel);
+  li.appendChild(header);
+
+  // ── Body ──
+  li.appendChild(renderUtmBody({
+    params: utmDraftRoot.params,
+    saveLabel: 'Add root',
+    onSave: async (newParams) => {
+      const host = (utmDraftRoot.host || '').toLowerCase().trim();
+      if (!HOST_RE.test(host)) {
+        showStatus(utmStatus, 'Enter a valid host like example.com', 'error');
+        hostInput.focus();
+        return;
+      }
+      if (corpus.utmRules.rules.has(host)) {
+        showStatus(utmStatus, `${host} already exists`, 'error');
+        return;
+      }
+      corpus.utmRules.setForHost(host, newParams);
+      await corpus.utmRules.save();
+      utmDraftRoot = null;
+      utmExpandedHost = host;
+      updateUtmList();
+      showStatus(utmStatus, `✓ Added ${host}`, 'success');
+    },
+  }));
+
+  // Focus host input after render
+  setTimeout(() => hostInput.focus(), 0);
+  return li;
+}
+
+/**
+ * Renders the editable params body. Owns its own working copy of the
+ * params array; calls onSave(newParams) when the user clicks Save.
+ */
+function renderUtmBody({ params, onSave, saveLabel = 'Save' }) {
+  // Working copy. Don't mutate the caller's array until save.
+  const working = (params && params.length)
+    ? params.map((p) => ({ key: p.key, value: p.value }))
+    : [{ key: '', value: '' }];
+
+  const body = document.createElement('div');
+  body.className = 'utm-item-body';
+
+  const rowsContainer = document.createElement('div');
+  body.appendChild(rowsContainer);
+
+  function rerenderRows() {
+    rowsContainer.innerHTML = '';
+    working.forEach((param, i) => {
+      const row = document.createElement('div');
+      row.className = 'utm-param-row';
+
+      const keyInput = document.createElement('input');
+      keyInput.className = 'utm-param-key';
+      keyInput.placeholder = 'utm_source';
+      keyInput.value = param.key;
+      keyInput.spellcheck = false;
+      keyInput.autocomplete = 'off';
+      keyInput.addEventListener('input', () => { working[i].key = keyInput.value; });
+
+      const eq = document.createElement('span');
+      eq.className = 'utm-param-eq';
+      eq.textContent = '=';
+
+      const valInput = document.createElement('input');
+      valInput.className = 'utm-param-value';
+      valInput.placeholder = 'value';
+      valInput.value = param.value;
+      valInput.spellcheck = false;
+      valInput.autocomplete = 'off';
+      valInput.addEventListener('input', () => { working[i].value = valInput.value; });
+
+      const remove = document.createElement('button');
+      remove.className = 'utm-param-remove';
+      remove.textContent = '×';
+      remove.title = 'Remove parameter';
+      remove.addEventListener('click', () => {
+        working.splice(i, 1);
+        if (working.length === 0) working.push({ key: '', value: '' });
+        rerenderRows();
+        updateAddVisibility();
+      });
+
+      row.appendChild(keyInput);
+      row.appendChild(eq);
+      row.appendChild(valInput);
+      row.appendChild(remove);
+      rowsContainer.appendChild(row);
+    });
+  }
+
+  rerenderRows();
+
+  const actions = document.createElement('div');
+  actions.className = 'utm-item-actions';
+
+  const addParam = document.createElement('button');
+  addParam.className = 'btn-link';
+  addParam.textContent = '+ Add parameter';
+  addParam.addEventListener('click', () => {
+    if (working.length >= 3) return;
+    working.push({ key: '', value: '' });
+    rerenderRows();
+    updateAddVisibility();
+  });
+
+  const save = document.createElement('button');
+  save.className = 'btn btn-primary';
+  save.textContent = saveLabel;
+  save.addEventListener('click', () => {
+    const cleaned = working
+      .map((p) => ({ key: (p.key || '').trim(), value: (p.value || '').trim() }))
+      .filter((p) => p.key && p.value);
+    if (cleaned.length === 0) {
+      showStatus(utmStatus, 'Add at least one parameter', 'error');
+      return;
+    }
+    onSave(cleaned);
+  });
+
+  function updateAddVisibility() {
+    addParam.disabled = working.length >= 3;
+    addParam.style.visibility = working.length >= 3 ? 'hidden' : 'visible';
+  }
+
+  actions.appendChild(addParam);
+  actions.appendChild(save);
+  body.appendChild(actions);
+  updateAddVisibility();
+
+  return body;
+}
+
+btnAddUtmRoot.addEventListener('click', () => {
+  if (utmDraftRoot) return;
+  utmDraftRoot = { host: '', params: [{ key: '', value: '' }] };
+  utmExpandedHost = null;
+  updateUtmList();
+});
+
+$('#utm-jump-link').addEventListener('click', (e) => {
+  e.preventDefault();
+  const target = $('#utm-section-anchor');
+  if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
 // ── Start ──────────────────────────────────────────────────
