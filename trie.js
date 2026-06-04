@@ -274,6 +274,22 @@ class UtmRules {
   }
 
   /**
+   * Text representation for backup/export. One line per host:
+   *   host; key=value; key=value; ...
+   * Mirrors the `phrase; url` shape used by LinkRules.exportText().
+   * Hosts with no params are skipped.
+   */
+  exportText() {
+    return this.getAll()
+      .filter((r) => r.params && r.params.length)
+      .map((r) => {
+        const pairs = r.params.map((p) => `${p.key}=${p.value}`).join('; ');
+        return `${r.host}; ${pairs}`;
+      })
+      .join('\n');
+  }
+
+  /**
    * Apply this rule set to a URL string. Returns the (possibly
    * modified) URL. Non-http(s), invalid, or unmatched URLs are
    * returned unchanged. Existing query keys in the input URL win

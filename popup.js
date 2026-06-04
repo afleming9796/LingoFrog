@@ -379,8 +379,9 @@ $('#set-enabled').addEventListener('change', updateToggleStates);
 btnExportAll.addEventListener('click', async () => {
   const phrasesText = corpus.exportText();
   const linksText = corpus.linkRules.exportText();
+  const utmsText = corpus.utmRules.exportText();
 
-  if (!phrasesText && !linksText) {
+  if (!phrasesText && !linksText && !utmsText) {
     showStatus(backupStatus, 'Nothing to copy', 'error');
     return;
   }
@@ -388,16 +389,19 @@ btnExportAll.addEventListener('click', async () => {
   const sections = [];
   if (phrasesText) sections.push(`# Phrases\n\n${phrasesText}`);
   if (linksText) sections.push(`# Links\n\n${linksText}`);
+  if (utmsText) sections.push(`# UTM Parameters\n\n${utmsText}`);
 
   await navigator.clipboard.writeText(sections.join('\n\n'));
 
   const phraseCount = corpus.phrases.size;
   const linkCount = corpus.linkRules.rules.size;
-  showStatus(
-    backupStatus,
-    `✓ Copied ${phraseCount} phrase${phraseCount === 1 ? '' : 's'} and ${linkCount} link rule${linkCount === 1 ? '' : 's'}`,
-    'success'
-  );
+  const utmCount = [...corpus.utmRules.rules.values()].filter((p) => p && p.length).length;
+  const parts = [
+    `${phraseCount} phrase${phraseCount === 1 ? '' : 's'}`,
+    `${linkCount} link rule${linkCount === 1 ? '' : 's'}`,
+    `${utmCount} UTM rule${utmCount === 1 ? '' : 's'}`,
+  ];
+  showStatus(backupStatus, `✓ Copied ${parts.join(', ')}`, 'success');
 });
 
 // ── Links: UTM Parameters ─────────────────────────────────
