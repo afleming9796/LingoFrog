@@ -210,6 +210,18 @@
 .lingofrog-ls-item.lingofrog-ls-selected { background: #e7f0dc; }
 .lingofrog-ls-item.lingofrog-ls-selected .lingofrog-ls-trigger { color: #4d7a2e; }
 
+.lingofrog-ls-item.lingofrog-ls-url-insert {
+  border-bottom: 1px dashed #d8d8d8;
+}
+.lingofrog-ls-item.lingofrog-ls-url-insert .lingofrog-ls-trigger {
+  color: #4d7a2e;
+  font-weight: 600;
+}
+.lingofrog-ls-url-insert-label {
+  color: #7a7a7a;
+  font-weight: 500;
+}
+
 .lingofrog-ls-trigger {
   color: #1a1a1a;
   font-weight: 500;

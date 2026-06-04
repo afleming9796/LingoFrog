@@ -415,13 +415,68 @@
     linkSearchSelection = null;
   }
 
+  /**
+   * Attempt to interpret a user-typed string as a URL for one-off
+   * insertion. Returns the normalized URL (string) if it looks like a
+   * URL, or null if it should be treated as a filter against registered
+   * rules.
+   *
+   * Accepts:
+   *   - explicit http(s):// URLs
+   *   - host-only or host+path strings like `example.com/foo` (https:// added)
+   *   - mailto: and tel: schemes (passed through, no UTM transform)
+   *
+   * Rejects javascript:, data:, vbscript:, file: and any other scheme
+   * for safety.
+   */
+  function parseUrlInput(raw) {
+    const trimmed = (raw || '').trim();
+    if (!trimmed) return null;
+
+    // Reject dangerous schemes explicitly.
+    if (/^(javascript|data|vbscript|file):/i.test(trimmed)) return null;
+
+    // mailto: and tel: pass through.
+    if (/^(mailto|tel):/i.test(trimmed)) return trimmed;
+
+    let candidate = trimmed;
+    if (!/^https?:\/\//i.test(candidate)) {
+      // Looks like a bare host? Require at least one dot in what could
+      // be a hostname, and only sensible chars before the first slash.
+      const slashIdx = candidate.indexOf('/');
+      const host = slashIdx === -1 ? candidate : candidate.slice(0, slashIdx);
+      if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(host)) return null;
+      candidate = 'https://' + candidate;
+    }
+
+    try {
+      const url = new URL(candidate);
+      // Require a valid-looking host with at least one dot.
+      if (!url.hostname.includes('.')) return null;
+      return url.toString();
+    } catch (e) {
+      return null;
+    }
+  }
+
   function renderLinkSearchResults(filter) {
     const all = corpus.linkRules.getAll();
     const lower = filter.toLowerCase();
-    linkSearchResults = lower
+    const ruleMatches = lower
       ? all.filter((r) => r.trigger.includes(lower) || r.url.toLowerCase().includes(lower))
       : all;
 
+    // Detect URL-shaped input and prepend a synthetic "Insert URL" row.
+    const urlCandidate = parseUrlInput(filter);
+    const results = [];
+    if (urlCandidate) {
+      results.push({ kind: 'url', url: urlCandidate });
+    }
+    for (const r of ruleMatches) {
+      results.push({ kind: 'rule', trigger: r.trigger, url: r.url, label: r.label });
+    }
+
+    linkSearchResults = results;
     linkSearchIndex = 0;
     linkSearchList.innerHTML = '';
 
@@ -437,17 +492,32 @@
       const item = document.createElement('div');
       item.className = 'lingofrog-ls-item' + (i === 0 ? ' lingofrog-ls-selected' : '');
       item.dataset.index = i;
+      if (r.kind === 'url') item.classList.add('lingofrog-ls-url-insert');
 
       const trigger = document.createElement('span');
       trigger.className = 'lingofrog-ls-trigger';
-      trigger.textContent = r.trigger;
 
-      const url = document.createElement('span');
-      url.className = 'lingofrog-ls-url';
-      url.textContent = r.url.replace(/^https?:\/\//, '').split('/')[0];
+      if (r.kind === 'url') {
+        // Synthetic row: "🔗 Insert URL: <hostname/path>"
+        const label = document.createElement('span');
+        label.className = 'lingofrog-ls-url-insert-label';
+        label.textContent = '🔗 Insert URL: ';
+        const target = document.createElement('span');
+        target.textContent = r.url.replace(/^https?:\/\//, '');
+        trigger.appendChild(label);
+        trigger.appendChild(target);
+      } else {
+        trigger.textContent = r.trigger;
+      }
 
       item.appendChild(trigger);
-      item.appendChild(url);
+
+      if (r.kind === 'rule') {
+        const url = document.createElement('span');
+        url.className = 'lingofrog-ls-url';
+        url.textContent = r.url.replace(/^https?:\/\//, '').split('/')[0];
+        item.appendChild(url);
+      }
 
       item.addEventListener('mousedown', (e) => {
         e.preventDefault();
