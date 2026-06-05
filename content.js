@@ -612,8 +612,38 @@
     hideLinkSearch();
 
     if (inserted) {
+      // Restore the cursor to just-after the inserted <a> regardless
+      // of whether the chip will show. Gmail's input handler runs on
+      // the dispatched 'input' event above and can move the cursor to
+      // the start of the inserted node via mutation observers. Deferred
+      // one tick so it lands after any microtask-scheduled selection
+      // moves. This applies even when the chip is disabled — bug
+      // surfaced during PR #59 testing where toggling the chip off
+      // left the cursor stranded at the start of the phrase.
+      deferRestoreCursorAfter(insertedAnchor, activeElement);
       maybeShowSaveRuleChip(chosen, highlightedText, insertedAnchor);
     }
+  }
+
+  function deferRestoreCursorAfter(anchorEl, activeEl) {
+    if (!anchorEl) return;
+    setTimeout(() => {
+      try {
+        if (activeEl && typeof activeEl.focus === 'function') {
+          activeEl.focus({ preventScroll: true });
+        }
+        if (anchorEl.parentNode) {
+          const range = document.createRange();
+          range.setStartAfter(anchorEl);
+          range.collapse(true);
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+      } catch (e) {
+        // Range may have been invalidated by DOM mutation; ignore.
+      }
+    }, 0);
   }
 
   // ── Save Rule Chip ──────────────────────────────────────────
