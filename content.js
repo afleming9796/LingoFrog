@@ -892,7 +892,7 @@
     if (!savePhraseChipBox) return;
 
     const alreadyExists = corpus.phrases.has(text);
-    pendingSavePhraseChip = { text, alreadyExists, typedChars: 0 };
+    pendingSavePhraseChip = { text, alreadyExists };
     savePhraseChipBox.innerHTML = '';
 
     const truncated = text.length > 50 ? text.slice(0, 50) + '…' : text;
@@ -1417,7 +1417,11 @@
         }
       }
 
-      // ── Save-phrase chip: Esc dismisses; 5-char typing decay ──
+      // ── Save-phrase chip: Esc or any typing dismisses ──
+      // Unlike the save-rule chip (which has a 5-keystroke grace
+      // because the user is mid-compose right after URL insertion),
+      // the phrase chip appears as a response to a deliberate
+      // ⌘+Shift+P pause. Any next keystroke means they've moved on.
       if (pendingSavePhraseChip) {
         if (e.key === 'Escape') {
           e.preventDefault();
@@ -1427,10 +1431,7 @@
         }
         const isCharish = e.key.length === 1 || e.key === 'Backspace' || e.key === 'Delete' || e.key === 'Enter';
         if (isCharish) {
-          pendingSavePhraseChip.typedChars = (pendingSavePhraseChip.typedChars || 0) + 1;
-          if (pendingSavePhraseChip.typedChars >= 5) {
-            hideSavePhraseChip();
-          }
+          hideSavePhraseChip();
         }
       }
 
@@ -1509,6 +1510,14 @@
       if (!isEditableField(e.target)) {
         hideSuggestions();
         hideLinkPrompt();
+      }
+      // Save-phrase chip is short-lived and tied to the moment the
+      // user pressed ⌘+Shift+P. Any focus change (Tab to another
+      // field, click into a different element, etc.) means they've
+      // moved on — dismiss immediately. Guard against the chip's
+      // own buttons stealing focus by checking containment.
+      if (savePhraseChipBox && !savePhraseChipBox.contains(e.target)) {
+        hideSavePhraseChip();
       }
     }, true);
 
