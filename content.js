@@ -1053,6 +1053,29 @@
         return;
       }
 
+      // ── Cmd+L with selected text: open link search ──
+      // Checked BEFORE the pendingLink-accept branch so that an
+      // active selection always wins. Otherwise a user who typed a
+      // trigger phrase (causing the floating prompt to appear) and
+      // then highlighted text to insert a *different* link would
+      // accidentally accept the prompt instead of opening the search.
+      if ((e.metaKey || e.ctrlKey) && e.key === 'l') {
+        const sel = window.getSelection();
+        if (sel && !sel.isCollapsed && sel.toString().trim()) {
+          const el = document.activeElement;
+          if (isEditableField(el)) {
+            e.preventDefault();
+            e.stopPropagation();
+            activeElement = el;
+            // Dismiss any floating link prompt so it doesn't overlap
+            // the link-search popup.
+            if (pendingLink) hideLinkPrompt();
+            showLinkSearch();
+            return;
+          }
+        }
+      }
+
       // ── Link prompt: Cmd+L, Esc, or typing dismisses ──
       if (pendingLink) {
         if ((e.metaKey || e.ctrlKey) && e.key === 'l') {
@@ -1067,21 +1090,6 @@
         // Typing dismisses the link prompt
         if (e.key.length === 1 || e.key === 'Backspace' || e.key === 'Delete') {
           setTimeout(() => hideLinkPrompt(), 0);
-        }
-      }
-
-      // ── Cmd+L with selected text: open link search ──
-      if ((e.metaKey || e.ctrlKey) && e.key === 'l') {
-        const sel = window.getSelection();
-        if (sel && !sel.isCollapsed && sel.toString().trim()) {
-          const el = document.activeElement;
-          if (isEditableField(el)) {
-            e.preventDefault();
-            e.stopPropagation();
-            activeElement = el;
-            showLinkSearch();
-            return;
-          }
         }
       }
     }, true);
