@@ -457,6 +457,49 @@ class Corpus {
     return added;
   }
 
+  /**
+   * Save a single phrase (vs importBulk, which processes a textarea
+   * blob). Returns { added, bumped, phrase }:
+   *   - added: true when the phrase didn't exist and a new entry was
+   *            inserted with frequency 1.
+   *   - bumped: true when the phrase already existed; its frequency
+   *             is incremented and lastUsed updated.
+   *   - phrase: the normalized text actually stored (trim + smart-
+   *             quote normalization), useful for the chip status
+   *             message.
+   *
+   * Mirrors the per-line logic in importBulk so behavior is
+   * consistent between bulk paste and the ⌘+Shift+P shortcut.
+   */
+  async addOrBumpPhrase(text, source = 'highlight') {
+    const normalized = (text || '')
+      .trim()
+      .replace(/[‘’]/g, "'")
+      .replace(/[“”]/g, '"');
+    if (!normalized) return { added: false, bumped: false, phrase: '' };
+
+    const now = Date.now();
+    if (this.phrases.has(normalized)) {
+      const entry = this.phrases.get(normalized);
+      entry.frequency += 1;
+      entry.lastUsed = now;
+      this.phrases.set(normalized, entry);
+      this._rebuildTrie();
+      await this.save();
+      return { added: false, bumped: true, phrase: normalized };
+    }
+
+    this.phrases.set(normalized, {
+      frequency: 1,
+      source,
+      importedAt: now,
+      lastUsed: now,
+    });
+    this._rebuildTrie();
+    await this.save();
+    return { added: true, bumped: false, phrase: normalized };
+  }
+
   async recordUsage(phrase) {
     // Find by case-insensitive match, update the original entry
     const lower = phrase.toLowerCase();

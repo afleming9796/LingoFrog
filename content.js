@@ -37,6 +37,13 @@
   let saveRuleChipTimer = null;
   let pendingSaveRuleChip = null; // { trigger, url, existingRule } when shown
 
+  // ── Save Phrase Chip State ─────────────────────────────────
+  // Independent from the save-rule chip so bugs in one can't take out
+  // the other; both share the .lingofrog-save-rule-chip CSS class for
+  // a consistent visual language.
+  let savePhraseChipBox = null;
+  let pendingSavePhraseChip = null; // { text, alreadyExists } when shown
+
   // ── Initialization ──────────────────────────────────────────
 
   async function init() {
@@ -46,6 +53,7 @@
     createLinkPromptUI();
     createLinkSearchUI();
     createSaveRuleChipUI();
+    createSavePhraseChipUI();
     attachListeners();
     initialized = true;
     console.log(
@@ -861,6 +869,123 @@
     hideSaveRuleChip();
   }
 
+  // ── Save Phrase Chip ────────────────────────────────────────
+  //
+  // Triggered by ⌘+Shift+P on a non-empty selection. Asks the user to
+  // confirm saving the highlighted text to the phrase corpus. If the
+  // phrase already exists, the chip switches to a Bump variant that
+  // increments the existing entry's frequency (matching importBulk).
+
+  function createSavePhraseChipUI() {
+    savePhraseChipBox = document.createElement('div');
+    savePhraseChipBox.id = 'lingofrog-save-phrase-chip';
+    savePhraseChipBox.className = 'lingofrog-save-rule-chip';
+    document.body.appendChild(savePhraseChipBox);
+  }
+
+  /**
+   * Show the save-phrase chip near the selection. Caller supplies the
+   * already-trimmed text and the selection's bounding rect (for
+   * positioning).
+   */
+  function showSavePhraseChip(text, anchorRect) {
+    if (!savePhraseChipBox) return;
+
+    const alreadyExists = corpus.phrases.has(text);
+    pendingSavePhraseChip = { text, alreadyExists, typedChars: 0 };
+    savePhraseChipBox.innerHTML = '';
+
+    const truncated = text.length > 50 ? text.slice(0, 50) + '…' : text;
+
+    const label = document.createElement('span');
+    label.className = 'lingofrog-src-label';
+    if (alreadyExists) {
+      label.innerHTML = 'Already saved — bump <strong>'
+        + escapeHtml(truncated) + '</strong>?';
+    } else {
+      label.innerHTML = 'Save <strong>'
+        + escapeHtml(truncated) + '</strong> as a phrase?';
+    }
+
+    const btn = document.createElement('button');
+    btn.className = 'lingofrog-src-btn';
+    btn.textContent = alreadyExists ? 'Bump' : 'Save';
+    btn.tabIndex = -1;
+    btn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      acceptSavePhraseChip();
+    });
+
+    const dismiss = document.createElement('button');
+    dismiss.className = 'lingofrog-src-dismiss';
+    dismiss.textContent = '×';
+    dismiss.title = 'Dismiss';
+    dismiss.tabIndex = -1;
+    dismiss.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      hideSavePhraseChip();
+    });
+
+    savePhraseChipBox.appendChild(label);
+    savePhraseChipBox.appendChild(btn);
+    savePhraseChipBox.appendChild(dismiss);
+
+    // Position below the selection's bounding rect (fallback: top-
+    // center of viewport for weird zero-rect cases).
+    if (anchorRect && anchorRect.width) {
+      savePhraseChipBox.style.left = anchorRect.left + 'px';
+      savePhraseChipBox.style.top = (anchorRect.bottom + 6) + 'px';
+    } else {
+      savePhraseChipBox.style.left = '50%';
+      savePhraseChipBox.style.top = '20px';
+      savePhraseChipBox.style.transform = 'translateX(-50%)';
+    }
+    savePhraseChipBox.style.display = 'flex';
+    clampToViewport(savePhraseChipBox, anchorRect);
+  }
+
+  function hideSavePhraseChip() {
+    if (savePhraseChipBox) {
+      savePhraseChipBox.style.display = 'none';
+      savePhraseChipBox.style.transform = '';
+    }
+    pendingSavePhraseChip = null;
+  }
+
+  async function acceptSavePhraseChip() {
+    if (!pendingSavePhraseChip) return;
+    const { text } = pendingSavePhraseChip;
+    const result = await corpus.addOrBumpPhrase(text, 'highlight');
+    if (result.added) {
+      console.log('[LingoFrog] Saved new phrase:', JSON.stringify(result.phrase));
+    } else if (result.bumped) {
+      console.log('[LingoFrog] Bumped phrase:', JSON.stringify(result.phrase));
+    }
+    hideSavePhraseChip();
+  }
+
+  /**
+   * Entry point for the ⌘+Shift+P shortcut. Reads the current
+   * selection (allowed in editable OR non-editable contexts — per
+   * issue #52 we want to support saving from received-email bodies
+   * too) and shows the chip if the selection has non-whitespace
+   * content.
+   */
+  function maybeShowSavePhraseChip() {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+
+    const raw = sel.toString();
+    const text = raw.trim().replace(/[‘’]/g, "'").replace(/[“”]/g, '"');
+    if (!text) return;
+
+    const range = sel.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    showSavePhraseChip(text, rect);
+  }
+
   function checkForLinkTriggers() {
     if (corpus.linkRules.rules.size === 0) return;
 
@@ -1292,6 +1417,37 @@
         }
       }
 
+      // ── Save-phrase chip: Esc dismisses; 5-char typing decay ──
+      if (pendingSavePhraseChip) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          hideSavePhraseChip();
+          return;
+        }
+        const isCharish = e.key.length === 1 || e.key === 'Backspace' || e.key === 'Delete' || e.key === 'Enter';
+        if (isCharish) {
+          pendingSavePhraseChip.typedChars = (pendingSavePhraseChip.typedChars || 0) + 1;
+          if (pendingSavePhraseChip.typedChars >= 5) {
+            hideSavePhraseChip();
+          }
+        }
+      }
+
+      // ── Cmd+Shift+P with selected text: save phrase to corpus ──
+      // Allowed in editable AND non-editable contexts (per issue #52
+      // — supports saving from received-email bodies, not just
+      // composes).
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'p' || e.key === 'P')) {
+        const sel = window.getSelection();
+        if (sel && !sel.isCollapsed && sel.toString().trim()) {
+          e.preventDefault();
+          e.stopPropagation();
+          maybeShowSavePhraseChip();
+          return;
+        }
+      }
+
       // ── Cmd+L with selected text: open link search ──
       // Checked BEFORE the pendingLink-accept branch so that an
       // active selection always wins. Otherwise a user who typed a
@@ -1334,11 +1490,18 @@
     }, true);
 
     document.addEventListener('click', (e) => {
-      if (!suggestionBox?.contains(e.target) && !linkPromptBox?.contains(e.target) && !linkSearchBox?.contains(e.target) && !saveRuleChipBox?.contains(e.target)) {
+      if (
+        !suggestionBox?.contains(e.target) &&
+        !linkPromptBox?.contains(e.target) &&
+        !linkSearchBox?.contains(e.target) &&
+        !saveRuleChipBox?.contains(e.target) &&
+        !savePhraseChipBox?.contains(e.target)
+      ) {
         hideSuggestions();
         hideLinkPrompt();
         hideLinkSearch();
         hideSaveRuleChip();
+        hideSavePhraseChip();
       }
     }, true);
 
