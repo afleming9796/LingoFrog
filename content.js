@@ -655,14 +655,25 @@
 
     const existing = corpus.linkRules.rules.get(trigger);
 
-    // Capture cursor position right after the link insertion (it
-    // should already be after the <a>; we just snapshot the current
-    // selection so we can restore it if the chip steals focus and
-    // the contenteditable resets selection on refocus).
-    const sel = window.getSelection();
-    const cursorRange = sel && sel.rangeCount > 0
-      ? sel.getRangeAt(0).cloneRange()
-      : null;
+    // Build the cursor-restore range deterministically from the
+    // inserted anchor element rather than reading window.getSelection
+    // at this point. Between link insertion and chip-show, the
+    // dispatched 'input' event runs the page's own handlers (Gmail
+    // compose, etc.) which can normalize/move the selection — and on
+    // the Replace flow specifically we saw cursor landing at the
+    // start of the inserted phrase on dismissal. Anchoring to the <a>
+    // means we always restore to "just after the inserted link"
+    // regardless of what the page did to the live selection.
+    let cursorRange = null;
+    if (anchorEl && anchorEl.parentNode) {
+      try {
+        cursorRange = document.createRange();
+        cursorRange.setStartAfter(anchorEl);
+        cursorRange.collapse(true);
+      } catch (e) {
+        cursorRange = null;
+      }
+    }
 
     showSaveRuleChip({
       trigger,
