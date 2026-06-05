@@ -356,17 +356,19 @@ class Corpus {
    * popup load + corpus load. Returns a new object — does not mutate
    * the input.
    *
-   *   autoSaveLinkRules: true  (#51 default, never-actually-wanted-to-be-default)
-   *     → showSaveRuleChip: true  (chip visible, no silent save)
-   *   autoSaveLinkRules: false
-   *     → showSaveRuleChip: false
+   * The chip is non-destructive, so we opt every existing install
+   * into it on migration regardless of their prior auto-save setting.
+   * Users who'd previously turned auto-save off may have done so
+   * specifically to avoid the silent-save footgun, not because they
+   * never want a save affordance at all — feature-discovery wins
+   * here. They can toggle off after seeing the chip once.
    */
   static migrateConfig(stored) {
     if (!stored || typeof stored !== 'object') return stored;
     if ('showSaveRuleChip' in stored) return stored;
     if ('autoSaveLinkRules' in stored) {
       const { autoSaveLinkRules, ...rest } = stored;
-      return { ...rest, showSaveRuleChip: autoSaveLinkRules !== false };
+      return { ...rest, showSaveRuleChip: true };
     }
     return stored;
   }

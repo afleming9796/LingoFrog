@@ -655,18 +655,36 @@
 
     const existing = corpus.linkRules.rules.get(trigger);
 
+    // Capture cursor position right after the link insertion (it
+    // should already be after the <a>; we just snapshot the current
+    // selection so we can restore it if the chip steals focus and
+    // the contenteditable resets selection on refocus).
+    const sel = window.getSelection();
+    const cursorRange = sel && sel.rangeCount > 0
+      ? sel.getRangeAt(0).cloneRange()
+      : null;
+
     showSaveRuleChip({
       trigger,
       url: chosen.url,
       existingRule: existing || null,
       anchorEl,
+      cursorRange,
+      activeEl: activeElement,
     });
   }
 
-  function showSaveRuleChip({ trigger, url, existingRule, anchorEl }) {
+  function showSaveRuleChip({ trigger, url, existingRule, anchorEl, cursorRange, activeEl }) {
     if (!saveRuleChipBox) return;
 
-    pendingSaveRuleChip = { trigger, url, existingRule };
+    pendingSaveRuleChip = {
+      trigger,
+      url,
+      existingRule,
+      cursorRange,
+      activeEl,
+      typedChars: 0,
+    };
     saveRuleChipBox.innerHTML = '';
 
     const isReplace = !!existingRule;
@@ -693,6 +711,7 @@
     const btn = document.createElement('button');
     btn.className = 'lingofrog-src-btn';
     btn.textContent = isReplace ? 'Replace' : 'Save';
+    btn.tabIndex = -1;  // don't pull focus from the editable
     btn.addEventListener('mousedown', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -703,6 +722,7 @@
     dismiss.className = 'lingofrog-src-dismiss';
     dismiss.textContent = '×';
     dismiss.title = 'Dismiss';
+    dismiss.tabIndex = -1;
     dismiss.addEventListener('mousedown', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -727,13 +747,32 @@
     }
     saveRuleChipBox.style.display = 'flex';
     clampToViewport(saveRuleChipBox, rect);
-
-    // Auto-dismiss after 6s.
-    if (saveRuleChipTimer) clearTimeout(saveRuleChipTimer);
-    saveRuleChipTimer = setTimeout(() => hideSaveRuleChip(), 6000);
   }
 
-  function hideSaveRuleChip() {
+  function hideSaveRuleChip({ restoreCursor = true } = {}) {
+    // Restore editor focus + cursor position before tearing down state,
+    // so the cursor lands at the end of the inserted link rather than
+    // wherever the contenteditable defaults to on refocus.
+    //
+    // Skip restoration when the user dismissed by typing into the
+    // editor — the saved range is stale (user has typed past it) and
+    // restoring would jump them backward.
+    if (pendingSaveRuleChip && restoreCursor) {
+      const { activeEl, cursorRange } = pendingSaveRuleChip;
+      if (activeEl && typeof activeEl.focus === 'function') {
+        activeEl.focus({ preventScroll: true });
+      }
+      if (cursorRange) {
+        try {
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(cursorRange);
+        } catch (e) {
+          // Range may have been invalidated by DOM mutation; ignore.
+        }
+      }
+    }
+
     if (saveRuleChipBox) {
       saveRuleChipBox.style.display = 'none';
       saveRuleChipBox.style.transform = '';
@@ -1163,12 +1202,28 @@
         return;
       }
 
-      // ── Save-rule chip: Esc dismisses ──
-      if (pendingSaveRuleChip && e.key === 'Escape') {
-        e.preventDefault();
-        e.stopPropagation();
-        hideSaveRuleChip();
-        return;
+      // ── Save-rule chip: Esc dismisses; typed chars decay the chip ──
+      // Mirrors the link-prompt's "typing dismisses" pattern, but with
+      // a small grace period so the user can read the chip while
+      // they're moving on. After 5 character-producing keypresses,
+      // dismiss.
+      if (pendingSaveRuleChip) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          hideSaveRuleChip();
+          return;
+        }
+        const isCharish = e.key.length === 1 || e.key === 'Backspace' || e.key === 'Delete' || e.key === 'Enter';
+        if (isCharish) {
+          pendingSaveRuleChip.typedChars = (pendingSaveRuleChip.typedChars || 0) + 1;
+          if (pendingSaveRuleChip.typedChars >= 5) {
+            // Don't preventDefault — the user's typing should still
+            // land in the editor. Don't restore the cursor either —
+            // the saved range is stale after they've typed past it.
+            hideSaveRuleChip({ restoreCursor: false });
+          }
+        }
       }
 
       // ── Cmd+L with selected text: open link search ──
