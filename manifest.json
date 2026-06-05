@@ -21,13 +21,7 @@
   },
   "content_scripts": [
     {
-      "matches": [
-        "https://mail.google.com/*",
-        "https://docs.google.com/*",
-        "https://www.linkedin.com/*",
-        "https://slack.com/*",
-        "https://app.slack.com/*"
-      ],
+      "matches": ["https://mail.google.com/*"],
       "js": ["trie.js", "content.js"],
       "css": ["lingofrog.css"]
     }
@@ -35,13 +29,7 @@
   "web_accessible_resources": [
     {
       "resources": ["icons/icon48.png", "icons/icon128.png"],
-      "matches": [
-        "https://mail.google.com/*",
-        "https://docs.google.com/*",
-        "https://www.linkedin.com/*",
-        "https://slack.com/*",
-        "https://app.slack.com/*"
-      ]
+      "matches": ["https://mail.google.com/*"]
     }
   ]
 }
