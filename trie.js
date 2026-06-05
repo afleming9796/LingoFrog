@@ -129,28 +129,6 @@ class LinkRules {
     this.rules.delete(phrase.toLowerCase().trim());
   }
 
-  /**
-   * Edit an existing rule in place. Trigger acts as the key, URL is
-   * the value. Returns true on success, false if the old trigger
-   * didn't exist or validation failed.
-   *
-   * Mirrors editPhrase semantics: caller is responsible for
-   * persistence — call save() after.
-   */
-  editRule(oldTrigger, newTrigger, newUrl) {
-    oldTrigger = (oldTrigger || '').toLowerCase().trim();
-    newTrigger = (newTrigger || '').toLowerCase().trim();
-    newUrl = (newUrl || '').trim();
-    if (!newTrigger || !newUrl) return false;
-    const existing = this.rules.get(oldTrigger);
-    if (!existing) return false;
-    if (oldTrigger !== newTrigger) {
-      this.rules.delete(oldTrigger);
-    }
-    this.rules.set(newTrigger, { url: newUrl, label: existing.label });
-    return true;
-  }
-
   getAll() {
     return [...this.rules.entries()].map(([trigger, data]) => ({
       trigger,

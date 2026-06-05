@@ -191,15 +191,10 @@ function renderLinkRuleRow(rule) {
   arrow.className = 'link-rule-arrow';
   arrow.textContent = '\u2192';
 
-  // URL: click to enter inline edit mode (mirrors the click-to-edit
-  // pattern used for phrases).
   const url = document.createElement('span');
   url.className = 'link-rule-url';
   url.textContent = rule.url;
-  url.title = rule.url + ' (click to edit)';
-  url.addEventListener('click', () => {
-    startEditLinkRule(li, rule.trigger, rule.url);
-  });
+  url.title = rule.url;
 
   const del = document.createElement('button');
   del.className = 'link-rule-delete';
@@ -219,94 +214,6 @@ function renderLinkRuleRow(rule) {
   return li;
 }
 
-function startEditLinkRule(li, originalTrigger, originalUrl) {
-  li.innerHTML = '';
-
-  const triggerInput = document.createElement('input');
-  triggerInput.type = 'text';
-  triggerInput.className = 'link-rule-edit-input';
-  triggerInput.value = originalTrigger;
-  triggerInput.spellcheck = false;
-  triggerInput.autocomplete = 'off';
-
-  const arrow = document.createElement('span');
-  arrow.className = 'link-rule-arrow';
-  arrow.textContent = '\u2192';
-
-  const urlInput = document.createElement('input');
-  urlInput.type = 'text';
-  urlInput.className = 'link-rule-edit-input';
-  urlInput.value = originalUrl;
-  urlInput.spellcheck = false;
-  urlInput.autocomplete = 'off';
-
-  let committed = false;
-
-  const cancel = () => {
-    committed = true;
-    updateLinkRuleList();
-  };
-
-  const save = async () => {
-    if (committed) return;
-    committed = true;
-
-    const newTrigger = triggerInput.value.trim();
-    let newUrl = urlInput.value.trim();
-
-    // Empty either field \u2192 silently restore.
-    if (!newTrigger || !newUrl) return updateLinkRuleList();
-
-    // Prepend https:// if the user dropped the scheme.
-    if (!/^[a-z]+:/i.test(newUrl)) {
-      newUrl = 'https://' + newUrl;
-    }
-    // Reject malformed URLs.
-    try { new URL(newUrl); }
-    catch (e) { return updateLinkRuleList(); }
-
-    // No-op edit \u2192 just re-render.
-    if (newTrigger.toLowerCase() === originalTrigger.toLowerCase() && newUrl === originalUrl) {
-      return updateLinkRuleList();
-    }
-
-    // Confirm overwrite if renaming onto a different existing rule.
-    const newKey = newTrigger.toLowerCase();
-    const collides = newKey !== originalTrigger.toLowerCase() && corpus.linkRules.rules.has(newKey);
-    if (collides) {
-      const ok = confirm(`A rule for "${newKey}" already exists. Overwrite it?`);
-      if (!ok) return updateLinkRuleList();
-    }
-
-    corpus.linkRules.editRule(originalTrigger, newTrigger, newUrl);
-    await corpus.linkRules.save();
-    updateLinkRuleList();
-    updateStats();
-  };
-
-  const onKey = (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); save(); }
-    if (e.key === 'Escape') { e.preventDefault(); cancel(); }
-  };
-
-  // Save only when focus leaves BOTH inputs so tabbing between them
-  // doesn't commit prematurely.
-  const onBlur = (e) => {
-    if (e.relatedTarget === triggerInput || e.relatedTarget === urlInput) return;
-    save();
-  };
-
-  [triggerInput, urlInput].forEach((input) => {
-    input.addEventListener('keydown', onKey);
-    input.addEventListener('blur', onBlur);
-  });
-
-  li.appendChild(triggerInput);
-  li.appendChild(arrow);
-  li.appendChild(urlInput);
-  urlInput.focus();
-  urlInput.select();
-}
 
 function loadSettings() {
   chrome.storage.local.get(['lingofrog_config'], (data) => {
