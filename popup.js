@@ -149,41 +149,71 @@ function updateLinkRuleList() {
   }
 
   for (const rule of filtered) {
-    const li = document.createElement('li');
-    li.className = 'link-rule-item';
-
-    const trigger = document.createElement('span');
-    trigger.className = 'link-rule-trigger';
-    trigger.textContent = rule.trigger;
-    trigger.title = rule.trigger;
-
-    const arrow = document.createElement('span');
-    arrow.className = 'link-rule-arrow';
-    arrow.textContent = '\u2192';
-
-    const url = document.createElement('span');
-    url.className = 'link-rule-url';
-    url.textContent = rule.url;
-    url.title = rule.url;
-
-    const del = document.createElement('button');
-    del.className = 'link-rule-delete';
-    del.textContent = '\u00d7';
-    del.title = 'Remove rule';
-    del.addEventListener('click', async () => {
-      corpus.linkRules.removeRule(rule.trigger);
-      await corpus.linkRules.save();
-      updateLinkRuleList();
-      updateStats();
-    });
-
-    li.appendChild(trigger);
-    li.appendChild(arrow);
-    li.appendChild(url);
-    li.appendChild(del);
-    linkRuleList.appendChild(li);
+    linkRuleList.appendChild(renderLinkRuleRow(rule));
   }
 }
+
+// Returns true when the URL is safe to render as a clickable <a>.
+// Allow http/https/mailto/tel; reject anything else so an admin
+// click in the popup can't fire a dangerous scheme.
+function isSafeNavigableUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return ['http:', 'https:', 'mailto:', 'tel:'].includes(parsed.protocol);
+  } catch (e) {
+    return false;
+  }
+}
+
+function renderLinkRuleRow(rule) {
+  const li = document.createElement('li');
+  li.className = 'link-rule-item';
+
+  // Trigger: clickable <a> that navigates to the raw URL in a new
+  // tab. No UTM application \u2014 the popup is an admin/inspection view
+  // and applying UTMs here would muddy the analytics signal. Unsafe
+  // schemes fall back to a plain span without the navigate
+  // affordance.
+  let trigger;
+  if (isSafeNavigableUrl(rule.url)) {
+    trigger = document.createElement('a');
+    trigger.href = rule.url;
+    trigger.target = '_blank';
+    trigger.rel = 'noopener noreferrer';
+  } else {
+    trigger = document.createElement('span');
+  }
+  trigger.className = 'link-rule-trigger';
+  trigger.textContent = rule.trigger;
+  trigger.title = rule.trigger;
+
+  const arrow = document.createElement('span');
+  arrow.className = 'link-rule-arrow';
+  arrow.textContent = '\u2192';
+
+  const url = document.createElement('span');
+  url.className = 'link-rule-url';
+  url.textContent = rule.url;
+  url.title = rule.url;
+
+  const del = document.createElement('button');
+  del.className = 'link-rule-delete';
+  del.textContent = '\u00d7';
+  del.title = 'Remove rule';
+  del.addEventListener('click', async () => {
+    corpus.linkRules.removeRule(rule.trigger);
+    await corpus.linkRules.save();
+    updateLinkRuleList();
+    updateStats();
+  });
+
+  li.appendChild(trigger);
+  li.appendChild(arrow);
+  li.appendChild(url);
+  li.appendChild(del);
+  return li;
+}
+
 
 function loadSettings() {
   chrome.storage.local.get(['lingofrog_config'], (data) => {
