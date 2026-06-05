@@ -189,7 +189,18 @@ function updateLinkRuleList() {
 
 function loadSettings() {
   chrome.storage.local.get(['lingofrog_config'], (data) => {
-    const cfg = Corpus.migrateConfig(data.lingofrog_config);
+    const stored = data.lingofrog_config;
+    const cfg = Corpus.migrateConfig(stored);
+
+    // If a migration actually translated old field names, persist the
+    // new shape so future loads (and any later migration changes)
+    // start from the migrated form. Without this, the legacy field
+    // lingers in storage indefinitely until the user clicks Save
+    // Settings — leaving us re-migrating on every load.
+    if (cfg && cfg !== stored) {
+      chrome.storage.local.set({ lingofrog_config: cfg });
+    }
+
     if (cfg) {
       $('#set-trigger').value = cfg.triggerAfterChars || 8;
       $('#set-max').value = cfg.maxSuggestions || 5;
