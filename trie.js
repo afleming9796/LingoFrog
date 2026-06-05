@@ -347,15 +347,37 @@ class Corpus {
       enabled: true,
       autoComplete: true,
       autoLink: true,
-      autoSaveLinkRules: true,
+      showSaveRuleChip: true,
     };
+  }
+
+  /**
+   * Translate legacy config fields to their current names. Called by
+   * popup load + corpus load. Returns a new object — does not mutate
+   * the input.
+   *
+   * The chip is non-destructive, so we opt every existing install
+   * into it on migration regardless of their prior auto-save setting.
+   * Users who'd previously turned auto-save off may have done so
+   * specifically to avoid the silent-save footgun, not because they
+   * never want a save affordance at all — feature-discovery wins
+   * here. They can toggle off after seeing the chip once.
+   */
+  static migrateConfig(stored) {
+    if (!stored || typeof stored !== 'object') return stored;
+    if ('showSaveRuleChip' in stored) return stored;
+    if ('autoSaveLinkRules' in stored) {
+      const { autoSaveLinkRules, ...rest } = stored;
+      return { ...rest, showSaveRuleChip: true };
+    }
+    return stored;
   }
 
   async load() {
     return new Promise((resolve) => {
       chrome.storage.local.get(['lingofrog_phrases', 'lingofrog_config'], (data) => {
         if (data.lingofrog_config) {
-          Object.assign(this.config, data.lingofrog_config);
+          Object.assign(this.config, Corpus.migrateConfig(data.lingofrog_config));
         }
 
         if (data.lingofrog_phrases) {

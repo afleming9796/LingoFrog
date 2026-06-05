@@ -189,13 +189,25 @@ function updateLinkRuleList() {
 
 function loadSettings() {
   chrome.storage.local.get(['lingofrog_config'], (data) => {
-    if (data.lingofrog_config) {
-      $('#set-trigger').value = data.lingofrog_config.triggerAfterChars || 8;
-      $('#set-max').value = data.lingofrog_config.maxSuggestions || 5;
-      $('#set-enabled').checked = data.lingofrog_config.enabled !== false;
-      $('#set-autocomplete').checked = data.lingofrog_config.autoComplete !== false;
-      $('#set-autolink').checked = data.lingofrog_config.autoLink !== false;
-      $('#set-autosave-links').checked = data.lingofrog_config.autoSaveLinkRules !== false;
+    const stored = data.lingofrog_config;
+    const cfg = Corpus.migrateConfig(stored);
+
+    // If a migration actually translated old field names, persist the
+    // new shape so future loads (and any later migration changes)
+    // start from the migrated form. Without this, the legacy field
+    // lingers in storage indefinitely until the user clicks Save
+    // Settings — leaving us re-migrating on every load.
+    if (cfg && cfg !== stored) {
+      chrome.storage.local.set({ lingofrog_config: cfg });
+    }
+
+    if (cfg) {
+      $('#set-trigger').value = cfg.triggerAfterChars || 8;
+      $('#set-max').value = cfg.maxSuggestions || 5;
+      $('#set-enabled').checked = cfg.enabled !== false;
+      $('#set-autocomplete').checked = cfg.autoComplete !== false;
+      $('#set-autolink').checked = cfg.autoLink !== false;
+      $('#set-save-rule-chip').checked = cfg.showSaveRuleChip !== false;
     }
     updateToggleStates();
   });
@@ -205,14 +217,14 @@ function updateToggleStates() {
   const masterEnabled = $('#set-enabled').checked;
   const rowAutoComplete = $('#row-autocomplete');
   const rowAutoLink = $('#row-autolink');
-  const rowAutoSaveLinks = $('#row-autosave-links');
+  const rowSaveRuleChip = $('#row-save-rule-chip');
 
   rowAutoComplete.classList.toggle('disabled', !masterEnabled);
   rowAutoLink.classList.toggle('disabled', !masterEnabled);
-  rowAutoSaveLinks.classList.toggle('disabled', !masterEnabled);
+  rowSaveRuleChip.classList.toggle('disabled', !masterEnabled);
   $('#set-autocomplete').disabled = !masterEnabled;
   $('#set-autolink').disabled = !masterEnabled;
-  $('#set-autosave-links').disabled = !masterEnabled;
+  $('#set-save-rule-chip').disabled = !masterEnabled;
 }
 
 function showStatus(el, message, type, duration) {
@@ -367,7 +379,7 @@ btnSaveSettings.addEventListener('click', () => {
     enabled: $('#set-enabled').checked,
     autoComplete: $('#set-autocomplete').checked,
     autoLink: $('#set-autolink').checked,
-    autoSaveLinkRules: $('#set-autosave-links').checked,
+    showSaveRuleChip: $('#set-save-rule-chip').checked,
   };
 
   chrome.storage.local.set({ lingofrog_config: config }, () => {
