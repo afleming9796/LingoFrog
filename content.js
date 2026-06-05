@@ -547,7 +547,8 @@
     }
 
     const chosen = linkSearchResults[linkSearchIndex];
-    const { range } = linkSearchSelection;
+    const { range, text: highlightedText } = linkSearchSelection;
+    let inserted = false;
 
     try {
       const a = document.createElement('a');
@@ -569,6 +570,7 @@
       if (activeElement) {
         activeElement.dispatchEvent(new Event('input', { bubbles: true }));
       }
+      inserted = true;
     } catch (e) {
       // surroundContents fails if selection spans multiple elements;
       // fall back to replacing the range with a link containing the text
@@ -592,12 +594,56 @@
         if (activeElement) {
           activeElement.dispatchEvent(new Event('input', { bubbles: true }));
         }
+        inserted = true;
       } catch (err) {
         console.error('[LingoFrog] Link search insert error:', err);
       }
     }
 
+    if (inserted) {
+      // Fire-and-forget; no need to block popup dismissal on storage write.
+      maybeAutoSaveLinkRule(chosen, highlightedText);
+    }
+
     hideLinkSearch();
+  }
+
+  /**
+   * If the user inserted a one-off URL (kind: 'url') and auto-save is
+   * enabled, persist (highlighted text → URL) as a new link rule.
+   *
+   * Guards:
+   *   - Only fires for synthetic URL rows, not registered-rule picks.
+   *   - Skips if a rule already exists for the trigger (don't silently
+   *     overwrite a hand-curated URL).
+   *   - Skips if highlighted text exceeds 80 chars (multi-paragraph
+   *     highlights aren't useful triggers).
+   *
+   * The raw URL is saved — NOT the UTM-applied version — so that UTM
+   * rules are re-evaluated each time the rule is later used. This
+   * means UTM config changes propagate to auto-saved rules.
+   */
+  async function maybeAutoSaveLinkRule(chosen, highlightedText) {
+    if (chosen.kind !== 'url') return;
+    if (corpus.config.autoSaveLinkRules === false) return;
+
+    const trigger = (highlightedText || '').toLowerCase().trim();
+    if (!trigger) return;
+
+    const MAX_TRIGGER_LEN = 80;
+    if (trigger.length > MAX_TRIGGER_LEN) {
+      console.log('[LingoFrog] Auto-save skipped: highlighted text >', MAX_TRIGGER_LEN, 'chars');
+      return;
+    }
+
+    if (corpus.linkRules.rules.has(trigger)) {
+      console.log('[LingoFrog] Auto-save skipped: link rule already exists for "' + trigger + '"');
+      return;
+    }
+
+    corpus.linkRules.addRule(trigger, chosen.url);
+    await corpus.linkRules.save();
+    console.log('[LingoFrog] Auto-saved link rule: "' + trigger + '" →', chosen.url);
   }
 
   function checkForLinkTriggers() {

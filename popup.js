@@ -195,6 +195,7 @@ function loadSettings() {
       $('#set-enabled').checked = data.lingofrog_config.enabled !== false;
       $('#set-autocomplete').checked = data.lingofrog_config.autoComplete !== false;
       $('#set-autolink').checked = data.lingofrog_config.autoLink !== false;
+      $('#set-autosave-links').checked = data.lingofrog_config.autoSaveLinkRules !== false;
     }
     updateToggleStates();
   });
@@ -204,11 +205,14 @@ function updateToggleStates() {
   const masterEnabled = $('#set-enabled').checked;
   const rowAutoComplete = $('#row-autocomplete');
   const rowAutoLink = $('#row-autolink');
+  const rowAutoSaveLinks = $('#row-autosave-links');
 
   rowAutoComplete.classList.toggle('disabled', !masterEnabled);
   rowAutoLink.classList.toggle('disabled', !masterEnabled);
+  rowAutoSaveLinks.classList.toggle('disabled', !masterEnabled);
   $('#set-autocomplete').disabled = !masterEnabled;
   $('#set-autolink').disabled = !masterEnabled;
+  $('#set-autosave-links').disabled = !masterEnabled;
 }
 
 function showStatus(el, message, type, duration) {
@@ -363,6 +367,7 @@ btnSaveSettings.addEventListener('click', () => {
     enabled: $('#set-enabled').checked,
     autoComplete: $('#set-autocomplete').checked,
     autoLink: $('#set-autolink').checked,
+    autoSaveLinkRules: $('#set-autosave-links').checked,
   };
 
   chrome.storage.local.set({ lingofrog_config: config }, () => {
