@@ -32,6 +32,11 @@
   let linkSearchIndex = 0;
   let linkSearchSelection = null; // { range, text } saved when popup opens
 
+  // ── Save Rule Chip State ───────────────────────────────────
+  let saveRuleChipBox = null;
+  let saveRuleChipTimer = null;
+  let pendingSaveRuleChip = null; // { trigger, url, existingRule } when shown
+
   // ── Initialization ──────────────────────────────────────────
 
   async function init() {
@@ -40,6 +45,7 @@
     createSuggestionUI();
     createLinkPromptUI();
     createLinkSearchUI();
+    createSaveRuleChipUI();
     attachListeners();
     initialized = true;
     console.log(
@@ -549,6 +555,7 @@
     const chosen = linkSearchResults[linkSearchIndex];
     const { range, text: highlightedText } = linkSearchSelection;
     let inserted = false;
+    let insertedAnchor = null;
 
     try {
       const a = document.createElement('a');
@@ -571,6 +578,7 @@
         activeElement.dispatchEvent(new Event('input', { bubbles: true }));
       }
       inserted = true;
+      insertedAnchor = a;
     } catch (e) {
       // surroundContents fails if selection spans multiple elements;
       // fall back to replacing the range with a link containing the text
@@ -595,55 +603,157 @@
           activeElement.dispatchEvent(new Event('input', { bubbles: true }));
         }
         inserted = true;
+        insertedAnchor = a;
       } catch (err) {
         console.error('[LingoFrog] Link search insert error:', err);
       }
     }
 
-    if (inserted) {
-      // Fire-and-forget; no need to block popup dismissal on storage write.
-      maybeAutoSaveLinkRule(chosen, highlightedText);
-    }
-
     hideLinkSearch();
+
+    if (inserted) {
+      maybeShowSaveRuleChip(chosen, highlightedText, insertedAnchor);
+    }
+  }
+
+  // ── Save Rule Chip ──────────────────────────────────────────
+  //
+  // After a one-off URL insertion via ⌘L, surface a small chip near
+  // the inserted link asking if the user wants to save the highlighted
+  // text → URL pair as a new link rule. Replaces the silent auto-save
+  // behavior shipped in #51 (per the #56 design): default-off means
+  // generic anchor text like "here" or "click" can never be saved by
+  // accident.
+
+  function createSaveRuleChipUI() {
+    saveRuleChipBox = document.createElement('div');
+    saveRuleChipBox.id = 'lingofrog-save-rule-chip';
+    saveRuleChipBox.className = 'lingofrog-save-rule-chip';
+    document.body.appendChild(saveRuleChipBox);
   }
 
   /**
-   * If the user inserted a one-off URL (kind: 'url') and auto-save is
-   * enabled, persist (highlighted text → URL) as a new link rule.
-   *
+   * Conditionally show the chip after a one-off URL insertion.
    * Guards:
    *   - Only fires for synthetic URL rows, not registered-rule picks.
-   *   - Skips if a rule already exists for the trigger (don't silently
-   *     overwrite a hand-curated URL).
-   *   - Skips if highlighted text exceeds 80 chars (multi-paragraph
-   *     highlights aren't useful triggers).
+   *   - Skips if the showSaveRuleChip setting is off.
+   *   - Skips if highlighted text is empty or exceeds 80 chars
+   *     (multi-paragraph highlights aren't useful triggers).
    *
-   * The raw URL is saved — NOT the UTM-applied version — so that UTM
-   * rules are re-evaluated each time the rule is later used. This
-   * means UTM config changes propagate to auto-saved rules.
+   * The chip stores the RAW URL — not the UTM-applied href — so that
+   * UTM rules are re-evaluated each time the rule is later used.
    */
-  async function maybeAutoSaveLinkRule(chosen, highlightedText) {
+  function maybeShowSaveRuleChip(chosen, highlightedText, anchorEl) {
     if (chosen.kind !== 'url') return;
-    if (corpus.config.autoSaveLinkRules === false) return;
+    if (corpus.config.showSaveRuleChip === false) return;
 
     const trigger = (highlightedText || '').toLowerCase().trim();
     if (!trigger) return;
 
     const MAX_TRIGGER_LEN = 80;
-    if (trigger.length > MAX_TRIGGER_LEN) {
-      console.log('[LingoFrog] Auto-save skipped: highlighted text >', MAX_TRIGGER_LEN, 'chars');
-      return;
+    if (trigger.length > MAX_TRIGGER_LEN) return;
+
+    const existing = corpus.linkRules.rules.get(trigger);
+
+    showSaveRuleChip({
+      trigger,
+      url: chosen.url,
+      existingRule: existing || null,
+      anchorEl,
+    });
+  }
+
+  function showSaveRuleChip({ trigger, url, existingRule, anchorEl }) {
+    if (!saveRuleChipBox) return;
+
+    pendingSaveRuleChip = { trigger, url, existingRule };
+    saveRuleChipBox.innerHTML = '';
+
+    const isReplace = !!existingRule;
+    const displayHost = (() => {
+      try { return new URL(url).hostname + new URL(url).pathname; }
+      catch { return url; }
+    })();
+    const existingDisplayHost = isReplace ? (() => {
+      try { return new URL(existingRule.url).hostname; }
+      catch { return existingRule.url; }
+    })() : null;
+
+    const label = document.createElement('span');
+    label.className = 'lingofrog-src-label';
+    if (isReplace) {
+      label.innerHTML = 'Replace <strong>' + escapeHtml(trigger) + '</strong> → '
+        + '<span class="lingofrog-src-old">' + escapeHtml(existingDisplayHost) + '</span> with '
+        + '<span class="lingofrog-src-new">' + escapeHtml(displayHost) + '</span>?';
+    } else {
+      label.innerHTML = 'Save <strong>' + escapeHtml(trigger) + '</strong> → '
+        + '<span class="lingofrog-src-new">' + escapeHtml(displayHost) + '</span> as a link rule?';
     }
 
-    if (corpus.linkRules.rules.has(trigger)) {
-      console.log('[LingoFrog] Auto-save skipped: link rule already exists for "' + trigger + '"');
-      return;
-    }
+    const btn = document.createElement('button');
+    btn.className = 'lingofrog-src-btn';
+    btn.textContent = isReplace ? 'Replace' : 'Save';
+    btn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      acceptSaveRuleChip();
+    });
 
-    corpus.linkRules.addRule(trigger, chosen.url);
+    const dismiss = document.createElement('button');
+    dismiss.className = 'lingofrog-src-dismiss';
+    dismiss.textContent = '×';
+    dismiss.title = 'Dismiss';
+    dismiss.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      hideSaveRuleChip();
+    });
+
+    saveRuleChipBox.appendChild(label);
+    saveRuleChipBox.appendChild(btn);
+    saveRuleChipBox.appendChild(dismiss);
+
+    // Position below the inserted anchor (fallback: viewport-centered).
+    const rect = anchorEl && anchorEl.getBoundingClientRect
+      ? anchorEl.getBoundingClientRect()
+      : null;
+    if (rect && rect.width) {
+      saveRuleChipBox.style.left = rect.left + 'px';
+      saveRuleChipBox.style.top = (rect.bottom + 6) + 'px';
+    } else {
+      saveRuleChipBox.style.left = '50%';
+      saveRuleChipBox.style.top = '20px';
+      saveRuleChipBox.style.transform = 'translateX(-50%)';
+    }
+    saveRuleChipBox.style.display = 'flex';
+    clampToViewport(saveRuleChipBox, rect);
+
+    // Auto-dismiss after 6s.
+    if (saveRuleChipTimer) clearTimeout(saveRuleChipTimer);
+    saveRuleChipTimer = setTimeout(() => hideSaveRuleChip(), 6000);
+  }
+
+  function hideSaveRuleChip() {
+    if (saveRuleChipBox) {
+      saveRuleChipBox.style.display = 'none';
+      saveRuleChipBox.style.transform = '';
+    }
+    if (saveRuleChipTimer) {
+      clearTimeout(saveRuleChipTimer);
+      saveRuleChipTimer = null;
+    }
+    pendingSaveRuleChip = null;
+  }
+
+  async function acceptSaveRuleChip() {
+    if (!pendingSaveRuleChip) return;
+    const { trigger, url } = pendingSaveRuleChip;
+
+    corpus.linkRules.addRule(trigger, url);
     await corpus.linkRules.save();
-    console.log('[LingoFrog] Auto-saved link rule: "' + trigger + '" →', chosen.url);
+    console.log('[LingoFrog] Saved link rule: "' + trigger + '" →', url);
+
+    hideSaveRuleChip();
   }
 
   function checkForLinkTriggers() {
@@ -1053,6 +1163,14 @@
         return;
       }
 
+      // ── Save-rule chip: Esc dismisses ──
+      if (pendingSaveRuleChip && e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        hideSaveRuleChip();
+        return;
+      }
+
       // ── Cmd+L with selected text: open link search ──
       // Checked BEFORE the pendingLink-accept branch so that an
       // active selection always wins. Otherwise a user who typed a
@@ -1095,10 +1213,11 @@
     }, true);
 
     document.addEventListener('click', (e) => {
-      if (!suggestionBox?.contains(e.target) && !linkPromptBox?.contains(e.target) && !linkSearchBox?.contains(e.target)) {
+      if (!suggestionBox?.contains(e.target) && !linkPromptBox?.contains(e.target) && !linkSearchBox?.contains(e.target) && !saveRuleChipBox?.contains(e.target)) {
         hideSuggestions();
         hideLinkPrompt();
         hideLinkSearch();
+        hideSaveRuleChip();
       }
     }, true);
 
