@@ -864,7 +864,7 @@
 
     corpus.linkRules.addRule(trigger, url);
     await corpus.linkRules.save();
-    console.log('[LingoFrog] Saved link rule: "' + trigger + '" →', url);
+    console.log('[LingoFrog] Saved link rule');
 
     hideSaveRuleChip();
   }
@@ -959,9 +959,9 @@
     const { text } = pendingSavePhraseChip;
     const result = await corpus.addOrBumpPhrase(text, 'highlight');
     if (result.added) {
-      console.log('[LingoFrog] Saved new phrase:', JSON.stringify(result.phrase));
+      console.log('[LingoFrog] Saved new phrase');
     } else if (result.bumped) {
-      console.log('[LingoFrog] Bumped phrase:', JSON.stringify(result.phrase));
+      console.log('[LingoFrog] Bumped phrase');
     }
     hideSavePhraseChip();
   }
