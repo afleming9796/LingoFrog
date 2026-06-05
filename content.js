@@ -758,6 +758,31 @@
     }
     saveRuleChipBox.style.display = 'flex';
     clampToViewport(saveRuleChipBox, rect);
+
+    // Reapply the cursor position after the current tick. The 'input'
+    // event we dispatched after insertion runs the page's handlers
+    // (Gmail compose hooks into MutationObservers / selection
+    // tracking), and those can move the cursor to the start of the
+    // newly-inserted node between insertion and now. Without this
+    // reapply, the user sees the cursor visibly snap to the start of
+    // the phrase the moment the chip appears, then jump back to the
+    // end when they dismiss. setTimeout(0) places this after any
+    // microtask-scheduled handlers.
+    if (cursorRange && activeEl) {
+      setTimeout(() => {
+        if (!pendingSaveRuleChip) return; // chip already dismissed
+        try {
+          if (typeof activeEl.focus === 'function') {
+            activeEl.focus({ preventScroll: true });
+          }
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(cursorRange);
+        } catch (e) {
+          // Range may have been invalidated by DOM mutation; ignore.
+        }
+      }, 0);
+    }
   }
 
   function hideSaveRuleChip({ restoreCursor = true } = {}) {
