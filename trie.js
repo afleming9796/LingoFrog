@@ -347,6 +347,7 @@ class Corpus {
       enabled: true,
       autoComplete: true,
       autoLink: true,
+      autoSaveLinkRules: true,
     };
   }
 
