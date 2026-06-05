@@ -14,8 +14,6 @@ const importStatus = $('#import-status');
 const importHint = $('#import-hint');
 const phraseList = $('#phrase-list');
 const btnClear = $('#btn-clear');
-const btnSaveSettings = $('#btn-save-settings');
-const settingsStatus = $('#settings-status');
 const linkStatus = $('#link-status');
 const linkRuleList = $('#link-rule-list');
 const phraseSearch = $('#phrase-search');
@@ -370,25 +368,54 @@ btnClearLinks.addEventListener('click', async () => {
   }
 });
 
-// ── Settings: Save ─────────────────────────────────────────
+// ── Settings: Auto-persist on change ───────────────────────
 
-btnSaveSettings.addEventListener('click', () => {
+// Auto-persist on change. Each control writes the full config; the
+// popup is single-context so there is no risk of partial-state drift.
+// The content-script storage listener picks the new config up in
+// open Gmail tabs. No "Save Settings" button: the toggle staying
+// in position (or number staying in the field) is the confirmation.
+
+function clampNum(el, fallback) {
+  const min = parseInt(el.min);
+  const max = parseInt(el.max);
+  const n = parseInt(el.value);
+  if (Number.isNaN(n)) {
+    el.value = fallback;
+    return fallback;
+  }
+  if (!Number.isNaN(min) && n < min) { el.value = min; return min; }
+  if (!Number.isNaN(max) && n > max) { el.value = max; return max; }
+  return n;
+}
+
+function persistConfig() {
   const config = {
-    triggerAfterChars: parseInt($('#set-trigger').value) || 8,
-    maxSuggestions: parseInt($('#set-max').value) || 5,
+    triggerAfterChars: clampNum($('#set-trigger'), 8),
+    maxSuggestions: clampNum($('#set-max'), 5),
     enabled: $('#set-enabled').checked,
     autoComplete: $('#set-autocomplete').checked,
     autoLink: $('#set-autolink').checked,
     showSaveRuleChip: $('#set-save-rule-chip').checked,
   };
+  chrome.storage.local.set({ lingofrog_config: config });
+  corpus.config = { ...corpus.config, ...config };
+  updateStats();
+}
 
-  chrome.storage.local.set({ lingofrog_config: config }, () => {
-    corpus.config = { ...corpus.config, ...config };
-    showStatus(settingsStatus, '\u2713 Settings saved', 'success');
-    updateStats();
-  });
+[
+  '#set-enabled',
+  '#set-autocomplete',
+  '#set-autolink',
+  '#set-save-rule-chip',
+  '#set-trigger',
+  '#set-max',
+].forEach((sel) => {
+  $(sel).addEventListener('change', persistConfig);
 });
 
+// Master toggle additionally re-cascades the enabled state of the
+// dependent rows (autocomplete, autolink, chip).
 $('#set-enabled').addEventListener('change', updateToggleStates);
 
 // ── Settings: Backup All ──────────────────────────────────
