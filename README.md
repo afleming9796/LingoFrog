@@ -13,10 +13,10 @@ Like a best friend, LingoFrog finishes your sentences and inserts relevant hyper
 
 ## Setup
 
-1. Add your favorite phrases and links via the import tab.
+1. Add your favorite phrases and links via the import tab or by highlighting them in gmail and selecting cmd + shift + p.
 2. Start typing in Gmail and suggestions will appear. You might need to refresh your screen
-3. Use Cmd+L to insert hyperlinks based on matches. If you highlight a phrase, CMD+L will open a drop down of links to insert.
-4. You should occasionally export your phrases and links to a Google doc or local txt file as a backup.
+3. Use Cmd+L to insert hyperlinks based on matches. If you highlight a phrase, CMD+L will open a drop down of links to insert. You can also insert ad-hoc links via highlight + cmd + L and save those ad-hoc links for future use. 
+4. You should occasionally export your phrases and links to a Google doc or local txt file as a backup. (Bulk import is easy). 
 
 ## How It Works
 
@@ -25,7 +25,8 @@ Like a best friend, LingoFrog finishes your sentences and inserts relevant hyper
 - **Tab** accepts the top suggestion
 - **↑/↓** arrows cycle through options
 - **Cmd+L** accepts hyperlink suggestions
-- **Highlight + CMD+L** brings up dropdown of your links to insert
+- **Highlight + Cmd + P** to add new phrases
+- **Highlight + CMD + L** brings up dropdown of your links to insert and let's you insert ad-hoc links. 
 
 ## Settings
 
@@ -43,7 +44,7 @@ Note that you can lower the trigger threshold (i.e. number of characters) for su
 
 Phrases don't support special formatting or hyperlinks, but hyperlinks will get added based on matching link text. 
 
-GitHub issues and PRs are welcome.
+GitHub issues are welcome.
 
 ## If Developing
 While developing and testing different versions, you may find yourself needing remove the extension via chrome://extensions and then add it back in, in which case you'll lose your attached corpous of phrases and links. It's best to export your phrases and links in this case and then import them back.
