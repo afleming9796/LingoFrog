@@ -287,7 +287,7 @@ function setImportType(type) {
   });
 
   if (type === 'phrases') {
-    importHint.innerHTML = 'One phrase per line. Casing is preserved on insertion.<br>e.g. <code>Thanks for the quick turnaround</code><br><br>Tip: when you highlight text in gmail, press <code>⌘ + Shift + P</code> to save it directly or press <code>⌘ + L</code> to insert a link. Search existing links or copy a new one.';
+    importHint.innerHTML = 'One phrase per line. Casing is preserved on insertion.<br>e.g. <code>Thanks for the quick turnaround</code><br><br>Tip: when you highlight text in gmail, press <code>⌘ + Shift + P</code> to save it directly or press <code>⌘ + L</code> to insert a link. Search existing links or paste a new one.';
     pasteArea.placeholder = 'Paste phrases here, one per line...\n\nThanks for the quick turnaround\nPlease see the attached document\nLet me know if you have any questions';
     btnImport.textContent = 'Import Phrases';
   } else {
