@@ -343,6 +343,19 @@ function startEditPhrase(li, originalPhrase, freqEl) {
   input.focus();
   input.select();
 
+  // Align the Bop row + dropdown with the phrase input above by
+  // offsetting them by the freq badge's rendered width + the row's
+  // 8px flex gap. Defer until the next frame so freqEl has a measured
+  // width.
+  requestAnimationFrame(() => {
+    const freqWidth = freqEl.offsetWidth;
+    if (freqWidth) {
+      const offset = (freqWidth + 8) + 'px';
+      row2.style.paddingLeft = offset;
+      dropdownRow.style.paddingLeft = offset;
+    }
+  });
+
   // Edit mode adds a second row (Bop UI) under the phrase input. The
   // .phrase-list has max-height: 260px with internal scrolling, which
   // can clip the bottom of an expanded row — especially when the
