@@ -158,6 +158,7 @@
     .phrase-delete:hover { opacity: 1; }
     .phrase-edit-input {
       flex: 1;
+      min-width: 0;
       background: #ffffff;
       border: 1px solid #6da34d;
       border-radius: 6px;
@@ -167,6 +168,64 @@
       padding: 2px 6px;
       outline: none;
     }
+    .phrase-edit-row { display: flex; align-items: flex-start; gap: 8px; padding: 3px 0; }
+    .phrase-edit-bops-row { padding-left: 0; }
+    .phrase-edit-follows-label { color: #7a7a7a; font-size: 10px; flex-shrink: 0; padding-top: 5px; }
+    .phrase-bop-badge {
+      background: #e7f0dc; color: #4d7a2e;
+      border-radius: 4px; padding: 0 5px;
+      font-size: 9px; font-weight: 600;
+      flex-shrink: 0; letter-spacing: 0.3px;
+    }
+    .phrase-edit-bops-box {
+      flex: 1; min-width: 0;
+      display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+      background: #ffffff;
+      border: 1px solid #6da34d;
+      border-radius: 8px;
+      padding: 6px 8px;
+      position: relative;
+    }
+    .phrase-edit-bop-chip {
+      display: inline-flex; align-items: center; gap: 2px;
+      background: #e7f0dc; color: #4d7a2e;
+      border-radius: 4px;
+      font-size: 10px; font-weight: 500;
+      padding: 1px 2px 1px 6px;
+    }
+    .phrase-edit-bop-chip-text { line-height: 1.4; }
+    .phrase-edit-bop-chip-x {
+      background: none; border: none; cursor: pointer;
+      color: #4d7a2e; font-size: 13px; line-height: 1;
+      padding: 0 3px; opacity: 0.6; transition: opacity 0.15s;
+    }
+    .phrase-edit-bop-chip-x:hover { opacity: 1; }
+    /* input.xxx selector bumps specificity to (0,1,1) so it beats
+       the generic input[type="text"] rule in non-focus states too —
+       otherwise the inner search input shows a grey border when not
+       focused (the "double outline" visible in the popup). */
+    input.phrase-edit-bops-search,
+    input.phrase-edit-bops-search:focus,
+    input.phrase-edit-bops-search:focus-visible {
+      flex: 1; min-width: 80px;
+      border: none; outline: none; box-shadow: none;
+      background: transparent;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 11px; padding: 0 2px;
+      color: #1a1a1a;
+    }
+    input.phrase-edit-bops-search::placeholder { color: #b5b5b5; }
+    .phrase-edit-bops-dropdown-row { padding: 4px 0 0; }
+    .phrase-edit-bops-dropdown {
+      background: #ffffff; border: 1px solid #dcdcdc; border-radius: 6px;
+      max-height: 160px; overflow-y: auto;
+    }
+    .phrase-edit-bops-item {
+      padding: 5px 8px; font-size: 11px; color: #1a1a1a; cursor: pointer;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .phrase-edit-bops-item:hover { background: #e7f0dc; color: #4d7a2e; }
+    .phrase-edit-bops-empty { padding: 6px 8px; font-size: 10px; color: #a0a0a0; text-align: center; }
 
     .link-rule-list { list-style: none; margin-top: 8px; max-height: 180px; overflow-y: auto; }
     .utm-jump-link {
