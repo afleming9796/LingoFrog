@@ -149,20 +149,34 @@ function startEditPhrase(li, originalPhrase, freqEl) {
   row2.appendChild(bopsBox);
   li.appendChild(row2);
 
-  // Search input + dropdown live inside bopsBox, alongside the chips.
+  // Dropdown lives BELOW the bops box as a sibling in the li flow,
+  // not inside it. This way the popup grows naturally when search
+  // results are shown rather than getting clipped by .phrase-list's
+  // overflow boundary.
+  const dropdownRow = document.createElement('div');
+  dropdownRow.className = 'phrase-edit-bops-dropdown-row';
+  li.appendChild(dropdownRow);
+
+  // Search input lives inside bopsBox alongside chips. Dropdown
+  // lives in the sibling dropdownRow so it pushes the page down
+  // instead of overflowing.
   const searchInput = document.createElement('input');
   searchInput.type = 'text';
   searchInput.className = 'phrase-edit-bops-search';
-  searchInput.placeholder = 'Search phrases to add as a Bop...';
+  searchInput.placeholder = 'Search to add a Bop (i.e. after A suggest B)';
   searchInput.spellcheck = false;
   searchInput.autocomplete = 'off';
 
   const dropdown = document.createElement('div');
   dropdown.className = 'phrase-edit-bops-dropdown';
   dropdown.style.display = 'none';
+  dropdownRow.appendChild(dropdown);
 
   function renderChips() {
-    // Clear everything inside bopsBox and rebuild: chips, then search input.
+    // Clear everything inside bopsBox and rebuild: chips, then search
+    // input. (Dropdown lives outside the bops box, as a sibling under
+    // row2 — see below — so it flows in the document and doesn't get
+    // clipped by .phrase-list's overflow boundary.)
     bopsBox.innerHTML = '';
     for (const phrase of working) {
       const chip = document.createElement('span');
@@ -189,7 +203,6 @@ function startEditPhrase(li, originalPhrase, freqEl) {
       bopsBox.appendChild(chip);
     }
     bopsBox.appendChild(searchInput);
-    bopsBox.appendChild(dropdown);
 
     if (working.length >= MAX) {
       // At cap, hide the input entirely — the chip's × is the only
@@ -242,6 +255,9 @@ function startEditPhrase(li, originalPhrase, freqEl) {
       }
     }
     dropdown.style.display = 'block';
+    // Make sure the dropdown is visible — pushes the popup body to
+    // scroll if it's already at Chrome's popup-height ceiling.
+    setTimeout(() => dropdown.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 0);
   }
 
   function addBop(phrase) {
