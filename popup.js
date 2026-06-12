@@ -99,6 +99,16 @@ function updatePhraseList() {
 
     li.appendChild(freq);
     li.appendChild(text);
+    // Small badge if this phrase has any follow-ups configured, so
+    // users can scan the list and see which entries are chained.
+    const followCount = corpus.getFollowedBy(item.phrase).length;
+    if (followCount) {
+      const badge = document.createElement('span');
+      badge.className = 'phrase-chain-badge';
+      badge.textContent = followCount === 1 ? 'chain' : `chain ×${followCount}`;
+      badge.title = 'This phrase chains to ' + followCount + ' follow-up phrase' + (followCount === 1 ? '' : 's');
+      li.appendChild(badge);
+    }
     li.appendChild(del);
     phraseList.appendChild(li);
   }
@@ -106,29 +116,88 @@ function updatePhraseList() {
 
 function startEditPhrase(li, originalPhrase, freqEl) {
   li.innerHTML = '';
-  li.appendChild(freqEl);
+  // Edit mode breaks out of the row's flex layout so the phrase
+  // input and the "Follows" field can stack.
+  li.style.display = 'block';
+
+  const row1 = document.createElement('div');
+  row1.className = 'phrase-edit-row';
+  row1.appendChild(freqEl);
 
   const input = document.createElement('input');
   input.type = 'text';
   input.className = 'phrase-edit-input';
   input.value = originalPhrase;
+  row1.appendChild(input);
+  li.appendChild(row1);
+
+  const row2 = document.createElement('div');
+  row2.className = 'phrase-edit-row phrase-edit-follows-row';
+
+  const followsLabel = document.createElement('span');
+  followsLabel.className = 'phrase-edit-follows-label';
+  followsLabel.textContent = 'Follows:';
+  row2.appendChild(followsLabel);
+
+  const followsInput = document.createElement('input');
+  followsInput.type = 'text';
+  followsInput.className = 'phrase-edit-input';
+  followsInput.placeholder = 'Next phrase 1; Next phrase 2';
+  followsInput.value = corpus.getFollowedBy(originalPhrase).join('; ');
+  followsInput.spellcheck = false;
+  followsInput.autocomplete = 'off';
+  followsInput.title = 'Separate multiple follow-ups with "; ". Phrases that don\'t exist in your corpus are dropped silently.';
+  row2.appendChild(followsInput);
+  li.appendChild(row2);
+
+  let committed = false;
+
+  const cancel = () => {
+    committed = true;
+    updatePhraseList();
+  };
 
   const save = async () => {
+    if (committed) return;
+    committed = true;
+
+    // 1) Rename phrase if changed; follows on existing-by-key get
+    //    re-keyed automatically by editPhrase.
     const newPhrase = input.value.trim();
+    let targetPhrase = originalPhrase;
     if (newPhrase && newPhrase !== originalPhrase) {
-      await corpus.editPhrase(originalPhrase, newPhrase);
+      const ok = await corpus.editPhrase(originalPhrase, newPhrase);
+      if (ok) targetPhrase = newPhrase;
     }
+
+    // 2) Apply the followedBy list. setFollowedBy drops dangling
+    //    references and dedupes / caps internally.
+    const followsRaw = followsInput.value.trim();
+    const follows = followsRaw
+      ? followsRaw.split(';').map((s) => s.trim()).filter(Boolean)
+      : [];
+    await corpus.setFollowedBy(targetPhrase, follows);
+
     updateStats();
     updatePhraseList();
   };
 
-  input.addEventListener('keydown', (e) => {
+  const onKey = (e) => {
     if (e.key === 'Enter') { e.preventDefault(); save(); }
-    if (e.key === 'Escape') { e.preventDefault(); updatePhraseList(); }
-  });
-  input.addEventListener('blur', save);
+    if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+  };
+  // Save on blur, but only when focus leaves BOTH inputs (so the user
+  // can tab between phrase and follows fields without committing).
+  const onBlur = (e) => {
+    if (e.relatedTarget === input || e.relatedTarget === followsInput) return;
+    save();
+  };
 
-  li.appendChild(input);
+  [input, followsInput].forEach((el) => {
+    el.addEventListener('keydown', onKey);
+    el.addEventListener('blur', onBlur);
+  });
+
   input.focus();
   input.select();
 }
@@ -454,8 +523,9 @@ btnExportAll.addEventListener('click', async () => {
   const phrasesText = corpus.exportText();
   const linksText = corpus.linkRules.exportText();
   const utmsText = corpus.utmRules.exportText();
+  const chainsText = corpus.exportChains();
 
-  if (!phrasesText && !linksText && !utmsText) {
+  if (!phrasesText && !linksText && !utmsText && !chainsText) {
     showStatus(backupStatus, 'Nothing to copy', 'error');
     return;
   }
@@ -464,16 +534,19 @@ btnExportAll.addEventListener('click', async () => {
   if (phrasesText) sections.push(`# Phrases\n\n${phrasesText}`);
   if (linksText) sections.push(`# Links\n\n${linksText}`);
   if (utmsText) sections.push(`# UTM Parameters\n\n${utmsText}`);
+  if (chainsText) sections.push(`# Chains\n\n${chainsText}`);
 
   await navigator.clipboard.writeText(sections.join('\n\n'));
 
   const phraseCount = corpus.phrases.size;
   const linkCount = corpus.linkRules.rules.size;
   const utmCount = [...corpus.utmRules.rules.values()].filter((p) => p && p.length).length;
+  const chainCount = chainsText ? chainsText.split('\n').length : 0;
   const parts = [
     `${phraseCount} phrase${phraseCount === 1 ? '' : 's'}`,
     `${linkCount} link rule${linkCount === 1 ? '' : 's'}`,
     `${utmCount} UTM rule${utmCount === 1 ? '' : 's'}`,
+    `${chainCount} chain${chainCount === 1 ? '' : 's'}`,
   ];
   showStatus(backupStatus, `✓ Copied ${parts.join(', ')}`, 'success');
 });

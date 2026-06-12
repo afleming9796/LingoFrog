@@ -158,6 +158,7 @@
     .phrase-delete:hover { opacity: 1; }
     .phrase-edit-input {
       flex: 1;
+      min-width: 0;
       background: #ffffff;
       border: 1px solid #6da34d;
       border-radius: 6px;
@@ -166,6 +167,15 @@
       font-size: 11px;
       padding: 2px 6px;
       outline: none;
+    }
+    .phrase-edit-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+    .phrase-edit-follows-row { padding-left: 0; }
+    .phrase-edit-follows-label { color: #7a7a7a; font-size: 10px; flex-shrink: 0; }
+    .phrase-chain-badge {
+      background: #e7f0dc; color: #4d7a2e;
+      border-radius: 4px; padding: 0 5px;
+      font-size: 9px; font-weight: 600;
+      flex-shrink: 0; letter-spacing: 0.3px;
     }
 
     .link-rule-list { list-style: none; margin-top: 8px; max-height: 180px; overflow-y: auto; }

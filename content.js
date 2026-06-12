@@ -1337,6 +1337,34 @@
     }
 
     corpus.recordUsage(selected.full);
+
+    // ── Chain trigger ──
+    // If the just-accepted phrase has a followedBy list, surface
+    // those as suggestions immediately, bypassing the
+    // triggerAfterChars threshold (the user has typed zero new
+    // chars at this point). Each chain completion gets a leading
+    // space so the inserted text reads naturally after the
+    // just-accepted phrase. Recursion is implicit — when the user
+    // accepts the chain suggestion, acceptSuggestion runs again
+    // and checks the new phrase's followedBy, enabling A→B→C
+    // chains without special handling.
+    if (corpus.config.autoComplete !== false) {
+      const followers = corpus.getFollowedBy(selected.full);
+      if (followers.length) {
+        const chainSuggestions = followers.map((follower, i) => ({
+          completion: ' ' + follower,
+          full: follower,
+          score: 1e6 - i, // preserve declared order via pseudo-score
+        }));
+        // Defer one tick so the dispatched 'input' event above can
+        // settle (Gmail compose runs its own handlers on input which
+        // can move the cursor or selection).
+        setTimeout(() => {
+          const cursorRect = getCursorRect();
+          if (cursorRect) showSuggestions(chainSuggestions, cursorRect);
+        }, 0);
+      }
+    }
   }
 
   // ── Event Listeners ─────────────────────────────────────────
