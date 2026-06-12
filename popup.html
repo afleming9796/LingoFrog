@@ -180,8 +180,10 @@
     .phrase-edit-bops-box {
       flex: 1; min-width: 0;
       display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
-      background: #ffffff; border: 1px solid #6da34d; border-radius: 6px;
-      padding: 3px 4px;
+      background: #ffffff;
+      border: 1px solid #6da34d;
+      border-radius: 8px;
+      padding: 6px 8px;
       position: relative;
     }
     .phrase-edit-bop-chip {
@@ -198,18 +200,21 @@
       padding: 0 3px; opacity: 0.6; transition: opacity 0.15s;
     }
     .phrase-edit-bop-chip-x:hover { opacity: 1; }
-    .phrase-edit-bops-search,
-    .phrase-edit-bops-search:focus,
-    .phrase-edit-bops-search:focus-visible {
+    /* input.xxx selector bumps specificity to (0,1,1) so it beats
+       the generic input[type="text"] rule in non-focus states too —
+       otherwise the inner search input shows a grey border when not
+       focused (the "double outline" visible in the popup). */
+    input.phrase-edit-bops-search,
+    input.phrase-edit-bops-search:focus,
+    input.phrase-edit-bops-search:focus-visible {
       flex: 1; min-width: 80px;
       border: none; outline: none; box-shadow: none;
       background: transparent;
       font-family: 'SF Mono', 'Fira Code', monospace;
-      font-size: 11px; padding: 2px 4px;
+      font-size: 11px; padding: 0;
       color: #1a1a1a;
     }
-    .phrase-edit-bops-search:disabled { color: #a0a0a0; cursor: not-allowed; }
-    .phrase-edit-bops-search::placeholder { color: #b5b5b5; }
+    input.phrase-edit-bops-search::placeholder { color: #b5b5b5; }
     .phrase-edit-bops-dropdown {
       position: absolute; left: 0; right: 0; top: 100%;
       margin-top: 2px;

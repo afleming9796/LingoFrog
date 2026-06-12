@@ -141,11 +141,6 @@ function startEditPhrase(li, originalPhrase, freqEl) {
   const row2 = document.createElement('div');
   row2.className = 'phrase-edit-row phrase-edit-bops-row';
 
-  const bopsLabel = document.createElement('span');
-  bopsLabel.className = 'phrase-edit-follows-label';
-  bopsLabel.textContent = 'Bop:';
-  row2.appendChild(bopsLabel);
-
   const bopsBox = document.createElement('div');
   bopsBox.className = 'phrase-edit-bops-box';
   row2.appendChild(bopsBox);
@@ -194,15 +189,17 @@ function startEditPhrase(li, originalPhrase, freqEl) {
     bopsBox.appendChild(dropdown);
 
     if (working.length >= MAX) {
-      searchInput.disabled = true;
-      searchInput.placeholder = MAX === 1
-        ? 'Remove existing Bop to change it'
-        : `Bop limit reached (max ${MAX})`;
+      // At cap, hide the input entirely — the chip's × is the only
+      // way to interact. Avoids the awkward "disabled placeholder"
+      // that read like a separate field.
+      searchInput.style.display = 'none';
+      dropdown.style.display = 'none';
     } else {
+      searchInput.style.display = '';
       searchInput.disabled = false;
       searchInput.placeholder = working.length
         ? 'Add another...'
-        : 'Search phrases to add a Bop';
+        : 'Search to add a Bop (i.e. after A suggest B)';
     }
   }
 
