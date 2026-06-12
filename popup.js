@@ -195,7 +195,9 @@ function startEditPhrase(li, originalPhrase, freqEl) {
 
     if (working.length >= MAX) {
       searchInput.disabled = true;
-      searchInput.placeholder = `Bop limit reached (max ${MAX})`;
+      searchInput.placeholder = MAX === 1
+        ? 'Remove existing Bop to change it'
+        : `Bop limit reached (max ${MAX})`;
     } else {
       searchInput.disabled = false;
       searchInput.placeholder = working.length

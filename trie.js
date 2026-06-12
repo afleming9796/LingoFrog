@@ -695,4 +695,4 @@ class Corpus {
   }
 }
 
-Corpus.MAX_FOLLOWED_BY = 3;
+Corpus.MAX_FOLLOWED_BY = 1;
