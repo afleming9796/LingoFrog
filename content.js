@@ -20,6 +20,12 @@
   let currentSuggestions = [];
   let debounceTimer = null;
 
+  // When a Bop suggestion box is showing, handleInput must not stomp
+  // on it until the user does something deliberate. We track the
+  // showing state explicitly so dismissal flows the same way as the
+  // rest of the app: Esc, click outside, or typing.
+  let bopBoxActive = false;
+
   // ── Link Prompt State ───────────────────────────────────────
   let linkPromptBox = null;
   let pendingLink = null;
@@ -171,6 +177,7 @@
   }
 
   function hideSuggestions() {
+    bopBoxActive = false;
     if (suggestionBox) suggestionBox.style.display = 'none';
     currentSuggestions = [];
     selectedIndex = 0;
@@ -1235,6 +1242,23 @@
     if (debounceTimer) clearTimeout(debounceTimer);
 
     debounceTimer = setTimeout(() => {
+      // Bop-box protection: the input event we dispatched after
+      // acceptSuggestion arrives here next tick and would otherwise
+      // stomp on the Bop suggestion box. Skip exactly one
+      // handleInput call after a Bop is shown; the *next* call
+      // (a real user keystroke) resumes normal flow, which is what
+      // dismisses the Bop box on typing — matches the rest of the
+      // app's "click outside / Esc / keep typing" pattern.
+      if (bopBoxActive) {
+        bopBoxActive = false;
+        removeGhostText();
+        // Re-paint the ghost text since removeGhostText above wipes
+        // it; the Bop suggestion box itself is still visible via
+        // suggestionBox.style.display.
+        if (currentSuggestions[0]) showGhostText(currentSuggestions[0].completion);
+        return;
+      }
+
       removeGhostText();
 
       // Master kill switch
@@ -1338,20 +1362,20 @@
 
     corpus.recordUsage(selected.full);
 
-    // ── Chain trigger ──
+    // ── Bop trigger ──
     // If the just-accepted phrase has a followedBy list, surface
     // those as suggestions immediately, bypassing the
     // triggerAfterChars threshold (the user has typed zero new
-    // chars at this point). Each chain completion gets a leading
+    // chars at this point). Each Bop completion gets a leading
     // space so the inserted text reads naturally after the
     // just-accepted phrase. Recursion is implicit — when the user
-    // accepts the chain suggestion, acceptSuggestion runs again
-    // and checks the new phrase's followedBy, enabling A→B→C
-    // chains without special handling.
+    // accepts the Bop suggestion, acceptSuggestion runs again and
+    // checks the new phrase's followedBy, enabling A → B → C bops
+    // without special handling.
     if (corpus.config.autoComplete !== false) {
       const followers = corpus.getFollowedBy(selected.full);
       if (followers.length) {
-        const chainSuggestions = followers.map((follower, i) => ({
+        const bopSuggestions = followers.map((follower, i) => ({
           completion: ' ' + follower,
           full: follower,
           score: 1e6 - i, // preserve declared order via pseudo-score
@@ -1361,7 +1385,10 @@
         // can move the cursor or selection).
         setTimeout(() => {
           const cursorRect = getCursorRect();
-          if (cursorRect) showSuggestions(chainSuggestions, cursorRect);
+          if (cursorRect) {
+            showSuggestions(bopSuggestions, cursorRect);
+            bopBoxActive = true;
+          }
         }, 0);
       }
     }

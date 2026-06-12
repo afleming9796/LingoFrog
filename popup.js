@@ -100,13 +100,13 @@ function updatePhraseList() {
     li.appendChild(freq);
     li.appendChild(text);
     // Small badge if this phrase has any follow-ups configured, so
-    // users can scan the list and see which entries are chained.
+    // users can scan the list and see which entries are bopped.
     const followCount = corpus.getFollowedBy(item.phrase).length;
     if (followCount) {
       const badge = document.createElement('span');
-      badge.className = 'phrase-chain-badge';
-      badge.textContent = followCount === 1 ? 'chain' : `chain ×${followCount}`;
-      badge.title = 'This phrase chains to ' + followCount + ' follow-up phrase' + (followCount === 1 ? '' : 's');
+      badge.className = 'phrase-bop-badge';
+      badge.textContent = followCount === 1 ? 'bop' : `bop ×${followCount}`;
+      badge.title = 'This phrase bops to ' + followCount + ' follow-up phrase' + (followCount === 1 ? '' : 's');
       li.appendChild(badge);
     }
     li.appendChild(del);
@@ -117,9 +117,10 @@ function updatePhraseList() {
 function startEditPhrase(li, originalPhrase, freqEl) {
   li.innerHTML = '';
   // Edit mode breaks out of the row's flex layout so the phrase
-  // input and the "Follows" field can stack.
+  // input and the Bops UI can stack.
   li.style.display = 'block';
 
+  // ── Row 1: phrase input ──
   const row1 = document.createElement('div');
   row1.className = 'phrase-edit-row';
   row1.appendChild(freqEl);
@@ -131,25 +132,130 @@ function startEditPhrase(li, originalPhrase, freqEl) {
   row1.appendChild(input);
   li.appendChild(row1);
 
+  // ── Row 2: Bops chips + search ──
+  // Working copy of the bops list. Mutated via chip add / remove
+  // while editing; committed via setFollowedBy on save.
+  const working = corpus.getFollowedBy(originalPhrase).slice();
+  const MAX = (typeof Corpus !== 'undefined' && Corpus.MAX_FOLLOWED_BY) || 3;
+
   const row2 = document.createElement('div');
-  row2.className = 'phrase-edit-row phrase-edit-follows-row';
+  row2.className = 'phrase-edit-row phrase-edit-bops-row';
 
-  const followsLabel = document.createElement('span');
-  followsLabel.className = 'phrase-edit-follows-label';
-  followsLabel.textContent = 'Follows:';
-  row2.appendChild(followsLabel);
+  const bopsLabel = document.createElement('span');
+  bopsLabel.className = 'phrase-edit-follows-label';
+  bopsLabel.textContent = 'Bops:';
+  row2.appendChild(bopsLabel);
 
-  const followsInput = document.createElement('input');
-  followsInput.type = 'text';
-  followsInput.className = 'phrase-edit-input';
-  followsInput.placeholder = 'Next phrase 1; Next phrase 2';
-  followsInput.value = corpus.getFollowedBy(originalPhrase).join('; ');
-  followsInput.spellcheck = false;
-  followsInput.autocomplete = 'off';
-  followsInput.title = 'Separate multiple follow-ups with "; ". Phrases that don\'t exist in your corpus are dropped silently.';
-  row2.appendChild(followsInput);
+  const bopsBox = document.createElement('div');
+  bopsBox.className = 'phrase-edit-bops-box';
+  row2.appendChild(bopsBox);
   li.appendChild(row2);
 
+  // Search input + dropdown live inside bopsBox, alongside the chips.
+  const searchInput = document.createElement('input');
+  searchInput.type = 'text';
+  searchInput.className = 'phrase-edit-bops-search';
+  searchInput.placeholder = 'Search phrases to add as a Bop...';
+  searchInput.spellcheck = false;
+  searchInput.autocomplete = 'off';
+
+  const dropdown = document.createElement('div');
+  dropdown.className = 'phrase-edit-bops-dropdown';
+  dropdown.style.display = 'none';
+
+  function renderChips() {
+    // Clear everything inside bopsBox and rebuild: chips, then search input.
+    bopsBox.innerHTML = '';
+    for (const phrase of working) {
+      const chip = document.createElement('span');
+      chip.className = 'phrase-edit-bop-chip';
+      const text = document.createElement('span');
+      text.className = 'phrase-edit-bop-chip-text';
+      text.textContent = phrase.length > 30 ? phrase.slice(0, 30) + '…' : phrase;
+      text.title = phrase;
+      chip.appendChild(text);
+      const x = document.createElement('button');
+      x.className = 'phrase-edit-bop-chip-x';
+      x.textContent = '×';
+      x.tabIndex = -1;
+      x.title = 'Remove';
+      x.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const idx = working.indexOf(phrase);
+        if (idx >= 0) working.splice(idx, 1);
+        renderChips();
+        renderDropdown(searchInput.value);
+      });
+      chip.appendChild(x);
+      bopsBox.appendChild(chip);
+    }
+    bopsBox.appendChild(searchInput);
+    bopsBox.appendChild(dropdown);
+
+    if (working.length >= MAX) {
+      searchInput.disabled = true;
+      searchInput.placeholder = `Bop limit reached (max ${MAX})`;
+    } else {
+      searchInput.disabled = false;
+      searchInput.placeholder = working.length
+        ? 'Add another...'
+        : 'Search phrases to add as a Bop...';
+    }
+  }
+
+  function renderDropdown(query) {
+    const q = (query || '').toLowerCase().trim();
+    if (!q || working.length >= MAX) {
+      dropdown.style.display = 'none';
+      dropdown.innerHTML = '';
+      return;
+    }
+    const exclude = new Set([originalPhrase, ...working]);
+    const matches = [];
+    for (const [phrase] of corpus.phrases) {
+      if (exclude.has(phrase)) continue;
+      if (!phrase.toLowerCase().includes(q)) continue;
+      matches.push(phrase);
+      if (matches.length >= 8) break;
+    }
+    dropdown.innerHTML = '';
+    if (!matches.length) {
+      const empty = document.createElement('div');
+      empty.className = 'phrase-edit-bops-empty';
+      empty.textContent = 'No matching phrases';
+      dropdown.appendChild(empty);
+    } else {
+      for (const phrase of matches) {
+        const item = document.createElement('div');
+        item.className = 'phrase-edit-bops-item';
+        item.textContent = phrase.length > 50 ? phrase.slice(0, 50) + '…' : phrase;
+        item.title = phrase;
+        item.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          addBop(phrase);
+        });
+        dropdown.appendChild(item);
+      }
+    }
+    dropdown.style.display = 'block';
+  }
+
+  function addBop(phrase) {
+    if (working.length >= MAX) return;
+    if (working.includes(phrase)) return;
+    working.push(phrase);
+    searchInput.value = '';
+    renderChips();
+    renderDropdown('');
+    searchInput.focus();
+  }
+
+  searchInput.addEventListener('input', () => renderDropdown(searchInput.value));
+  searchInput.addEventListener('focus', () => renderDropdown(searchInput.value));
+
+  // ── Save / cancel ──
   let committed = false;
 
   const cancel = () => {
@@ -161,43 +267,61 @@ function startEditPhrase(li, originalPhrase, freqEl) {
     if (committed) return;
     committed = true;
 
-    // 1) Rename phrase if changed; follows on existing-by-key get
-    //    re-keyed automatically by editPhrase.
     const newPhrase = input.value.trim();
     let targetPhrase = originalPhrase;
     if (newPhrase && newPhrase !== originalPhrase) {
       const ok = await corpus.editPhrase(originalPhrase, newPhrase);
       if (ok) targetPhrase = newPhrase;
     }
-
-    // 2) Apply the followedBy list. setFollowedBy drops dangling
-    //    references and dedupes / caps internally.
-    const followsRaw = followsInput.value.trim();
-    const follows = followsRaw
-      ? followsRaw.split(';').map((s) => s.trim()).filter(Boolean)
-      : [];
-    await corpus.setFollowedBy(targetPhrase, follows);
+    await corpus.setFollowedBy(targetPhrase, working);
 
     updateStats();
     updatePhraseList();
   };
 
-  const onKey = (e) => {
+  const onPhraseKey = (e) => {
     if (e.key === 'Enter') { e.preventDefault(); save(); }
     if (e.key === 'Escape') { e.preventDefault(); cancel(); }
   };
-  // Save on blur, but only when focus leaves BOTH inputs (so the user
-  // can tab between phrase and follows fields without committing).
-  const onBlur = (e) => {
-    if (e.relatedTarget === input || e.relatedTarget === followsInput) return;
-    save();
+  const onSearchKey = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      // Enter on the search input adds the first match (if any) as a
+      // chip rather than committing the save, so users can add
+      // multiple bops without leaving the edit row.
+      const firstItem = dropdown.querySelector('.phrase-edit-bops-item');
+      if (firstItem) firstItem.dispatchEvent(new MouseEvent('mousedown'));
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      if (searchInput.value) {
+        searchInput.value = '';
+        renderDropdown('');
+      } else {
+        cancel();
+      }
+    }
   };
 
-  [input, followsInput].forEach((el) => {
-    el.addEventListener('keydown', onKey);
-    el.addEventListener('blur', onBlur);
-  });
+  // Save when focus leaves the whole edit area (phrase input, search
+  // input, any chip × button). Detect by checking if relatedTarget is
+  // anywhere inside `li`.
+  const onBlur = (e) => {
+    if (e.relatedTarget && li.contains(e.relatedTarget)) return;
+    // Defer one tick so a mousedown that's about to refocus inside
+    // the edit area (e.g. clicking a dropdown item) can fire first.
+    setTimeout(() => {
+      if (committed) return;
+      if (document.activeElement && li.contains(document.activeElement)) return;
+      save();
+    }, 0);
+  };
 
+  input.addEventListener('keydown', onPhraseKey);
+  input.addEventListener('blur', onBlur);
+  searchInput.addEventListener('keydown', onSearchKey);
+  searchInput.addEventListener('blur', onBlur);
+
+  renderChips();
   input.focus();
   input.select();
 }
@@ -523,9 +647,9 @@ btnExportAll.addEventListener('click', async () => {
   const phrasesText = corpus.exportText();
   const linksText = corpus.linkRules.exportText();
   const utmsText = corpus.utmRules.exportText();
-  const chainsText = corpus.exportChains();
+  const bopsText = corpus.exportBops();
 
-  if (!phrasesText && !linksText && !utmsText && !chainsText) {
+  if (!phrasesText && !linksText && !utmsText && !bopsText) {
     showStatus(backupStatus, 'Nothing to copy', 'error');
     return;
   }
@@ -534,19 +658,19 @@ btnExportAll.addEventListener('click', async () => {
   if (phrasesText) sections.push(`# Phrases\n\n${phrasesText}`);
   if (linksText) sections.push(`# Links\n\n${linksText}`);
   if (utmsText) sections.push(`# UTM Parameters\n\n${utmsText}`);
-  if (chainsText) sections.push(`# Chains\n\n${chainsText}`);
+  if (bopsText) sections.push(`# Bops\n\n${bopsText}`);
 
   await navigator.clipboard.writeText(sections.join('\n\n'));
 
   const phraseCount = corpus.phrases.size;
   const linkCount = corpus.linkRules.rules.size;
   const utmCount = [...corpus.utmRules.rules.values()].filter((p) => p && p.length).length;
-  const chainCount = chainsText ? chainsText.split('\n').length : 0;
+  const bopCount = bopsText ? bopsText.split('\n').length : 0;
   const parts = [
     `${phraseCount} phrase${phraseCount === 1 ? '' : 's'}`,
     `${linkCount} link rule${linkCount === 1 ? '' : 's'}`,
     `${utmCount} UTM rule${utmCount === 1 ? '' : 's'}`,
-    `${chainCount} chain${chainCount === 1 ? '' : 's'}`,
+    `${bopCount} bop${bopCount === 1 ? '' : 's'}`,
   ];
   showStatus(backupStatus, `✓ Copied ${parts.join(', ')}`, 'success');
 });

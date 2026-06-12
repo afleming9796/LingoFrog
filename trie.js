@@ -579,7 +579,7 @@ class Corpus {
 
   async deletePhrase(phrase) {
     this.phrases.delete(phrase);
-    // Sweep dangling chain references so the followedBy lists of
+    // Sweep dangling bop references so the followedBy lists of
     // other phrases don't accumulate cruft pointing at a phrase that
     // no longer exists.
     for (const [, data] of this.phrases) {
@@ -600,7 +600,7 @@ class Corpus {
     this.phrases.delete(oldPhrase);
     this.phrases.set(newPhrase, data);
     // Update any followedBy lists that pointed at the old phrase
-    // so the chain stays intact through a rename.
+    // so the bops stay intact through a rename.
     for (const [, other] of this.phrases) {
       if (other.followedBy && other.followedBy.includes(oldPhrase)) {
         other.followedBy = other.followedBy.map((p) => p === oldPhrase ? newPhrase : p);
@@ -615,7 +615,7 @@ class Corpus {
    * Set the ordered list of follow-up phrases for `phrase`. References
    * to phrases that don't exist in the corpus are dropped silently;
    * duplicates are removed; the list is capped at MAX_FOLLOWED_BY.
-   * Passing an empty array (or omitting the field) clears the chain.
+   * Passing an empty array (or omitting the field) clears the bops.
    */
   async setFollowedBy(phrase, follows) {
     const data = this.phrases.get(phrase);
@@ -647,12 +647,12 @@ class Corpus {
   }
 
   /**
-   * Backup export for chains. One line per (phrase, follower) edge:
+   * Backup export for bops. One line per (phrase, follower) edge:
    *   <phrase> -> <follower>
    * Lines preserve the order in each phrase's followedBy array so
    * a roundtrip produces identical suggestion ordering.
    */
-  exportChains() {
+  exportBops() {
     const lines = [];
     for (const [phrase, data] of this.phrases) {
       if (!data.followedBy || !data.followedBy.length) continue;
@@ -695,4 +695,4 @@ class Corpus {
   }
 }
 
-Corpus.MAX_FOLLOWED_BY = 5;
+Corpus.MAX_FOLLOWED_BY = 3;
