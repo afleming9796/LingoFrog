@@ -143,7 +143,7 @@ function startEditPhrase(li, originalPhrase, freqEl) {
 
   const bopsLabel = document.createElement('span');
   bopsLabel.className = 'phrase-edit-follows-label';
-  bopsLabel.textContent = 'Bops:';
+  bopsLabel.textContent = 'Bop:';
   row2.appendChild(bopsLabel);
 
   const bopsBox = document.createElement('div');
@@ -202,7 +202,7 @@ function startEditPhrase(li, originalPhrase, freqEl) {
       searchInput.disabled = false;
       searchInput.placeholder = working.length
         ? 'Add another...'
-        : 'Search phrases to add as a Bop...';
+        : 'Search phrases to add a Bop';
     }
   }
 

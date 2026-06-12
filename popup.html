@@ -198,9 +198,12 @@
       padding: 0 3px; opacity: 0.6; transition: opacity 0.15s;
     }
     .phrase-edit-bop-chip-x:hover { opacity: 1; }
-    .phrase-edit-bops-search {
+    .phrase-edit-bops-search,
+    .phrase-edit-bops-search:focus,
+    .phrase-edit-bops-search:focus-visible {
       flex: 1; min-width: 80px;
-      border: none; outline: none; background: transparent;
+      border: none; outline: none; box-shadow: none;
+      background: transparent;
       font-family: 'SF Mono', 'Fira Code', monospace;
       font-size: 11px; padding: 2px 4px;
       color: #1a1a1a;
