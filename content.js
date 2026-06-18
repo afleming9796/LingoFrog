@@ -50,6 +50,12 @@
   let savePhraseChipBox = null;
   let pendingSavePhraseChip = null; // { text, alreadyExists } when shown
 
+  // ── Success Toast State ────────────────────────────────────
+  // Single shared toast element used to confirm "Saved" after the
+  // save-rule chip and save-phrase chip accept actions (#81).
+  let successToastBox = null;
+  let successToastTimer = null;
+
   // ── Initialization ──────────────────────────────────────────
 
   async function init() {
@@ -60,6 +66,7 @@
     createLinkSearchUI();
     createSaveRuleChipUI();
     createSavePhraseChipUI();
+    createSuccessToastUI();
     attachListeners();
     initialized = true;
     console.log(
@@ -867,13 +874,20 @@
 
   async function acceptSaveRuleChip() {
     if (!pendingSaveRuleChip) return;
-    const { trigger, url } = pendingSaveRuleChip;
+    const { trigger, url, existingRule } = pendingSaveRuleChip;
+    const wasReplace = !!existingRule;
 
     corpus.linkRules.addRule(trigger, url);
     await corpus.linkRules.save();
     console.log('[LingoFrog] Saved link rule');
 
+    // Capture the chip's position before hiding so the toast anchors
+    // to where the user's eye already is.
+    const chipRect = saveRuleChipBox && saveRuleChipBox.style.display !== 'none'
+      ? saveRuleChipBox.getBoundingClientRect()
+      : null;
     hideSaveRuleChip();
+    showSuccessToast(wasReplace ? '✓ Link replaced' : '✓ Link saved', chipRect);
   }
 
   // ── Save Phrase Chip ────────────────────────────────────────
@@ -965,12 +979,19 @@
     if (!pendingSavePhraseChip) return;
     const { text } = pendingSavePhraseChip;
     const result = await corpus.addOrBumpPhrase(text, 'highlight');
+    let toastMessage = null;
     if (result.added) {
       console.log('[LingoFrog] Saved new phrase');
+      toastMessage = '✓ Phrase saved';
     } else if (result.bumped) {
       console.log('[LingoFrog] Bumped phrase');
+      toastMessage = '✓ Phrase bumped';
     }
+    const chipRect = savePhraseChipBox && savePhraseChipBox.style.display !== 'none'
+      ? savePhraseChipBox.getBoundingClientRect()
+      : null;
     hideSavePhraseChip();
+    if (toastMessage) showSuccessToast(toastMessage, chipRect);
   }
 
   /**
@@ -991,6 +1012,44 @@
     const range = sel.getRangeAt(0);
     const rect = range.getBoundingClientRect();
     showSavePhraseChip(text, rect);
+  }
+
+  // ── Success Toast ───────────────────────────────────────────
+  //
+  // Tiny non-interactive "Saved" confirmation that flashes briefly
+  // after the save-rule or save-phrase chip accept actions, then
+  // auto-fades. Anchors to wherever the chip was (the user's eye is
+  // already there) — falls back to the cursor position otherwise.
+  // Per #81.
+
+  function createSuccessToastUI() {
+    successToastBox = document.createElement('div');
+    successToastBox.id = 'lingofrog-success-toast';
+    successToastBox.className = 'lingofrog-success-toast';
+    document.body.appendChild(successToastBox);
+  }
+
+  function showSuccessToast(message, anchorRect) {
+    if (!successToastBox) return;
+    successToastBox.textContent = message;
+
+    const rect = anchorRect || getCursorRect();
+    if (rect && rect.width !== undefined) {
+      successToastBox.style.left = rect.left + 'px';
+      successToastBox.style.top = (rect.bottom + 6) + 'px';
+      successToastBox.style.transform = '';
+    } else {
+      successToastBox.style.left = '50%';
+      successToastBox.style.top = '20px';
+      successToastBox.style.transform = 'translateX(-50%)';
+    }
+    successToastBox.classList.add('lingofrog-success-toast-visible');
+    clampToViewport(successToastBox, rect);
+
+    if (successToastTimer) clearTimeout(successToastTimer);
+    successToastTimer = setTimeout(() => {
+      successToastBox.classList.remove('lingofrog-success-toast-visible');
+    }, 1500);
   }
 
   function checkForLinkTriggers() {
