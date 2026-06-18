@@ -1035,8 +1035,11 @@
 
     const rect = anchorRect || getCursorRect();
     if (rect && rect.width !== undefined) {
+      // Land in the chip's spot — anchorRect IS the chip's rect, so
+      // matching its top puts the toast in the same vertical band
+      // the user was just looking at.
       successToastBox.style.left = rect.left + 'px';
-      successToastBox.style.top = (rect.bottom + 6) + 'px';
+      successToastBox.style.top = rect.top + 'px';
       successToastBox.style.transform = '';
     } else {
       successToastBox.style.left = '50%';
