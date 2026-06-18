@@ -1218,6 +1218,69 @@
     return (parts[parts.length - 1] || '').trim();
   }
 
+  /**
+   * Returns true when there is word-character content remaining after
+   * the cursor within the same sentence (i.e. before the next
+   * `.!?\n` boundary).
+   *
+   * Used to suppress autocomplete when the user has clicked or
+   * arrow-keyed into the middle of an existing sentence to edit it.
+   * Inserting a completion at that point would shove unrelated text
+   * into the middle of an in-progress phrase — the suggestion is
+   * almost never actually what the user wants.
+   *
+   * Trailing whitespace, commas, and terminal punctuation don't
+   * count as "remaining content" — those positions are reasonable
+   * places to expand a phrase.
+   */
+  function hasTextRemainingInSentence(element) {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return false;
+    const range = sel.getRangeAt(0);
+    if (!range.collapsed) return false;
+
+    // Scope to the closest block-level container so we don't peek
+    // across paragraph boundaries — same logic as getTypedText.
+    let scope = range.startContainer;
+    while (scope && scope !== element) {
+      if (scope.nodeType === Node.ELEMENT_NODE) {
+        const display = window.getComputedStyle(scope).display;
+        if (display === 'block' || display === 'list-item' || scope.tagName === 'DIV' || scope.tagName === 'P' || scope.tagName === 'LI') {
+          break;
+        }
+      }
+      scope = scope.parentNode;
+    }
+    if (!scope) scope = element;
+
+    const treeWalker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT, null, false);
+    let foundCursor = false;
+    let rest = '';
+    let currentNode;
+    while ((currentNode = treeWalker.nextNode())) {
+      // Skip ghost text nodes.
+      if (currentNode.parentNode &&
+          currentNode.parentNode.classList &&
+          currentNode.parentNode.classList.contains('lingofrog-ghost')) {
+        continue;
+      }
+      if (currentNode === range.startContainer) {
+        rest += currentNode.textContent.substring(range.startOffset);
+        foundCursor = true;
+        continue;
+      }
+      if (foundCursor) {
+        rest += currentNode.textContent;
+      }
+    }
+    if (!foundCursor) return false;
+
+    // Only consider text within the current sentence — what lives
+    // after the next hard boundary is its own context.
+    const currentSentenceTail = rest.split(/[.!?\n]/)[0];
+    return /\w/.test(currentSentenceTail);
+  }
+
   function getCursorRect() {
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return null;
@@ -1282,6 +1345,12 @@
       if (corpus.config.autoComplete === false) {
         hideSuggestions();
       } else if (typed.length < corpus.config.triggerAfterChars) {
+        hideSuggestions();
+      } else if (hasTextRemainingInSentence(el)) {
+        // Cursor moved into the middle of an existing sentence —
+        // the user is editing, not extending. Inserting a phrase
+        // would shove unrelated text into the middle of what's
+        // already there (#79).
         hideSuggestions();
       } else {
         const suggestions = corpus.getCompletions(typed);
