@@ -1364,8 +1364,14 @@
       accumulated += currentNode.textContent;
     }
 
-    // Normalize smart quotes to straight quotes so apostrophes match
-    accumulated = accumulated.replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"');
+    // Normalize smart quotes to straight quotes so apostrophes match.
+    // Also normalize non-breaking spaces (\u00A0) to regular spaces \u2014
+    // Gmail compose often inserts NBSPs which would otherwise break
+    // Bop prefix matching against phrases stored with regular spaces.
+    accumulated = accumulated
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/\u00A0/g, ' ');
 
     // Split only on hard sentence boundaries and newlines (not colons or commas)
     const parts = accumulated.split(/[.!?\n]+/);
@@ -1650,24 +1656,33 @@
 
         // Auto-insert a separator space right after the just-accepted
         // phrase if the cursor isn't already preceded by whitespace.
-        // This way the user can immediately type the Bop's prefix
-        // ("Bu...") without it cuddling the preceding period
-        // ("A.Bu..." → "A. Bu..."). Inserting here at fire time
-        // — rather than prepending at accept time — fixes both the
-        // accept-immediately and the type-then-accept cases.
+        // Use execCommand('insertText') so the contenteditable's own
+        // mutation observers (Gmail compose hooks deeply into these)
+        // see the space as a normal typed character. Manual range +
+        // insertNode worked for the first Bop but left a stale node
+        // reference on subsequent ones — the cursor would visibly
+        // disappear because the selection range pointed at a node
+        // Gmail had normalized away.
         const prev = getCharBeforeCursor();
         if (prev && !/\s/.test(prev)) {
-          const sel2 = window.getSelection();
-          if (sel2 && sel2.rangeCount > 0) {
-            const r = sel2.getRangeAt(0);
-            r.collapse(false);
-            const spaceNode = document.createTextNode(' ');
-            r.insertNode(spaceNode);
-            const nr = document.createRange();
-            nr.setStartAfter(spaceNode);
-            nr.collapse(true);
-            sel2.removeAllRanges();
-            sel2.addRange(nr);
+          let inserted = false;
+          try {
+            inserted = document.execCommand('insertText', false, ' ');
+          } catch (e) {}
+          if (!inserted) {
+            // Fallback if execCommand isn't available or returns false.
+            const sel2 = window.getSelection();
+            if (sel2 && sel2.rangeCount > 0) {
+              const r = sel2.getRangeAt(0);
+              r.collapse(false);
+              const spaceNode = document.createTextNode(' ');
+              r.insertNode(spaceNode);
+              const nr = document.createRange();
+              nr.setStartAfter(spaceNode);
+              nr.collapse(true);
+              sel2.removeAllRanges();
+              sel2.addRange(nr);
+            }
           }
         }
 
