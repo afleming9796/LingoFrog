@@ -20,11 +20,21 @@
   let currentSuggestions = [];
   let debounceTimer = null;
 
-  // When a Bop suggestion box is showing, handleInput must not stomp
-  // on it until the user does something deliberate. We track the
-  // showing state explicitly so dismissal flows the same way as the
-  // rest of the app: Esc, click outside, or typing.
-  let bopBoxActive = false;
+  // Bops behave like regular autocomplete suggestions — they persist
+  // in the suggestion box as long as the user's typing keeps matching
+  // their start, and once typed text crosses triggerAfterChars they
+  // appear alongside normal corpus completions rather than instead
+  // of them (#77).
+  //
+  //   activeBops: the follower phrases currently being offered.
+  //   bopBaselineTyped: snapshot of getTypedText at the moment the
+  //     Bop fired, so handleInput can compute how much of the Bop the
+  //     user has typed.
+  //
+  // Cleared by hideSuggestions, on no-match-by-typing, on accept,
+  // or when the cursor moves backward past the baseline.
+  let activeBops = [];
+  let bopBaselineTyped = '';
 
   // ── Link Prompt State ───────────────────────────────────────
   let linkPromptBox = null;
@@ -235,7 +245,8 @@
   }
 
   function hideSuggestions() {
-    bopBoxActive = false;
+    activeBops = [];
+    bopBaselineTyped = '';
     if (suggestionBox) suggestionBox.style.display = 'none';
     currentSuggestions = [];
     selectedIndex = 0;
@@ -1444,27 +1455,56 @@
     return rect;
   }
 
+  /**
+   * Build suggestion entries from the active Bops based on what the
+   * user has typed since the Bop fired. Side-effect: narrows
+   * `activeBops` to only those still matching, and clears
+   * `activeBops` + `bopBaselineTyped` when nothing matches anymore.
+   *
+   * Returns an array of suggestion objects in the same shape
+   * getCompletions returns, plus a `kind: 'bop'` discriminator
+   * acceptSuggestion uses for the leading-space handling.
+   */
+  function buildBopSuggestions(typed) {
+    if (!activeBops.length) return [];
+
+    // Cursor moved before the baseline (user undid or selected
+    // backward) — bail entirely.
+    if (typed.length < bopBaselineTyped.length) {
+      activeBops = [];
+      bopBaselineTyped = '';
+      return [];
+    }
+
+    // What the user has typed since the Bop fired, stripped of
+    // any leading whitespace they added as a separator.
+    const delta = typed.slice(bopBaselineTyped.length).replace(/^\s+/, '');
+    const deltaLower = delta.toLowerCase();
+
+    const remaining = activeBops.filter(
+      (b) => b.toLowerCase().startsWith(deltaLower)
+    );
+    activeBops = remaining;
+    if (!remaining.length) {
+      bopBaselineTyped = '';
+      return [];
+    }
+
+    return remaining.map((b) => ({
+      full: b,
+      // Completion is whatever's left of the Bop phrase after what
+      // the user has already typed.
+      completion: b.slice(delta.length),
+      // Pseudo-score sorts these first in the combined list.
+      score: 1e6,
+      kind: 'bop',
+    }));
+  }
+
   function handleInput() {
     if (debounceTimer) clearTimeout(debounceTimer);
 
     debounceTimer = setTimeout(() => {
-      // Bop-box protection: the input event we dispatched after
-      // acceptSuggestion arrives here next tick and would otherwise
-      // stomp on the Bop suggestion box. Skip exactly one
-      // handleInput call after a Bop is shown; the *next* call
-      // (a real user keystroke) resumes normal flow, which is what
-      // dismisses the Bop box on typing — matches the rest of the
-      // app's "click outside / Esc / keep typing" pattern.
-      if (bopBoxActive) {
-        bopBoxActive = false;
-        removeGhostText();
-        // Re-paint the ghost text since removeGhostText above wipes
-        // it; the Bop suggestion box itself is still visible via
-        // suggestionBox.style.display.
-        if (currentSuggestions[0]) showGhostText(currentSuggestions[0].completion);
-        return;
-      }
-
       removeGhostText();
 
       // Master kill switch
@@ -1487,8 +1527,6 @@
       // ── Autocomplete ──
       if (corpus.config.autoComplete === false) {
         hideSuggestions();
-      } else if (typed.length < corpus.config.triggerAfterChars) {
-        hideSuggestions();
       } else if (hasTextRemainingInSentence(el)) {
         // Cursor moved into the middle of an existing sentence —
         // the user is editing, not extending. Inserting a phrase
@@ -1496,10 +1534,26 @@
         // already there (#79).
         hideSuggestions();
       } else {
-        const suggestions = corpus.getCompletions(typed);
-        if (suggestions.length > 0) {
-          const cursorRect = getCursorRect();
-          showSuggestions(suggestions, cursorRect);
+        // Build Bop suggestions if any are active and the user's
+        // typing still aligns with one.
+        const bopSugs = buildBopSuggestions(typed);
+
+        // Build normal corpus suggestions, but only once the user
+        // has typed past the trigger threshold. This preserves the
+        // user-tunable threshold for normal autocomplete while
+        // letting Bops show immediately on chain-fire.
+        const normal = (typed.length >= corpus.config.triggerAfterChars)
+          ? corpus.getCompletions(typed)
+          : [];
+
+        // Combine: Bops first, then normal — deduped by `full` so a
+        // phrase that's both a Bop AND in the corpus doesn't appear
+        // twice.
+        const seen = new Set(bopSugs.map((s) => s.full));
+        const combined = bopSugs.concat(normal.filter((s) => !seen.has(s.full)));
+
+        if (combined.length > 0) {
+          showSuggestions(combined, getCursorRect());
         } else {
           hideSuggestions();
         }
@@ -1519,7 +1573,20 @@
     if (!currentSuggestions.length || selectedIndex >= currentSuggestions.length) return;
 
     const selected = currentSuggestions[selectedIndex];
-    const completion = selected.completion;
+    let completion = selected.completion;
+
+    // Bop leading-space handling: if the user is accepting a Bop
+    // they haven't started typing yet (completion === full), insert
+    // a space separator unless one is already there. This replaces
+    // the old "always prepend space to the completion" trick, which
+    // double-spaced when the user typed a space first then accepted.
+    if (selected.kind === 'bop' && completion === selected.full) {
+      const prev = getCharBeforeCursor();
+      if (prev && !/\s/.test(prev)) {
+        completion = ' ' + completion;
+      }
+    }
+
     removeGhostText();
     hideSuggestions();
 
@@ -1575,35 +1642,46 @@
     corpus.recordUsage(selected.full);
 
     // ── Bop trigger ──
-    // If the just-accepted phrase has a followedBy list, surface
-    // those as suggestions immediately, bypassing the
-    // triggerAfterChars threshold (the user has typed zero new
-    // chars at this point). Each Bop completion gets a leading
-    // space so the inserted text reads naturally after the
-    // just-accepted phrase. Recursion is implicit — when the user
-    // accepts the Bop suggestion, acceptSuggestion runs again and
-    // checks the new phrase's followedBy, enabling A → B → C bops
-    // without special handling.
+    // If the just-accepted phrase has a followedBy list, mark those
+    // followers as active. handleInput (which the dispatched 'input'
+    // event above queues) will render them via buildBopSuggestions
+    // on the next tick — and keep rendering them as long as the
+    // user's typing aligns with the Bop's start. Multi-step chains
+    // (A → B → C) work via implicit recursion: when the user accepts
+    // a Bop, acceptSuggestion runs again with the Bop phrase as
+    // selected.full, and its own followers (if any) get installed.
     if (corpus.config.autoComplete !== false) {
       const followers = corpus.getFollowedBy(selected.full);
       if (followers.length) {
-        const bopSuggestions = followers.map((follower, i) => ({
-          completion: ' ' + follower,
-          full: follower,
-          score: 1e6 - i, // preserve declared order via pseudo-score
-        }));
-        // Defer one tick so the dispatched 'input' event above can
-        // settle (Gmail compose runs its own handlers on input which
-        // can move the cursor or selection).
+        activeBops = followers.slice();
+        // Snapshot typed text post-insertion so handleInput can
+        // compute the delta of what the user types from here on.
+        // Defer one tick so the inserted node is visible to the
+        // tree walker getTypedText uses.
         setTimeout(() => {
-          const cursorRect = getCursorRect();
-          if (cursorRect) {
-            showSuggestions(bopSuggestions, cursorRect);
-            bopBoxActive = true;
+          if (activeElement) {
+            bopBaselineTyped = getTypedText(activeElement);
           }
         }, 0);
       }
     }
+  }
+
+  /**
+   * Returns the character immediately preceding the cursor, or '' if
+   * unavailable. Used for Bop leading-space decision.
+   */
+  function getCharBeforeCursor() {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return '';
+    const range = sel.getRangeAt(0);
+    if (!range.collapsed) return '';
+    const node = range.startContainer;
+    const offset = range.startOffset;
+    if (node.nodeType === Node.TEXT_NODE && offset > 0) {
+      return node.textContent.charAt(offset - 1);
+    }
+    return '';
   }
 
   // ── Event Listeners ─────────────────────────────────────────
