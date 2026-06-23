@@ -1424,25 +1424,6 @@
     return /\w/.test(currentSentenceTail);
   }
 
-  /**
-   * Returns the character immediately preceding the cursor, or '' if
-   * the cursor isn't in a text node or is at offset 0. Used by
-   * acceptSuggestion to detect "already after whitespace" so it can
-   * skip the Bop completion's leading space and avoid double-spacing.
-   */
-  function getCharBeforeCursor() {
-    const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0) return '';
-    const range = sel.getRangeAt(0);
-    if (!range.collapsed) return '';
-    const node = range.startContainer;
-    const offset = range.startOffset;
-    if (node.nodeType === Node.TEXT_NODE && offset > 0) {
-      return node.textContent.charAt(offset - 1);
-    }
-    return '';
-  }
-
   function getCursorRect() {
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return null;
@@ -1538,22 +1519,7 @@
     if (!currentSuggestions.length || selectedIndex >= currentSuggestions.length) return;
 
     const selected = currentSuggestions[selectedIndex];
-    let completion = selected.completion;
-
-    // If the completion starts with a space (Bop entries do this so
-    // the inserted text reads naturally after the previous phrase)
-    // and the cursor is already preceded by whitespace, drop the
-    // leading space to avoid double-spacing. Together with the
-    // auto-space-after-sentence-end logic at the bottom of this
-    // function, this means a Bop chained after a phrase ending in
-    // . ! or ? produces exactly one space separator.
-    if (completion.startsWith(' ')) {
-      const prev = getCharBeforeCursor();
-      if (prev && /\s/.test(prev)) {
-        completion = completion.slice(1);
-      }
-    }
-
+    const completion = selected.completion;
     removeGhostText();
     hideSuggestions();
 
@@ -1634,8 +1600,14 @@
     if (corpus.config.autoComplete !== false) {
       const followers = corpus.getFollowedBy(selected.full);
       if (followers.length) {
+        // Bop completion is the raw follower text — no leading space.
+        // The auto-space-after-period rule above already provided the
+        // separator when the parent phrase ended a sentence. The
+        // non-sentence-end case ("phrase A" → "phrase B" with no
+        // punctuation in between) cuddles; that's the trade-off for
+        // not double-spacing.
         const bopSuggestions = followers.map((follower, i) => ({
-          completion: ' ' + follower,
+          completion: follower,
           full: follower,
           score: 1e6 - i, // preserve declared order via pseudo-score
         }));
