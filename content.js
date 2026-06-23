@@ -1353,12 +1353,23 @@
       accumulated += currentNode.textContent;
     }
 
-    // Normalize smart quotes to straight quotes so apostrophes match
-    accumulated = accumulated.replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"');
+    // Normalize smart quotes to straight quotes so apostrophes match.
+    // Also normalize non-breaking spaces (U+00A0) to regular spaces \u2014
+    // Gmail compose sometimes inserts NBSPs, and downstream consumers
+    // (getCompletions trailing-space detection) expect regular spaces.
+    accumulated = accumulated
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/\u00A0/g, ' ');
 
     // Split only on hard sentence boundaries and newlines (not colons or commas)
     const parts = accumulated.split(/[.!?\n]+/);
-    return (parts[parts.length - 1] || '').trim();
+    // Strip leading whitespace only \u2014 trailing whitespace is meaningful
+    // to getCompletions (it uses it to decide whether to strip the
+    // suffix's leading space, avoiding double-spacing). Normal
+    // autocomplete behavior is unaffected because trie.search splits
+    // on whitespace and filters empty tokens.
+    return (parts[parts.length - 1] || '').replace(/^\s+/, '');
   }
 
   /**
