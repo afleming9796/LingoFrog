@@ -76,24 +76,75 @@
     );
   }
 
+  // ── Cross-frame overlay helpers ────────────────────────────
+  //
+  // When the content script runs inside Gmail's reply iframe (we
+  // injected with all_frames: true), elements rendered into the
+  // iframe's body with `position: fixed` are clipped by the iframe
+  // element's bounds. To make chips and toasts visible regardless
+  // of which frame they originate from, we render them in the TOP
+  // window's document (same-origin under mail.google.com lets us
+  // do that) and translate anchor coordinates by the iframe's
+  // offset.
+
+  function topWindowSafe() {
+    try {
+      if (window.top && window.top !== window && window.top.document) {
+        return window.top;
+      }
+    } catch (e) {}
+    return window;
+  }
+  function topDoc() { return topWindowSafe().document; }
+  function frameOffset() {
+    if (window === topWindowSafe()) return { x: 0, y: 0 };
+    try {
+      if (window.frameElement) {
+        const r = window.frameElement.getBoundingClientRect();
+        return { x: r.left, y: r.top };
+      }
+    } catch (e) {}
+    return { x: 0, y: 0 };
+  }
+
+  /**
+   * Get or create a singleton overlay element by ID in the top doc.
+   * Idempotent across frames — multiple content scripts in nested
+   * iframes all converge on the same element.
+   */
+  function getOrCreateOverlay(id, className) {
+    const doc = topDoc();
+    let el = doc.getElementById(id);
+    if (!el) {
+      el = doc.createElement('div');
+      el.id = id;
+      el.className = className;
+      doc.body.appendChild(el);
+    }
+    return el;
+  }
+
   // Clamp a popup to stay within the viewport. Must be called after
   // the popup is visible so getBoundingClientRect reports the rendered
   // size. If the popup would overflow vertically, flip above the anchor.
+  // Uses the element's owner-document window so overlays parented to
+  // the top doc clamp against the top window's viewport.
   function clampToViewport(el, anchorRect) {
     const margin = 10;
+    const win = (el.ownerDocument && el.ownerDocument.defaultView) || window;
     const rect = el.getBoundingClientRect();
     let left = rect.left;
     let top = rect.top;
 
-    if (left + rect.width > window.innerWidth - margin) {
-      left = window.innerWidth - rect.width - margin;
+    if (left + rect.width > win.innerWidth - margin) {
+      left = win.innerWidth - rect.width - margin;
     }
     if (left < margin) left = margin;
 
-    if (top + rect.height > window.innerHeight - margin) {
+    if (top + rect.height > win.innerHeight - margin) {
       top = anchorRect
         ? anchorRect.top - rect.height - 4
-        : window.innerHeight - rect.height - margin;
+        : win.innerHeight - rect.height - margin;
     }
     if (top < margin) top = margin;
 
@@ -678,10 +729,7 @@
   // accident.
 
   function createSaveRuleChipUI() {
-    saveRuleChipBox = document.createElement('div');
-    saveRuleChipBox.id = 'lingofrog-save-rule-chip';
-    saveRuleChipBox.className = 'lingofrog-save-rule-chip';
-    document.body.appendChild(saveRuleChipBox);
+    saveRuleChipBox = getOrCreateOverlay('lingofrog-save-rule-chip', 'lingofrog-save-rule-chip');
   }
 
   /**
@@ -797,9 +845,20 @@
     saveRuleChipBox.appendChild(dismiss);
 
     // Position below the inserted anchor (fallback: viewport-centered).
-    const rect = anchorEl && anchorEl.getBoundingClientRect
+    // anchorEl's rect is in this frame's coordinate space. Translate
+    // to top-window coords since the chip is parented there now.
+    const rawRect = anchorEl && anchorEl.getBoundingClientRect
       ? anchorEl.getBoundingClientRect()
       : null;
+    const off = frameOffset();
+    const rect = rawRect ? {
+      left: rawRect.left + off.x,
+      top: rawRect.top + off.y,
+      right: rawRect.right + off.x,
+      bottom: rawRect.bottom + off.y,
+      width: rawRect.width,
+      height: rawRect.height,
+    } : null;
     if (rect && rect.width) {
       saveRuleChipBox.style.left = rect.left + 'px';
       saveRuleChipBox.style.top = (rect.bottom + 6) + 'px';
@@ -898,10 +957,7 @@
   // increments the existing entry's frequency (matching importBulk).
 
   function createSavePhraseChipUI() {
-    savePhraseChipBox = document.createElement('div');
-    savePhraseChipBox.id = 'lingofrog-save-phrase-chip';
-    savePhraseChipBox.className = 'lingofrog-save-rule-chip';
-    document.body.appendChild(savePhraseChipBox);
+    savePhraseChipBox = getOrCreateOverlay('lingofrog-save-phrase-chip', 'lingofrog-save-rule-chip');
   }
 
   /**
@@ -954,17 +1010,28 @@
     savePhraseChipBox.appendChild(dismiss);
 
     // Position below the selection's bounding rect (fallback: top-
-    // center of viewport for weird zero-rect cases).
-    if (anchorRect && anchorRect.width) {
-      savePhraseChipBox.style.left = anchorRect.left + 'px';
-      savePhraseChipBox.style.top = (anchorRect.bottom + 6) + 'px';
+    // center of viewport for weird zero-rect cases). Translate
+    // iframe coords into top-window coords since the chip lives in
+    // the top doc.
+    const off = frameOffset();
+    const rect = anchorRect && anchorRect.width ? {
+      left: anchorRect.left + off.x,
+      top: anchorRect.top + off.y,
+      right: anchorRect.right + off.x,
+      bottom: anchorRect.bottom + off.y,
+      width: anchorRect.width,
+      height: anchorRect.height,
+    } : null;
+    if (rect) {
+      savePhraseChipBox.style.left = rect.left + 'px';
+      savePhraseChipBox.style.top = (rect.bottom + 6) + 'px';
     } else {
       savePhraseChipBox.style.left = '50%';
       savePhraseChipBox.style.top = '20px';
       savePhraseChipBox.style.transform = 'translateX(-50%)';
     }
     savePhraseChipBox.style.display = 'flex';
-    clampToViewport(savePhraseChipBox, anchorRect);
+    clampToViewport(savePhraseChipBox, rect);
   }
 
   function hideSavePhraseChip() {
@@ -1023,17 +1090,31 @@
   // Per #81.
 
   function createSuccessToastUI() {
-    successToastBox = document.createElement('div');
-    successToastBox.id = 'lingofrog-success-toast';
-    successToastBox.className = 'lingofrog-success-toast';
-    document.body.appendChild(successToastBox);
+    successToastBox = getOrCreateOverlay('lingofrog-success-toast', 'lingofrog-success-toast');
   }
 
   function showSuccessToast(message, anchorRect) {
     if (!successToastBox) return;
     successToastBox.textContent = message;
 
-    const rect = anchorRect || getCursorRect();
+    // anchorRect from a chip's getBoundingClientRect is already in
+    // top-window coords (chips live in topDoc). The fallback
+    // getCursorRect() returns iframe-local coords — translate.
+    let rect = anchorRect;
+    if (!rect) {
+      const cursorRect = getCursorRect();
+      if (cursorRect) {
+        const off = frameOffset();
+        rect = {
+          left: cursorRect.left + off.x,
+          top: cursorRect.top + off.y,
+          right: cursorRect.right + off.x,
+          bottom: cursorRect.bottom + off.y,
+          width: cursorRect.width,
+          height: cursorRect.height,
+        };
+      }
+    }
     if (rect && rect.width !== undefined) {
       // Land in the chip's spot — anchorRect IS the chip's rect, so
       // matching its top puts the toast in the same vertical band
