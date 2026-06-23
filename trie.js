@@ -524,6 +524,13 @@ class Corpus {
     if (typed.length < this.config.triggerAfterChars) return [];
 
     const typedLower = typed.toLowerCase();
+    // Did the user already type a trailing space/whitespace? If yes,
+    // we strip leading whitespace from the suffix so it doesn't double
+    // up. If no, we keep the suffix's leading whitespace so accepting
+    // at a word boundary produces "Thanks for reaching..." rather
+    // than "Thanks forreaching...".
+    const userTypedTrailingSpace = /\s$/.test(typedText);
+
     const matches = this.trie.search(typedLower, this.config.maxSuggestions);
     const results = [];
     const seen = new Set();
@@ -534,7 +541,9 @@ class Corpus {
       // Only show completions where typed text matches from the start
       if (!originalLower.startsWith(typedLower)) continue;
 
-      const suffix = match.original.substring(typed.length).trim();
+      let suffix = match.original.substring(typed.length);
+      if (userTypedTrailingSpace) suffix = suffix.replace(/^\s+/, '');
+      suffix = suffix.replace(/\s+$/, ''); // defensive trim of trailing whitespace
       if (suffix.length > 0 && !seen.has(suffix.toLowerCase())) {
         seen.add(suffix.toLowerCase());
         results.push({
