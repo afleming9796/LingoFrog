@@ -23,7 +23,8 @@
     {
       "matches": ["https://mail.google.com/*"],
       "js": ["trie.js", "content.js"],
-      "css": ["lingofrog.css"]
+      "css": ["lingofrog.css"],
+      "all_frames": true
     }
   ],
   "web_accessible_resources": [
