@@ -1369,7 +1369,12 @@
 
     // Split only on hard sentence boundaries and newlines (not colons or commas)
     const parts = accumulated.split(/[.!?\n]+/);
-    return (parts[parts.length - 1] || '').trim();
+    // Strip leading whitespace only — trailing whitespace is meaningful
+    // when matching a Bop's typed prefix ("you can " vs "you can"
+    // tells us whether to leave a leading space in the completion
+    // when inserting). Normal autocomplete is unaffected because
+    // trie.search splits on whitespace and filters empties.
+    return (parts[parts.length - 1] || '').replace(/^\s+/, '');
   }
 
   /**
@@ -1573,19 +1578,7 @@
     if (!currentSuggestions.length || selectedIndex >= currentSuggestions.length) return;
 
     const selected = currentSuggestions[selectedIndex];
-    let completion = selected.completion;
-
-    // Bop leading-space handling: if the user is accepting a Bop
-    // they haven't started typing yet (completion === full), insert
-    // a space separator unless one is already there. This replaces
-    // the old "always prepend space to the completion" trick, which
-    // double-spaced when the user typed a space first then accepted.
-    if (selected.kind === 'bop' && completion === selected.full) {
-      const prev = getCharBeforeCursor();
-      if (prev && !/\s/.test(prev)) {
-        completion = ' ' + completion;
-      }
-    }
+    const completion = selected.completion;
 
     removeGhostText();
     hideSuggestions();
@@ -1654,10 +1647,34 @@
       const followers = corpus.getFollowedBy(selected.full);
       if (followers.length) {
         activeBops = followers.slice();
+
+        // Auto-insert a separator space right after the just-accepted
+        // phrase if the cursor isn't already preceded by whitespace.
+        // This way the user can immediately type the Bop's prefix
+        // ("Bu...") without it cuddling the preceding period
+        // ("A.Bu..." → "A. Bu..."). Inserting here at fire time
+        // — rather than prepending at accept time — fixes both the
+        // accept-immediately and the type-then-accept cases.
+        const prev = getCharBeforeCursor();
+        if (prev && !/\s/.test(prev)) {
+          const sel2 = window.getSelection();
+          if (sel2 && sel2.rangeCount > 0) {
+            const r = sel2.getRangeAt(0);
+            r.collapse(false);
+            const spaceNode = document.createTextNode(' ');
+            r.insertNode(spaceNode);
+            const nr = document.createRange();
+            nr.setStartAfter(spaceNode);
+            nr.collapse(true);
+            sel2.removeAllRanges();
+            sel2.addRange(nr);
+          }
+        }
+
         // Snapshot typed text post-insertion so handleInput can
         // compute the delta of what the user types from here on.
-        // Defer one tick so the inserted node is visible to the
-        // tree walker getTypedText uses.
+        // Defer one tick so the inserted node (and auto-inserted
+        // space) is visible to the tree walker getTypedText uses.
         setTimeout(() => {
           if (activeElement) {
             bopBaselineTyped = getTypedText(activeElement);
