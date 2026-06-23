@@ -1424,6 +1424,25 @@
     return /\w/.test(currentSentenceTail);
   }
 
+  /**
+   * Returns the character immediately preceding the cursor, or '' if
+   * the cursor isn't in a text node or is at offset 0. Used by
+   * acceptSuggestion to detect "already after whitespace" so it can
+   * skip the Bop completion's leading space and avoid double-spacing.
+   */
+  function getCharBeforeCursor() {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return '';
+    const range = sel.getRangeAt(0);
+    if (!range.collapsed) return '';
+    const node = range.startContainer;
+    const offset = range.startOffset;
+    if (node.nodeType === Node.TEXT_NODE && offset > 0) {
+      return node.textContent.charAt(offset - 1);
+    }
+    return '';
+  }
+
   function getCursorRect() {
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return null;
@@ -1519,7 +1538,22 @@
     if (!currentSuggestions.length || selectedIndex >= currentSuggestions.length) return;
 
     const selected = currentSuggestions[selectedIndex];
-    const completion = selected.completion;
+    let completion = selected.completion;
+
+    // If the completion starts with a space (Bop entries do this so
+    // the inserted text reads naturally after the previous phrase)
+    // and the cursor is already preceded by whitespace, drop the
+    // leading space to avoid double-spacing. Together with the
+    // auto-space-after-sentence-end logic at the bottom of this
+    // function, this means a Bop chained after a phrase ending in
+    // . ! or ? produces exactly one space separator.
+    if (completion.startsWith(' ')) {
+      const prev = getCharBeforeCursor();
+      if (prev && /\s/.test(prev)) {
+        completion = completion.slice(1);
+      }
+    }
+
     removeGhostText();
     hideSuggestions();
 
@@ -1573,6 +1607,19 @@
     }
 
     corpus.recordUsage(selected.full);
+
+    // ── Auto-space after a sentence-ending phrase ──
+    // If the accepted phrase ends with .!? insert a space so the next
+    // sentence (or a chained Bop) reads naturally without the user
+    // having to type the space themselves — which was the source of
+    // the "typing space dismisses the Bop" annoyance the pre-#90
+    // code had no answer for. Uses execCommand so the contenteditable
+    // sees a normal typed character, keeping Gmail's mutation
+    // observers in sync (avoids the cursor-disappears bug PR #90
+    // hit when using raw DOM insertion).
+    if (/[.!?]$/.test(selected.full)) {
+      try { document.execCommand('insertText', false, ' '); } catch (e) {}
+    }
 
     // ── Bop trigger ──
     // If the just-accepted phrase has a followedBy list, surface
