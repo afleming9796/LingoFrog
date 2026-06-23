@@ -1353,12 +1353,23 @@
       accumulated += currentNode.textContent;
     }
 
-    // Normalize smart quotes to straight quotes so apostrophes match
-    accumulated = accumulated.replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"');
+    // Normalize smart quotes to straight quotes so apostrophes match.
+    // Also normalize non-breaking spaces (U+00A0) to regular spaces \u2014
+    // Gmail compose sometimes inserts NBSPs, and downstream consumers
+    // (getCompletions trailing-space detection) expect regular spaces.
+    accumulated = accumulated
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/\u00A0/g, ' ');
 
     // Split only on hard sentence boundaries and newlines (not colons or commas)
     const parts = accumulated.split(/[.!?\n]+/);
-    return (parts[parts.length - 1] || '').trim();
+    // Strip leading whitespace only \u2014 trailing whitespace is meaningful
+    // to getCompletions (it uses it to decide whether to strip the
+    // suffix's leading space, avoiding double-spacing). Normal
+    // autocomplete behavior is unaffected because trie.search splits
+    // on whitespace and filters empty tokens.
+    return (parts[parts.length - 1] || '').replace(/^\s+/, '');
   }
 
   /**
@@ -1574,6 +1585,19 @@
 
     corpus.recordUsage(selected.full);
 
+    // ── Auto-space after a sentence-ending phrase ──
+    // If the accepted phrase ends with .!? insert a space so the next
+    // sentence (or a chained Bop) reads naturally without the user
+    // having to type the space themselves — which was the source of
+    // the "typing space dismisses the Bop" annoyance the pre-#90
+    // code had no answer for. Uses execCommand so the contenteditable
+    // sees a normal typed character, keeping Gmail's mutation
+    // observers in sync (avoids the cursor-disappears bug PR #90
+    // hit when using raw DOM insertion).
+    if (/[.!?]$/.test(selected.full)) {
+      try { document.execCommand('insertText', false, ' '); } catch (e) {}
+    }
+
     // ── Bop trigger ──
     // If the just-accepted phrase has a followedBy list, surface
     // those as suggestions immediately, bypassing the
@@ -1587,8 +1611,14 @@
     if (corpus.config.autoComplete !== false) {
       const followers = corpus.getFollowedBy(selected.full);
       if (followers.length) {
+        // Bop completion is the raw follower text — no leading space.
+        // The auto-space-after-period rule above already provided the
+        // separator when the parent phrase ended a sentence. The
+        // non-sentence-end case ("phrase A" → "phrase B" with no
+        // punctuation in between) cuddles; that's the trade-off for
+        // not double-spacing.
         const bopSuggestions = followers.map((follower, i) => ({
-          completion: ' ' + follower,
+          completion: follower,
           full: follower,
           score: 1e6 - i, // preserve declared order via pseudo-score
         }));
