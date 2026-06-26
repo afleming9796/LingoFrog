@@ -1407,25 +1407,57 @@
     }
     if (!scope) scope = element;
 
-    const treeWalker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT, null, false);
+    // Walk text AND elements so we can treat <br> and nested block
+    // boundaries as line breaks. Gmail's reply layout often puts the
+    // user's typing area and the signature in the SAME div separated
+    // by <br>s — without this, the SHOW_TEXT-only walker concatenated
+    // "...|" + "Best,Andrew" with no separator and the check
+    // mistakenly flagged the cursor as mid-sentence (#82-ish).
+    const treeWalker = document.createTreeWalker(
+      scope, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, null, false
+    );
     let foundCursor = false;
     let rest = '';
     let currentNode;
     while ((currentNode = treeWalker.nextNode())) {
-      // Skip ghost text nodes.
+      // Skip ghost-text-internal nodes.
+      const cls = currentNode.classList;
+      if (cls && cls.contains && cls.contains('lingofrog-ghost')) continue;
       if (currentNode.parentNode &&
           currentNode.parentNode.classList &&
           currentNode.parentNode.classList.contains('lingofrog-ghost')) {
         continue;
       }
-      if (currentNode === range.startContainer) {
-        rest += currentNode.textContent.substring(range.startOffset);
-        foundCursor = true;
+
+      if (currentNode.nodeType === Node.TEXT_NODE) {
+        if (currentNode === range.startContainer) {
+          rest += currentNode.textContent.substring(range.startOffset);
+          foundCursor = true;
+          continue;
+        }
+        if (foundCursor) rest += currentNode.textContent;
         continue;
       }
-      if (foundCursor) {
-        rest += currentNode.textContent;
+
+      // ELEMENT_NODE — only matters once we've passed the cursor.
+      if (!foundCursor) continue;
+
+      if (currentNode.tagName === 'BR') {
+        // <br> is a visual line break — treat as a sentence boundary
+        // so a signature on the line below the cursor isn't seen as
+        // "remaining sentence content".
+        rest += '\n';
+        break;
       }
+      const display = window.getComputedStyle(currentNode).display;
+      if (display === 'block' || display === 'list-item' ||
+          ['DIV','P','LI'].includes(currentNode.tagName)) {
+        // A nested block element after the cursor — also a hard line.
+        rest += '\n';
+        break;
+      }
+      // Otherwise (inline element like span) keep walking; its text
+      // children will be visited next.
     }
     if (!foundCursor) return false;
 
