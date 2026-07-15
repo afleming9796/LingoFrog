@@ -274,6 +274,51 @@ class UtmRules {
   }
 
   /**
+   * Parse a paste of UTM rules (the round-trip counterpart to
+   * exportText). Each non-empty, non-comment line is:
+   *
+   *   host; key=value; key=value; ...
+   *
+   * Returns { added, skipped }. Silent skips:
+   *   - blank lines
+   *   - lines starting with '#' (so users can paste a backup
+   *     section including its "# UTM Parameters" header)
+   *   - lines whose host fails the standard host regex
+   *   - lines that resolve to zero valid (non-empty) key/value pairs
+   *
+   * Duplicate hosts within the paste follow "last wins" via setForHost.
+   */
+  async importBulk(text) {
+    const hostRe = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/i;
+    let added = 0;
+    let skipped = 0;
+    for (let line of text.split('\n')) {
+      line = line.trim();
+      if (!line || line.startsWith('#')) continue;
+
+      const segments = line.split(';').map((s) => s.trim());
+      const host = (segments.shift() || '').toLowerCase();
+      if (!hostRe.test(host)) { skipped++; continue; }
+
+      const params = [];
+      for (const seg of segments) {
+        const eqIdx = seg.indexOf('=');
+        if (eqIdx === -1) continue;
+        const key = seg.slice(0, eqIdx).trim();
+        const value = seg.slice(eqIdx + 1).trim();
+        if (!key || !value) continue;
+        params.push({ key, value });
+      }
+
+      if (!params.length) { skipped++; continue; }
+      this.setForHost(host, params);
+      added++;
+    }
+    await this.save();
+    return { added, skipped };
+  }
+
+  /**
    * Text representation for backup/export. One line per host:
    *   host; key=value; key=value; ...
    * Mirrors the `phrase; url` shape used by LinkRules.exportText().
@@ -670,6 +715,54 @@ class Corpus {
       }
     }
     return lines.join('\n');
+  }
+
+  /**
+   * Parse a paste of Bop edges (round-trip counterpart to exportBops).
+   * Each non-empty, non-comment line is:
+   *
+   *   <source phrase> -> <follower phrase>
+   *
+   * Returns { added, skipped }. Silent skips:
+   *   - blank lines
+   *   - lines starting with '#'
+   *   - lines that don't contain a ` -> ` separator
+   *   - lines whose source or follower phrase isn't in this.phrases
+   *     (drop dangling refs per the issue)
+   *
+   * Multiple edges for the same source get accumulated in-batch and
+   * committed with a single setFollowedBy call at the end — otherwise
+   * each subsequent line would replace the previous follower(s).
+   */
+  async importBops(text) {
+    const sepRe = /\s+->\s+/;
+    const followers = new Map(); // source -> [follower, ...]
+    let skipped = 0;
+
+    for (let line of text.split('\n')) {
+      line = line.trim();
+      if (!line || line.startsWith('#')) continue;
+
+      const m = line.match(sepRe);
+      if (!m) { skipped++; continue; }
+
+      const source = line.slice(0, m.index).trim();
+      const follower = line.slice(m.index + m[0].length).trim();
+      if (!source || !follower) { skipped++; continue; }
+      if (!this.phrases.has(source) || !this.phrases.has(follower)) {
+        skipped++;
+        continue;
+      }
+      if (!followers.has(source)) followers.set(source, []);
+      followers.get(source).push(follower);
+    }
+
+    let added = 0;
+    for (const [source, list] of followers) {
+      await this.setFollowedBy(source, list);
+      added += list.length;
+    }
+    return { added, skipped };
   }
 
   getStats() {

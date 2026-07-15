@@ -514,33 +514,106 @@ document.querySelectorAll('.tab').forEach((tab) => {
 
 // ── Import: Type Toggle ───────────────────────────────────
 
+// Per-type config for hint, placeholder, button label, and empty-
+// paste error. Keeps setImportType + submit-handler small.
+const IMPORT_TYPES = {
+  phrases: {
+    label: 'Phrases',
+    button: 'Import Phrases',
+    empty: 'Paste some phrases first',
+    hint: 'One phrase per line. Casing is preserved on insertion.<br>e.g. <code>Thanks for the quick turnaround</code><br><br>Tip: when you highlight text in gmail, press <code>⌘ + Shift + P</code> to save it directly or press <code>⌘ + L</code> to insert a link. Search existing links or paste a new one.',
+    placeholder: 'Paste phrases here, one per line...\n\nThanks for the quick turnaround\nPlease see the attached document\nLet me know if you have any questions',
+  },
+  links: {
+    label: 'Links',
+    button: 'Import Links',
+    empty: 'Paste some link rules first',
+    hint: 'One link rule per line: <code>phrase; https://url</code><br>e.g. <code>pricing page; https://example.com/pricing</code>',
+    placeholder: 'Paste link rules here, one per line...\n\npricing page; https://example.com/pricing\ndocs; https://docs.example.com',
+  },
+  bops: {
+    label: 'Bops',
+    button: 'Import Bops',
+    empty: 'Paste some Bops first',
+    hint: 'One Bop per line: <code>source phrase -&gt; follower phrase</code><br>Both phrases must already be saved in your corpus.',
+    placeholder: 'Paste Bops here, one per line...\n\nThanks for the quick turnaround -> Let me know if you have any questions',
+  },
+  utms: {
+    label: 'UTM Parameters',
+    button: 'Import UTM Rules',
+    empty: 'Paste some UTM rules first',
+    hint: 'One UTM rule per line: <code>host; key=value; key=value</code><br>e.g. <code>example.com; utm_source=lingofrog; utm_medium=email</code>',
+    placeholder: 'Paste UTM rules here, one per line...\n\nexample.com; utm_source=lingofrog; utm_medium=email\ndocs.example.com; utm_source=lingofrog',
+  },
+};
+const OVERFLOW_TYPES = new Set(['bops', 'utms']);
+
+const importOverflowBtn = $('#import-type-overflow');
+const importOverflowMenu = $('#import-type-overflow-menu');
+
 function setImportType(type) {
+  const cfg = IMPORT_TYPES[type];
+  if (!cfg) return;
   importType = type;
+
+  // Primary buttons (Phrases, Links) get active state when picked.
   document.querySelectorAll('.import-type-btn').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.type === type);
   });
 
-  if (type === 'phrases') {
-    importHint.innerHTML = 'One phrase per line. Casing is preserved on insertion.<br>e.g. <code>Thanks for the quick turnaround</code><br><br>Tip: when you highlight text in gmail, press <code>⌘ + Shift + P</code> to save it directly or press <code>⌘ + L</code> to insert a link. Search existing links or paste a new one.';
-    pasteArea.placeholder = 'Paste phrases here, one per line...\n\nThanks for the quick turnaround\nPlease see the attached document\nLet me know if you have any questions';
-    btnImport.textContent = 'Import Phrases';
+  // Overflow button shows its picked type as label + chevron when an
+  // overflow type is active; otherwise reverts to plain "⋯".
+  if (OVERFLOW_TYPES.has(type)) {
+    importOverflowBtn.textContent = cfg.label + ' ▾';
+    importOverflowBtn.classList.add('active');
   } else {
-    importHint.innerHTML = 'One link rule per line: <code>phrase; https://url</code><br>e.g. <code>pricing page; https://example.com/pricing</code>';
-    pasteArea.placeholder = 'Paste link rules here, one per line...\n\npricing page; https://example.com/pricing\ndocs; https://docs.example.com';
-    btnImport.textContent = 'Import Links';
+    importOverflowBtn.textContent = '⋯';
+    importOverflowBtn.classList.remove('active');
   }
+
+  importHint.innerHTML = cfg.hint;
+  pasteArea.placeholder = cfg.placeholder;
+  btnImport.textContent = cfg.button;
+  closeImportOverflow();
 }
 
+function openImportOverflow() { importOverflowMenu.classList.add('open'); }
+function closeImportOverflow() { importOverflowMenu.classList.remove('open'); }
+
+// Primary type buttons.
 document.querySelectorAll('.import-type-btn').forEach((btn) => {
   btn.addEventListener('click', () => setImportType(btn.dataset.type));
+});
+
+// Overflow button toggles the menu.
+importOverflowBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (importOverflowMenu.classList.contains('open')) closeImportOverflow();
+  else openImportOverflow();
+});
+
+// Menu items select the corresponding type (and close the menu).
+document.querySelectorAll('.import-type-overflow-item').forEach((item) => {
+  item.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setImportType(item.dataset.type);
+  });
+});
+
+// Click anywhere else dismisses the menu.
+document.addEventListener('click', (e) => {
+  if (!importOverflowMenu.classList.contains('open')) return;
+  if (importOverflowBtn.contains(e.target) || importOverflowMenu.contains(e.target)) return;
+  closeImportOverflow();
 });
 
 // ── Import: Submit ────────────────────────────────────────
 
 btnImport.addEventListener('click', async () => {
+  const cfg = IMPORT_TYPES[importType];
   const text = pasteArea.value.trim();
   if (!text) {
-    showStatus(importStatus, importType === 'phrases' ? 'Paste some phrases first' : 'Paste some link rules first', 'error');
+    showStatus(importStatus, cfg.empty, 'error');
     return;
   }
 
@@ -552,10 +625,20 @@ btnImport.addEventListener('click', async () => {
       const added = await corpus.importPhrases(text, 'paste');
       showStatus(importStatus, `\u2713 ${added} new phrase${added === 1 ? '' : 's'} added`, 'success');
       updatePhraseList();
-    } else {
+    } else if (importType === 'links') {
       const added = await corpus.linkRules.importBulk(text);
       showStatus(importStatus, `\u2713 ${added} link rule${added === 1 ? '' : 's'} imported`, 'success');
       updateLinkRuleList();
+    } else if (importType === 'bops') {
+      const { added, skipped } = await corpus.importBops(text);
+      const skipNote = skipped ? ` (${skipped} skipped)` : '';
+      showStatus(importStatus, `\u2713 ${added} Bop${added === 1 ? '' : 's'} imported${skipNote}`, 'success');
+      updatePhraseList();
+    } else if (importType === 'utms') {
+      const { added, skipped } = await corpus.utmRules.importBulk(text);
+      const skipNote = skipped ? ` (${skipped} skipped)` : '';
+      showStatus(importStatus, `\u2713 ${added} UTM rule${added === 1 ? '' : 's'} imported${skipNote}`, 'success');
+      updateUtmList();
     }
     pasteArea.value = '';
     updateStats();
@@ -564,7 +647,7 @@ btnImport.addEventListener('click', async () => {
   }
 
   btnImport.disabled = false;
-  btnImport.textContent = importType === 'phrases' ? 'Import Phrases' : 'Import Links';
+  btnImport.textContent = cfg.button;
 });
 
 // ── Corpus: Search ────────────────────────────────────────
