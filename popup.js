@@ -561,14 +561,16 @@ function setImportType(type) {
     btn.classList.toggle('active', btn.dataset.type === type);
   });
 
-  // Overflow button shows its picked type as label + chevron when an
-  // overflow type is active; otherwise reverts to plain "⋯".
+  // Overflow button stays as a small "⋯" circle. When one of its
+  // types is active, it picks up the green active styling and its
+  // tooltip reflects the current pick — the type name itself shows
+  // through the hint text and Import button label below.
   if (OVERFLOW_TYPES.has(type)) {
-    importOverflowBtn.textContent = cfg.label + ' ▾';
     importOverflowBtn.classList.add('active');
+    importOverflowBtn.title = cfg.label + ' (click to change)';
   } else {
-    importOverflowBtn.textContent = '⋯';
     importOverflowBtn.classList.remove('active');
+    importOverflowBtn.title = 'More types';
   }
 
   importHint.innerHTML = cfg.hint;

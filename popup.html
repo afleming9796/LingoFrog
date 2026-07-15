@@ -118,7 +118,10 @@
     .btn-danger:hover { background: #fbe7e7; border-color: #e7b8b8; }
     .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    .import-type-toggle { display: flex; gap: 2px; margin-bottom: 10px; background: #ececec; border-radius: 8px; padding: 3px; }
+    /* Row that holds the primary toggle bar + the small overflow
+       circle button to its right. */
+    .import-controls { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+    .import-type-toggle { display: flex; gap: 2px; flex: 1; background: #ececec; border-radius: 8px; padding: 3px; }
     .import-type-btn {
       flex: 1; padding: 6px 0; text-align: center; font-size: 11px; font-weight: 600;
       color: #7a7a7a; background: transparent; border: none; cursor: pointer;
@@ -127,17 +130,20 @@
     .import-type-btn:hover { color: #1a1a1a; }
     .import-type-btn.active { color: #4d7a2e; background: #ffffff; }
 
-    /* Overflow menu for less-common import types (Bops, UTMs) so the
-       toggle strip stays visually clean with just Phrases + Links. */
-    .import-type-overflow-container { position: relative; display: flex; }
+    /* Small circular overflow button, sits outside the toggle bar.
+       Opens a menu with less-common import types (Bops, UTMs). */
+    .import-type-overflow-container { position: relative; flex-shrink: 0; }
     .import-type-btn-overflow {
-      flex: 0 0 auto; padding: 6px 10px; font-size: 11px; font-weight: 600;
-      color: #7a7a7a; background: transparent; border: none; cursor: pointer;
-      border-radius: 6px; transition: all 0.15s;
-      display: inline-flex; align-items: center; gap: 3px;
+      width: 26px; height: 26px; padding: 0;
+      border-radius: 50%;
+      background: #ececec; color: #7a7a7a;
+      font-size: 14px; line-height: 1;
+      border: none; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
     }
-    .import-type-btn-overflow:hover { color: #1a1a1a; }
-    .import-type-btn-overflow.active { color: #4d7a2e; background: #ffffff; }
+    .import-type-btn-overflow:hover { background: #dcdcdc; color: #1a1a1a; }
+    .import-type-btn-overflow.active { background: #e7f0dc; color: #4d7a2e; }
     .import-type-overflow-menu {
       position: absolute; top: calc(100% + 4px); right: 0;
       background: #ffffff; border: 1px solid #dcdcdc; border-radius: 6px;
@@ -391,9 +397,11 @@
 
   <!-- Import Tab -->
   <div class="tab-content active" id="tab-import">
-    <div class="import-type-toggle">
-      <button class="import-type-btn active" data-type="phrases">Phrases</button>
-      <button class="import-type-btn" data-type="links">Links</button>
+    <div class="import-controls">
+      <div class="import-type-toggle">
+        <button class="import-type-btn active" data-type="phrases">Phrases</button>
+        <button class="import-type-btn" data-type="links">Links</button>
+      </div>
       <div class="import-type-overflow-container">
         <button class="import-type-btn-overflow" id="import-type-overflow" title="More types">⋯</button>
         <div class="import-type-overflow-menu" id="import-type-overflow-menu">
