@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "LingoFrog",
   "version": "1.1.0",
-  "description": "Local autocomplete powered by your own writing. No AI, no cloud — just your words, suggested back to you.",
+  "description": "Local autocomplete powered by you. Your words, your links, at your service.",
   "permissions": ["storage"],
   "icons": {
     "16": "icons/icon16.png",
