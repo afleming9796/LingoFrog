@@ -1,6 +1,6 @@
 # LingoFrog — Chrome Extension
 
-Like a best friend, LingoFrog finishes your sentences and inserts relevant hyperlinks. Accept suggested completions with "tab". Add suggested hyperlinks with cmd + L. Only works in chrome + gmail (on browser).
+Like a best friend, LingoFrog finishes your sentences and inserts relevant hyperlinks. Accept suggested completions with "tab". Add suggested hyperlinks with cmd + L. Only works in chrome + Gmail (on browser).
 
 ## Install (Developer Mode)
 
@@ -13,7 +13,7 @@ Like a best friend, LingoFrog finishes your sentences and inserts relevant hyper
 
 ## Setup
 
-1. Add your favorite phrases and links via the import tab or by highlighting them in gmail and selecting cmd + shift + p.
+1. Add your favorite phrases and links via the import tab or by highlighting them in Gmail and selecting cmd + shift + p.
 2. Start typing in Gmail and suggestions will appear. You might need to refresh your screen
 3. Use Cmd+L to insert hyperlinks based on matches. If you highlight a phrase, CMD+L will open a drop down of links to insert. You can also insert ad-hoc links via highlight + cmd + L and save those ad-hoc links for future use. 
 4. You should occasionally export your phrases and links to a Google doc or local txt file as a backup. (Bulk import is easy). 
