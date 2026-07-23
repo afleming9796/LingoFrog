@@ -522,14 +522,14 @@ const IMPORT_TYPES = {
     button: 'Import Phrases',
     empty: 'Paste some phrases first',
     hint: 'One phrase per line. Casing is preserved on insertion.<br>e.g. <code>Thanks for the quick turnaround</code><br><br>Tip: when you highlight text in gmail, press <code>⌘ + Shift + P</code> to save it directly or press <code>⌘ + L</code> to insert a link. Search existing links or paste a new one.',
-    placeholder: 'Paste phrases here, one per line...\n\nThanks for the quick turnaround\nPlease see the attached document\nThese pretzels are making me thirsty\n\nStart typing in gmail to see the magic!',
+    placeholder: 'Add your phrases here, one per line...\n\nThanks for the quick turnaround\nPlease see the attached document\nThese pretzels are making me thirsty\n\nThen start typing in gmail to see the magic.',
   },
   links: {
     label: 'Links',
     button: 'Import Links',
     empty: 'Paste some link rules first',
     hint: 'One link rule per line: <code>phrase; https://url</code><br>e.g. <code>pricing page; https://example.com/pricing</code>',
-    placeholder: 'Paste link rules here, one per line...\n\ndocs; https://docs.example.com\nribbit; https://example.com/ribbit\n\nType ribbit in a gmail body to see the link magic!',
+    placeholder: 'Paste link rules here, one per line...\n\ndocs; https://docs.example.com\nribbit; https://example.com/ribbit\n\nThen type a link\'s text in a gmail body to auto hyperlink.',
   },
   bops: {
     label: 'Bops',
