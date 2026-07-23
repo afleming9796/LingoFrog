@@ -529,7 +529,7 @@ const IMPORT_TYPES = {
     button: 'Import Links',
     empty: 'Paste some link rules first',
     hint: 'One link rule per line: <code>phrase; https://url</code><br>e.g. <code>pricing page; https://example.com/pricing</code>',
-    placeholder: 'Paste link rules here, one per line...\n\ndocs; https://docs.example.com\nribbit; https://example.com/ribbit\n\nThen type a link\'s text in a Gmail body to auto hyperlink',
+    placeholder: 'Add link rules here, one per line...\n\ndocs; https://docs.example.com\nribbit; https://example.com/ribbit\n\nThen type a link\'s text in a Gmail body to auto hyperlink',
   },
   bops: {
     label: 'Bops',
