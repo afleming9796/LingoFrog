@@ -2,6 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
+  <link rel="stylesheet" href="lingofrog.css">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -30,7 +31,35 @@
     .header h1 img { width: 22px; height: 22px; display: block; }
     .header p { font-size: 11px; color: #7a7a7a; margin-top: 4px; }
 
-    .tabs { display: flex; padding: 0 20px; gap: 2px; margin: 12px 0; }
+    .tabs { margin-top: 12px; }
+
+    #lillypad-area {
+      min-height: 220px;
+      max-height: 400px;
+      overflow-y: auto;
+      background: #ffffff;
+      border: 1px solid #dcdcdc;
+      border-radius: 8px;
+      color: #1a1a1a;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+      padding: 10px;
+      outline: none;
+      transition: border-color 0.15s;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    #lillypad-area:focus { border-color: #6da34d; }
+    #lillypad-area:empty::before {
+      content: attr(data-placeholder);
+      color: #b5b5b5;
+      pointer-events: none;
+      white-space: pre-wrap;
+    }
+    #lillypad-area a { color: #4d7a2e; text-decoration: underline; }
+
+    .tabs { display: flex; padding: 0 20px; gap: 2px; margin-bottom: 12px; }
 
     .tab {
       flex: 1;
@@ -361,6 +390,7 @@
     <button class="tab active" data-tab="import">Import</button>
     <button class="tab" data-tab="corpus">Phrases</button>
     <button class="tab" data-tab="links">Links</button>
+    <button class="tab" data-tab="lillypad">LillyPad</button>
     <button class="tab" data-tab="settings">Settings</button>
   </div>
 
@@ -424,6 +454,17 @@
     <button class="btn btn-primary" id="btn-export-phrases">Copy All to Clipboard</button>
     <div class="status" id="corpus-status"></div>
     <button class="btn btn-danger" id="btn-clear">Clear Entire Corpus</button>
+  </div>
+
+  <!-- LillyPad Tab -->
+  <div class="tab-content" id="tab-lillypad">
+    <div class="import-hint">
+      Draft text with your saved phrases and links. Tab accepts a completion, ↑↓ cycles, Esc dismisses. Highlight text and press ⌘L to insert a link, or ⌘⇧P to save the highlight as a new phrase. Copy carries hyperlinks into Gmail.
+    </div>
+    <div id="lillypad-area" contenteditable="true" spellcheck="true" data-placeholder="Draft your text here..."></div>
+    <button class="btn btn-primary" id="btn-lillypad-copy">Copy to Clipboard</button>
+    <div class="status" id="lillypad-status"></div>
+    <button class="btn btn-danger" id="btn-lillypad-clear">Clear</button>
   </div>
 
   <!-- Settings Tab -->
@@ -492,6 +533,7 @@
   </div>
 
   <script src="trie.js"></script>
+  <script src="lillypad.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

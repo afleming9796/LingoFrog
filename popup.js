@@ -44,7 +44,16 @@ async function init() {
   updateLinkRuleList();
   updateUtmList();
   loadSettings();
+  // Hand the loaded corpus to LillyPad so autocomplete, ⌘L, and
+  // ⌘⇧P have a live corpus to hit. lillypad.js also calls
+  // window.updateStats() after save-phrase / save-rule so the
+  // search-placeholder counts refresh without a popup reopen.
+  if (typeof window.initLillypad === 'function') window.initLillypad(corpus);
 }
+
+// Exposed so lillypad.js can refresh counts after save-phrase or
+// save-rule accepts land — no other cross-file consumer.
+window.updateStats = updateStats;
 
 function updateStats() {
   const stats = corpus.getStats();
@@ -52,9 +61,6 @@ function updateStats() {
   linkSearch.placeholder = searchPlaceholder(stats.totalLinkRules, 'link');
 }
 
-// Singular-aware count baked into the search-input placeholder.
-// Empty state falls back to "Search phrases..." so "Search 0 phrases..."
-// never shows.
 function searchPlaceholder(count, noun) {
   if (count === 0) return `Search ${noun}s...`;
   const label = count.toLocaleString() + ' ' + noun + (count === 1 ? '' : 's');
@@ -511,6 +517,10 @@ document.querySelectorAll('.tab').forEach((tab) => {
     document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
     tab.classList.add('active');
     document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    if (tab.dataset.tab === 'lillypad') {
+      const el = document.getElementById('lillypad-area');
+      if (el) el.focus();
+    }
   });
 });
 
