@@ -5,9 +5,6 @@
 const corpus = new Corpus();
 
 const $ = (sel) => document.querySelector(sel);
-const statPhrases = $('#stat-phrases');
-const statLinks = $('#stat-links');
-const statActive = $('#stat-active');
 const pasteArea = $('#paste-area');
 const btnImport = $('#btn-import');
 const importStatus = $('#import-status');
@@ -51,12 +48,17 @@ async function init() {
 
 function updateStats() {
   const stats = corpus.getStats();
-  statPhrases.textContent = stats.totalPhrases.toLocaleString();
-  statLinks.textContent = stats.totalLinkRules;
-  statActive.textContent = '●';
-  const isEnabled = corpus.config.enabled !== false;
-  statActive.style.color = isEnabled ? (stats.totalPhrases > 0 ? '#a6e3a1' : '#f38ba8') : '#6c7086';
-  statActive.title = isEnabled ? 'Enabled' : 'Disabled';
+  phraseSearch.placeholder = searchPlaceholder(stats.totalPhrases, 'phrase');
+  linkSearch.placeholder = searchPlaceholder(stats.totalLinkRules, 'link');
+}
+
+// Singular-aware count baked into the search-input placeholder.
+// Empty state falls back to "Search phrases..." so "Search 0 phrases..."
+// never shows.
+function searchPlaceholder(count, noun) {
+  if (count === 0) return `Search ${noun}s...`;
+  const label = count.toLocaleString() + ' ' + noun + (count === 1 ? '' : 's');
+  return `Search ${label}...`;
 }
 
 function updatePhraseList() {
