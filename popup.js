@@ -30,11 +30,10 @@ let importType = 'phrases';
 let utmExpandedHost = null;
 let utmDraftRoot = null; // { host: '', params: [{key, value}] } when active
 
-// Add-mode state for the inline "morph" forms on Phrases and
-// Links tabs. While true, the tab's search input is repurposed as
-// the "Add …" prompt and its normal input handler skips the
-// list-filter re-render.
-let phraseAddMode = false;
+// Add-mode state for the inline "morph" form on the Links tab.
+// While true, the search input is repurposed as the "Add …" prompt
+// and its normal input handler skips the list-filter re-render.
+// Phrases use a full-page form instead (see openPhraseForm below).
 let linkAddMode = false;
 
 const HOST_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/;
@@ -52,9 +51,9 @@ async function init() {
 
 function updateStats() {
   const stats = corpus.getStats();
-  // Skip while an add form is up — the search input is showing an
-  // "Add …" prompt then, and we don't want to clobber it.
-  if (!phraseAddMode) phraseSearch.placeholder = searchPlaceholder(stats.totalPhrases, 'phrase');
+  phraseSearch.placeholder = searchPlaceholder(stats.totalPhrases, 'phrase');
+  // Skip while the link morph form is up — that input's placeholder
+  // is temporarily showing the "Add …" prompt.
   if (!linkAddMode) linkSearch.placeholder = searchPlaceholder(stats.totalLinkRules, 'link');
 }
 
@@ -77,7 +76,7 @@ function updatePhraseList() {
   if (scroll) scroll.style.maxHeight = '';
 
   if (allPhrases.length === 0) {
-    const msg = filter ? 'No phrases match your search.' : 'No phrases yet. Add some via Paste to Import in Settings.';
+    const msg = filter ? 'No phrases match your search.' : 'No phrases yet. Click ＋ to add one.';
     phraseList.innerHTML = `<li style="color: #585b70; font-size: 11px; padding: 12px 0;">${msg}</li>`;
     return;
   }
@@ -95,9 +94,7 @@ function updatePhraseList() {
     text.textContent = item.phrase.length > 60 ? item.phrase.slice(0, 60) + '\u2026' : item.phrase;
     text.title = item.phrase;
 
-    text.addEventListener('click', () => {
-      startEditPhrase(li, item.phrase, freq);
-    });
+    text.addEventListener('click', () => openPhraseForm('edit', item.phrase));
 
     const del = document.createElement('button');
     del.className = 'phrase-delete';
@@ -126,256 +123,6 @@ function updatePhraseList() {
   }
 }
 
-function startEditPhrase(li, originalPhrase, freqEl) {
-  li.innerHTML = '';
-  // Edit mode breaks out of the row's flex layout so the phrase
-  // input and the Bops UI can stack.
-  li.style.display = 'block';
-
-  // ── Row 1: phrase input ──
-  const row1 = document.createElement('div');
-  row1.className = 'phrase-edit-row';
-  row1.appendChild(freqEl);
-
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.className = 'phrase-edit-input';
-  input.value = originalPhrase;
-  row1.appendChild(input);
-  li.appendChild(row1);
-
-  // ── Row 2: Bops chips + search ──
-  // Working copy of the bops list. Mutated via chip add / remove
-  // while editing; committed via setFollowedBy on save.
-  const working = corpus.getFollowedBy(originalPhrase).slice();
-  const MAX = (typeof Corpus !== 'undefined' && Corpus.MAX_FOLLOWED_BY) || 3;
-
-  const row2 = document.createElement('div');
-  row2.className = 'phrase-edit-row phrase-edit-bops-row';
-
-  const bopsBox = document.createElement('div');
-  bopsBox.className = 'phrase-edit-bops-box';
-  row2.appendChild(bopsBox);
-  li.appendChild(row2);
-
-  // Dropdown lives BELOW the bops box as a sibling in the li flow,
-  // not inside it. This way the popup grows naturally when search
-  // results are shown rather than getting clipped by .phrase-list's
-  // overflow boundary.
-  const dropdownRow = document.createElement('div');
-  dropdownRow.className = 'phrase-edit-bops-dropdown-row';
-  li.appendChild(dropdownRow);
-
-  // Search input lives inside bopsBox alongside chips. Dropdown
-  // lives in the sibling dropdownRow so it pushes the page down
-  // instead of overflowing.
-  const searchInput = document.createElement('input');
-  searchInput.type = 'text';
-  searchInput.className = 'phrase-edit-bops-search';
-  searchInput.placeholder = 'Search to add a Bop (i.e. after A suggest B)';
-  searchInput.spellcheck = false;
-  searchInput.autocomplete = 'off';
-
-  const dropdown = document.createElement('div');
-  dropdown.className = 'phrase-edit-bops-dropdown';
-  dropdown.style.display = 'none';
-  dropdownRow.appendChild(dropdown);
-
-  function renderChips() {
-    // Clear everything inside bopsBox and rebuild: chips, then search
-    // input. (Dropdown lives outside the bops box, as a sibling under
-    // row2 — see below — so it flows in the document and doesn't get
-    // clipped by .phrase-list's overflow boundary.)
-    bopsBox.innerHTML = '';
-    for (const phrase of working) {
-      const chip = document.createElement('span');
-      chip.className = 'phrase-edit-bop-chip';
-      const text = document.createElement('span');
-      text.className = 'phrase-edit-bop-chip-text';
-      text.textContent = phrase.length > 30 ? phrase.slice(0, 30) + '…' : phrase;
-      text.title = phrase;
-      chip.appendChild(text);
-      const x = document.createElement('button');
-      x.className = 'phrase-edit-bop-chip-x';
-      x.textContent = '×';
-      x.tabIndex = -1;
-      x.title = 'Remove';
-      x.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const idx = working.indexOf(phrase);
-        if (idx >= 0) working.splice(idx, 1);
-        renderChips();
-        renderDropdown(searchInput.value);
-      });
-      chip.appendChild(x);
-      bopsBox.appendChild(chip);
-    }
-    bopsBox.appendChild(searchInput);
-
-    if (working.length >= MAX) {
-      // At cap, hide the input entirely — the chip's × is the only
-      // way to interact. Avoids the awkward "disabled placeholder"
-      // that read like a separate field.
-      searchInput.style.display = 'none';
-      dropdown.style.display = 'none';
-    } else {
-      searchInput.style.display = '';
-      searchInput.disabled = false;
-      searchInput.placeholder = working.length
-        ? 'Add another...'
-        : 'Search to add a Bop (i.e. after A suggest B)';
-    }
-  }
-
-  function renderDropdown(query) {
-    const q = (query || '').toLowerCase().trim();
-    if (!q || working.length >= MAX) {
-      dropdown.style.display = 'none';
-      dropdown.innerHTML = '';
-      return;
-    }
-    const exclude = new Set([originalPhrase, ...working]);
-    const matches = [];
-    for (const [phrase] of corpus.phrases) {
-      if (exclude.has(phrase)) continue;
-      if (!phrase.toLowerCase().includes(q)) continue;
-      matches.push(phrase);
-      if (matches.length >= 8) break;
-    }
-    dropdown.innerHTML = '';
-    if (!matches.length) {
-      const empty = document.createElement('div');
-      empty.className = 'phrase-edit-bops-empty';
-      empty.textContent = 'No matching phrases';
-      dropdown.appendChild(empty);
-    } else {
-      for (const phrase of matches) {
-        const item = document.createElement('div');
-        item.className = 'phrase-edit-bops-item';
-        item.textContent = phrase.length > 50 ? phrase.slice(0, 50) + '…' : phrase;
-        item.title = phrase;
-        item.addEventListener('mousedown', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          addBop(phrase);
-        });
-        dropdown.appendChild(item);
-      }
-    }
-    dropdown.style.display = 'block';
-    // Make sure the dropdown is visible — pushes the popup body to
-    // scroll if it's already at Chrome's popup-height ceiling.
-    setTimeout(() => dropdown.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 0);
-  }
-
-  function addBop(phrase) {
-    if (working.length >= MAX) return;
-    if (working.includes(phrase)) return;
-    working.push(phrase);
-    searchInput.value = '';
-    renderChips();
-    renderDropdown('');
-    searchInput.focus();
-  }
-
-  searchInput.addEventListener('input', () => renderDropdown(searchInput.value));
-  searchInput.addEventListener('focus', () => renderDropdown(searchInput.value));
-
-  // ── Save / cancel ──
-  let committed = false;
-
-  const cancel = () => {
-    committed = true;
-    updatePhraseList();
-  };
-
-  const save = async () => {
-    if (committed) return;
-    committed = true;
-
-    const newPhrase = input.value.trim();
-    let targetPhrase = originalPhrase;
-    if (newPhrase && newPhrase !== originalPhrase) {
-      const ok = await corpus.editPhrase(originalPhrase, newPhrase);
-      if (ok) targetPhrase = newPhrase;
-    }
-    await corpus.setFollowedBy(targetPhrase, working);
-
-    updateStats();
-    updatePhraseList();
-  };
-
-  const onPhraseKey = (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); save(); }
-    if (e.key === 'Escape') { e.preventDefault(); cancel(); }
-  };
-  const onSearchKey = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      // Enter on the search input adds the first match (if any) as a
-      // chip rather than committing the save, so users can add
-      // multiple bops without leaving the edit row.
-      const firstItem = dropdown.querySelector('.phrase-edit-bops-item');
-      if (firstItem) firstItem.dispatchEvent(new MouseEvent('mousedown'));
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      if (searchInput.value) {
-        searchInput.value = '';
-        renderDropdown('');
-      } else {
-        cancel();
-      }
-    }
-  };
-
-  // Save when focus leaves the whole edit area (phrase input, search
-  // input, any chip × button). Detect by checking if relatedTarget is
-  // anywhere inside `li`.
-  const onBlur = (e) => {
-    if (e.relatedTarget && li.contains(e.relatedTarget)) return;
-    // Defer one tick so a mousedown that's about to refocus inside
-    // the edit area (e.g. clicking a dropdown item) can fire first.
-    setTimeout(() => {
-      if (committed) return;
-      if (document.activeElement && li.contains(document.activeElement)) return;
-      save();
-    }, 0);
-  };
-
-  input.addEventListener('keydown', onPhraseKey);
-  input.addEventListener('blur', onBlur);
-  searchInput.addEventListener('keydown', onSearchKey);
-  searchInput.addEventListener('blur', onBlur);
-
-  renderChips();
-  input.focus();
-  input.select();
-
-  // Align the Bop row + dropdown with the phrase input above by
-  // offsetting them by the freq badge's rendered width + the row's
-  // 8px flex gap. Defer until the next frame so freqEl has a measured
-  // width.
-  requestAnimationFrame(() => {
-    const freqWidth = freqEl.offsetWidth;
-    if (freqWidth) {
-      const offset = (freqWidth + 8) + 'px';
-      row2.style.paddingLeft = offset;
-      dropdownRow.style.paddingLeft = offset;
-    }
-  });
-
-  // Edit mode adds a second row (Bop UI) under the phrase input. The
-  // scroll wrapper caps the whole list at ~320px, which can clip the
-  // bottom of an expanded row — especially when the user has
-  // filtered the list down to just one or two phrases. Bump the cap
-  // while editing so the Bop row is always visible, and scroll the
-  // edited row into view as a safety net. Reset on re-render by
-  // updatePhraseList.
-  const scroll = document.getElementById('phrase-list-scroll');
-  if (scroll) scroll.style.maxHeight = 'none';
-  setTimeout(() => li.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 0);
-}
 
 function updateLinkRuleList() {
   const filter = linkSearch ? linkSearch.value.trim().toLowerCase() : '';
@@ -686,10 +433,6 @@ btnImport.addEventListener('click', async () => {
 // ── Corpus: Search ────────────────────────────────────────
 
 phraseSearch.addEventListener('input', () => {
-  if (phraseAddMode) {
-    updatePhraseSaveEnabled();
-    return;
-  }
   updatePhraseList();
 });
 
@@ -1182,67 +925,239 @@ document.addEventListener('click', (e) => {
 // place. ✓ is enabled once the form is valid. Enter advances /
 // saves, Esc cancels.
 
-// ---- Phrases ----
+// ---- Phrases: full-page add/edit form ----
 
 const btnAddPhrase = document.getElementById('btn-add-phrase');
-const btnSavePhrase = document.getElementById('btn-save-phrase');
-const btnCancelPhrase = document.getElementById('btn-cancel-phrase');
-const phraseOverflowContainer = document.getElementById('phrase-overflow-container');
+const phraseFormInput = document.getElementById('phrase-form-input');
+const phraseFormTitle = document.getElementById('phrase-form-title');
+const phraseFormBopsBox = document.getElementById('phrase-form-bops-box');
+const phraseFormBopsSearch = document.getElementById('phrase-form-bops-search');
+const phraseFormBopsDropdown = document.getElementById('phrase-form-bops-dropdown');
+const phraseFormBopsCounter = document.getElementById('phrase-form-bops-counter');
+const phraseFormStatus = document.getElementById('phrase-form-status');
+const btnPhraseFormSave = document.getElementById('btn-phrase-form-save');
+const btnPhraseFormCancel = document.getElementById('btn-phrase-form-cancel');
+const btnPhraseFormDelete = document.getElementById('btn-phrase-form-delete');
 
-function updatePhraseSaveEnabled() {
-  btnSavePhrase.disabled = phraseSearch.value.trim().length === 0;
+const BOPS_MAX = (typeof Corpus !== 'undefined' && Corpus.MAX_FOLLOWED_BY) || 3;
+
+// State for the current form session. `originalPhrase` is null in
+// add mode, or the phrase being edited otherwise; `workingBops`
+// mirrors the corpus's followedBy list but is only committed on
+// Save.
+let phraseFormOriginal = null;
+let workingBops = [];
+
+function openPhraseForm(mode, phrase) {
+  phraseFormOriginal = mode === 'edit' ? phrase : null;
+  phraseFormInput.value = phrase || '';
+  workingBops = phrase ? corpus.getFollowedBy(phrase).slice() : [];
+  phraseFormBopsSearch.value = '';
+  phraseFormStatus.className = 'status';
+
+  phraseFormTitle.textContent = mode === 'edit' ? 'Edit phrase' : 'New phrase';
+  btnPhraseFormDelete.hidden = mode !== 'edit';
+
+  renderPhraseFormBops();
+  renderPhraseFormBopsDropdown('');
+  updatePhraseFormSaveEnabled();
+
+  // Show the form view; keep the Phrases tab visually active.
+  document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
+  document.getElementById('tab-phrase-form').classList.add('active');
+  document.querySelectorAll('.tab').forEach((t) => {
+    t.classList.toggle('active', t.dataset.tab === 'corpus');
+  });
+
+  phraseFormInput.focus();
+  if (mode === 'edit') phraseFormInput.select();
 }
 
-function enterPhraseAddMode() {
-  if (phraseAddMode) return;
-  phraseAddMode = true;
-  phraseSearch.value = '';
-  phraseSearch.placeholder = 'Add a phrase, e.g. Thanks for reaching out';
-  btnAddPhrase.hidden = true;
-  btnSavePhrase.hidden = false;
-  btnCancelPhrase.hidden = false;
-  phraseOverflowContainer.hidden = true;
-  updatePhraseSaveEnabled();
-  phraseSearch.focus();
+function closePhraseForm() {
+  // Navigate back to the Phrases list.
+  document.querySelector('.tab[data-tab="corpus"]').click();
 }
 
-function exitPhraseAddMode() {
-  if (!phraseAddMode) return;
-  phraseAddMode = false;
-  phraseSearch.value = '';
-  btnAddPhrase.hidden = false;
-  btnSavePhrase.hidden = true;
-  btnCancelPhrase.hidden = true;
-  phraseOverflowContainer.hidden = false;
-  updateStats();       // restore "Search N phrases..." placeholder
-  updatePhraseList();  // list may have filtered on last keystroke
+function updatePhraseFormSaveEnabled() {
+  const text = phraseFormInput.value.trim();
+  // Disable save if empty, or if we're editing and nothing changed
+  // (text unchanged AND same bops list).
+  let dirty = true;
+  if (phraseFormOriginal !== null) {
+    const originalBops = corpus.getFollowedBy(phraseFormOriginal);
+    const sameBops =
+      originalBops.length === workingBops.length &&
+      originalBops.every((b, i) => b === workingBops[i]);
+    dirty = text !== phraseFormOriginal || !sameBops;
+  }
+  btnPhraseFormSave.disabled = text.length === 0 || !dirty;
 }
 
-async function savePhraseFromAddForm() {
-  const text = phraseSearch.value.trim();
+function renderPhraseFormBops() {
+  // Rebuild chip list before the search input.
+  const chips = phraseFormBopsBox.querySelectorAll('.phrase-edit-bop-chip');
+  chips.forEach((c) => c.remove());
+  workingBops.forEach((phrase) => {
+    const chip = document.createElement('span');
+    chip.className = 'phrase-edit-bop-chip';
+    const text = document.createElement('span');
+    text.className = 'phrase-edit-bop-chip-text';
+    text.textContent = phrase.length > 30 ? phrase.slice(0, 30) + '…' : phrase;
+    text.title = phrase;
+    chip.appendChild(text);
+    const x = document.createElement('button');
+    x.className = 'phrase-edit-bop-chip-x';
+    x.textContent = '×';
+    x.tabIndex = -1;
+    x.title = 'Remove';
+    x.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const idx = workingBops.indexOf(phrase);
+      if (idx >= 0) workingBops.splice(idx, 1);
+      renderPhraseFormBops();
+      renderPhraseFormBopsDropdown(phraseFormBopsSearch.value);
+      updatePhraseFormSaveEnabled();
+    });
+    chip.appendChild(x);
+    phraseFormBopsBox.insertBefore(chip, phraseFormBopsSearch);
+  });
+
+  phraseFormBopsCounter.textContent = `${workingBops.length} / ${BOPS_MAX}`;
+
+  if (workingBops.length >= BOPS_MAX) {
+    phraseFormBopsSearch.style.display = 'none';
+    phraseFormBopsDropdown.hidden = true;
+  } else {
+    phraseFormBopsSearch.style.display = '';
+    phraseFormBopsSearch.placeholder = workingBops.length
+      ? 'Add another…'
+      : 'Search phrases to add a bop…';
+  }
+}
+
+function renderPhraseFormBopsDropdown(query) {
+  const q = (query || '').toLowerCase().trim();
+  if (!q || workingBops.length >= BOPS_MAX) {
+    phraseFormBopsDropdown.hidden = true;
+    phraseFormBopsDropdown.innerHTML = '';
+    return;
+  }
+  const exclude = new Set([phraseFormOriginal, ...workingBops].filter(Boolean));
+  const matches = [];
+  for (const [phrase] of corpus.phrases) {
+    if (exclude.has(phrase)) continue;
+    if (!phrase.toLowerCase().includes(q)) continue;
+    matches.push(phrase);
+    if (matches.length >= 8) break;
+  }
+  phraseFormBopsDropdown.innerHTML = '';
+  if (!matches.length) {
+    const empty = document.createElement('div');
+    empty.className = 'phrase-form-bops-empty';
+    empty.textContent = corpus.phrases.size === 0
+      ? 'Add a phrase first — bops chain to phrases you\'ve saved.'
+      : 'No matching phrases';
+    phraseFormBopsDropdown.appendChild(empty);
+  } else {
+    matches.forEach((phrase) => {
+      const item = document.createElement('div');
+      item.className = 'phrase-form-bops-item';
+      item.textContent = phrase.length > 60 ? phrase.slice(0, 60) + '…' : phrase;
+      item.title = phrase;
+      item.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        addBopToForm(phrase);
+      });
+      phraseFormBopsDropdown.appendChild(item);
+    });
+  }
+  phraseFormBopsDropdown.hidden = false;
+}
+
+function addBopToForm(phrase) {
+  if (workingBops.length >= BOPS_MAX) return;
+  if (workingBops.includes(phrase)) return;
+  workingBops.push(phrase);
+  phraseFormBopsSearch.value = '';
+  renderPhraseFormBops();
+  renderPhraseFormBopsDropdown('');
+  updatePhraseFormSaveEnabled();
+  phraseFormBopsSearch.focus();
+}
+
+async function savePhraseForm() {
+  const text = phraseFormInput.value.trim();
   if (!text) return;
-  const result = await corpus.addOrBumpPhrase(text, 'popup');
+
+  let targetPhrase = text;
+  let statusMsg;
+  if (phraseFormOriginal === null) {
+    const result = await corpus.addOrBumpPhrase(text, 'popup');
+    const label = text.length > 40 ? text.slice(0, 40) + '…' : text;
+    statusMsg = result.added ? `✓ Added "${label}"` : `✓ Bumped "${label}"`;
+  } else {
+    if (text !== phraseFormOriginal) {
+      const ok = await corpus.editPhrase(phraseFormOriginal, text);
+      if (!ok) {
+        showStatus(phraseFormStatus, 'Could not rename phrase', 'error');
+        return;
+      }
+    }
+    statusMsg = '✓ Saved';
+  }
+
+  await corpus.setFollowedBy(targetPhrase, workingBops);
   updateStats();
-  const label = text.length > 40 ? text.slice(0, 40) + '…' : text;
-  showStatus(corpusStatus, result.added
-    ? `✓ Added "${label}"`
-    : `✓ Bumped "${label}"`, 'success');
-  exitPhraseAddMode();
+  showStatus(corpusStatus, statusMsg, 'success');
+  closePhraseForm();
   updatePhraseList();
 }
 
-btnAddPhrase.addEventListener('click', enterPhraseAddMode);
-btnCancelPhrase.addEventListener('click', exitPhraseAddMode);
-btnSavePhrase.addEventListener('click', savePhraseFromAddForm);
+async function deletePhraseFromForm() {
+  if (phraseFormOriginal === null) return;
+  if (!confirm(`Delete "${phraseFormOriginal}"? This cannot be undone.`)) return;
+  await corpus.deletePhrase(phraseFormOriginal);
+  updateStats();
+  showStatus(corpusStatus, '✓ Deleted', 'success');
+  closePhraseForm();
+  updatePhraseList();
+}
 
-phraseSearch.addEventListener('keydown', (e) => {
-  if (!phraseAddMode) return;
+btnAddPhrase.addEventListener('click', () => openPhraseForm('add'));
+btnPhraseFormCancel.addEventListener('click', closePhraseForm);
+btnPhraseFormSave.addEventListener('click', savePhraseForm);
+btnPhraseFormDelete.addEventListener('click', deletePhraseFromForm);
+
+phraseFormInput.addEventListener('input', updatePhraseFormSaveEnabled);
+phraseFormInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
-    if (phraseSearch.value.trim()) savePhraseFromAddForm();
+    if (!btnPhraseFormSave.disabled) savePhraseForm();
   } else if (e.key === 'Escape') {
     e.preventDefault();
-    exitPhraseAddMode();
+    closePhraseForm();
+  }
+});
+
+phraseFormBopsSearch.addEventListener('input', () =>
+  renderPhraseFormBopsDropdown(phraseFormBopsSearch.value));
+phraseFormBopsSearch.addEventListener('focus', () =>
+  renderPhraseFormBopsDropdown(phraseFormBopsSearch.value));
+phraseFormBopsSearch.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const firstItem = phraseFormBopsDropdown.querySelector('.phrase-form-bops-item');
+    if (firstItem) firstItem.dispatchEvent(new MouseEvent('mousedown'));
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    if (phraseFormBopsSearch.value) {
+      phraseFormBopsSearch.value = '';
+      renderPhraseFormBopsDropdown('');
+    } else {
+      closePhraseForm();
+    }
   }
 });
 
@@ -1347,7 +1262,6 @@ addLinkUrl.addEventListener('keydown', (e) => {
 // Cancel add mode when the user switches tabs mid-add.
 document.querySelectorAll('.tab').forEach((tab) => {
   tab.addEventListener('click', () => {
-    if (phraseAddMode && tab.dataset.tab !== 'corpus') exitPhraseAddMode();
     if (linkAddMode && tab.dataset.tab !== 'links') exitLinkAddMode();
   });
 });
