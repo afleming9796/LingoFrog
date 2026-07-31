@@ -10,7 +10,6 @@ const btnImport = $('#btn-import');
 const importStatus = $('#import-status');
 const importHint = $('#import-hint');
 const phraseList = $('#phrase-list');
-const btnClear = $('#btn-clear');
 const linkStatus = $('#link-status');
 const linkRuleList = $('#link-rule-list');
 const phraseSearch = $('#phrase-search');
@@ -19,7 +18,6 @@ const btnExportAll = $('#btn-export-all');
 const btnImportAll = $('#btn-import-all');
 const backupStatus = $('#backup-status');
 const linkSearch = $('#link-search');
-const btnClearLinks = $('#btn-clear-links');
 const utmList = $('#utm-list');
 const utmStatus = $('#utm-status');
 const btnAddUtmRoot = $('#btn-add-utm-root');
@@ -510,6 +508,10 @@ document.querySelectorAll('.tab').forEach((tab) => {
   tab.addEventListener('click', () => {
     document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
+    // Any dedicated view (Import / UTM) hides the tab bar via a
+    // body class — clear both here so clicking a tab always
+    // exits whichever view was up.
+    document.body.classList.remove('import-view-active', 'utm-view-active');
     tab.classList.add('active');
     document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
   });
@@ -695,37 +697,53 @@ phraseSearch.addEventListener('input', () => {
   updatePhraseList();
 });
 
-// ── Corpus: Clear ──────────────────────────────────────────
+// ── Corpus / Links: named actions (wired to ellipsis menus) ─
 
-btnClear.addEventListener('click', async () => {
+async function copyPhrasesToClipboard() {
+  const text = corpus.exportText();
+  if (!text) {
+    showStatus(corpusStatus, 'Nothing to copy', 'error');
+    return;
+  }
+  await navigator.clipboard.writeText(text);
+  const count = corpus.phrases.size;
+  showStatus(corpusStatus, `✓ Copied ${count} phrase${count === 1 ? '' : 's'} to clipboard`, 'success');
+}
+
+async function clearAllPhrases() {
   const stats = corpus.getStats();
   if (stats.totalPhrases === 0) return;
+  if (!confirm(`Delete all ${stats.totalPhrases} phrases? This cannot be undone.`)) return;
+  await corpus.clear();
+  updateStats();
+  updatePhraseList();
+}
 
-  if (confirm(`Delete all ${stats.totalPhrases} phrases? This cannot be undone.`)) {
-    await corpus.clear();
-    updateStats();
-    updatePhraseList();
+async function copyLinksToClipboard() {
+  const text = corpus.linkRules.exportText();
+  if (!text) {
+    showStatus(linkStatus, 'Nothing to copy', 'error');
+    return;
   }
-});
+  await navigator.clipboard.writeText(text);
+  const count = corpus.linkRules.rules.size;
+  showStatus(linkStatus, `✓ Copied ${count} link rule${count === 1 ? '' : 's'} to clipboard`, 'success');
+}
+
+async function clearAllLinks() {
+  const count = corpus.linkRules.rules.size;
+  if (count === 0) return;
+  if (!confirm(`Delete all ${count} link rules? This cannot be undone.`)) return;
+  corpus.linkRules.clear();
+  await corpus.linkRules.save();
+  updateStats();
+  updateLinkRuleList();
+}
 
 // ── Links: Search ─────────────────────────────────────────
 
 linkSearch.addEventListener('input', () => {
   updateLinkRuleList();
-});
-
-// ── Links: Clear ──────────────────────────────────────────
-
-btnClearLinks.addEventListener('click', async () => {
-  const count = corpus.linkRules.rules.size;
-  if (count === 0) return;
-
-  if (confirm(`Delete all ${count} link rules? This cannot be undone.`)) {
-    corpus.linkRules.clear();
-    await corpus.linkRules.save();
-    updateStats();
-    updateLinkRuleList();
-  }
 });
 
 // ── Settings: Auto-persist on change ───────────────────────
@@ -1082,10 +1100,83 @@ btnAddUtmRoot.addEventListener('click', () => {
   updateUtmList();
 });
 
-$('#utm-jump-link').addEventListener('click', (e) => {
-  e.preventDefault();
-  const target = $('#utm-section-anchor');
-  if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+// ── UTM view ──────────────────────────────────────────────
+//
+// The UTM section is now a dedicated view, opened from the Links
+// tab's ellipsis menu. Mirrors the Bulk Import view pattern.
+
+function openUtmView() {
+  document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
+  document.getElementById('tab-utm').classList.add('active');
+  document.body.classList.add('utm-view-active');
+}
+
+function closeUtmView() {
+  document.body.classList.remove('utm-view-active');
+  const target = document.querySelector('.tab[data-tab="links"]');
+  if (target) target.click();
+}
+
+document.getElementById('btn-utm-back').addEventListener('click', closeUtmView);
+
+// ── Row-level ellipsis menus (Phrases + Links tab toolbars) ─
+
+const ROW_MENU_ACTIONS = {
+  phrases: {
+    copy: copyPhrasesToClipboard,
+    delete: clearAllPhrases,
+  },
+  links: {
+    copy: copyLinksToClipboard,
+    utm: openUtmView,
+    delete: clearAllLinks,
+  },
+};
+
+function wireRowOverflow(name) {
+  const btn = document.getElementById(name + '-overflow');
+  const menu = document.getElementById(name + '-overflow-menu');
+  if (!btn || !menu) return;
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    // Close any other open row menu first.
+    document.querySelectorAll('.row-overflow-menu.open').forEach((m) => {
+      if (m !== menu) m.classList.remove('open');
+    });
+    document.querySelectorAll('.row-overflow-btn.active').forEach((b) => {
+      if (b !== btn) b.classList.remove('active');
+    });
+    const willOpen = !menu.classList.contains('open');
+    menu.classList.toggle('open', willOpen);
+    btn.classList.toggle('active', willOpen);
+  });
+
+  menu.querySelectorAll('.row-overflow-item').forEach((item) => {
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      menu.classList.remove('open');
+      btn.classList.remove('active');
+      const handler = (ROW_MENU_ACTIONS[name] || {})[item.dataset.action];
+      if (handler) handler();
+    });
+  });
+}
+
+wireRowOverflow('phrases');
+wireRowOverflow('links');
+
+// Click outside dismisses any open row menu.
+document.addEventListener('click', (e) => {
+  document.querySelectorAll('.row-overflow-menu.open').forEach((menu) => {
+    const container = menu.parentElement;
+    if (!container || !container.contains(e.target)) {
+      menu.classList.remove('open');
+      const btn = container && container.querySelector('.row-overflow-btn');
+      if (btn) btn.classList.remove('active');
+    }
+  });
 });
 
 // ── Start ──────────────────────────────────────────────────

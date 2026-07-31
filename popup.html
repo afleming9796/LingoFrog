@@ -162,6 +162,44 @@
     }
     .import-type-overflow-item:hover { background: #e7f0dc; color: #4d7a2e; }
 
+    /* Search bar + ellipsis-menu toolbar shared by Phrases and Links.
+       Reuses the import-type-overflow visual for the small circle
+       button; the menu variant below has generic row items instead of
+       type toggles. */
+    .tab-toolbar { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+    .row-overflow-container { position: relative; flex-shrink: 0; }
+    .row-overflow-btn {
+      width: 26px; height: 26px; padding: 0;
+      border-radius: 50%;
+      background: #ececec; color: #7a7a7a;
+      font-size: 14px; line-height: 1;
+      border: none; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+    }
+    .row-overflow-btn:hover { background: #dcdcdc; color: #1a1a1a; }
+    .row-overflow-btn.active { background: #e7f0dc; color: #4d7a2e; }
+    .row-overflow-menu {
+      position: absolute; top: calc(100% + 4px); right: 0;
+      background: #ffffff; border: 1px solid #dcdcdc; border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      min-width: 160px; z-index: 20;
+      display: none;
+    }
+    .row-overflow-menu.open { display: block; }
+    .row-overflow-item {
+      padding: 7px 12px; font-size: 11px; color: #1a1a1a; cursor: pointer;
+      transition: background 0.1s;
+    }
+    .row-overflow-item:hover { background: #e7f0dc; color: #4d7a2e; }
+    .row-overflow-item.danger { color: #b04848; }
+    .row-overflow-item.danger:hover { background: #fbe7e7; color: #b04848; }
+
+    /* UTM page (its own view, opened from Links overflow menu). */
+    body.utm-view-active .tabs { display: none; }
+    .utm-page-toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+    .utm-page-toolbar .btn-link { flex-shrink: 0; }
+
     .status { font-size: 11px; padding: 8px 12px; border-radius: 8px; margin-top: 8px; display: none; }
     .status.success { display: block; background: #eaf5db; color: #4d7a2e; border: 1px solid #c8dfa8; }
     .status.error { display: block; background: #fbe7e7; color: #b04848; border: 1px solid #f3c8c8; }
@@ -424,37 +462,55 @@
 
   <!-- Links Tab -->
   <div class="tab-content active" id="tab-links">
-    <div style="display: flex; align-items: center; margin-bottom: 8px;">
+    <div class="tab-toolbar">
       <input type="text" id="link-search" placeholder="Search links..." style="flex: 1;">
-      <a href="javascript:void(0)" id="utm-jump-link" class="utm-jump-link">UTM params ↓</a>
+      <div class="row-overflow-container">
+        <button class="row-overflow-btn" id="links-overflow" title="More">⋯</button>
+        <div class="row-overflow-menu" id="links-overflow-menu">
+          <div class="row-overflow-item" data-action="copy">Copy to clipboard</div>
+          <div class="row-overflow-item" data-action="utm">UTM rules</div>
+          <div class="row-overflow-item danger" data-action="delete">Delete all links</div>
+        </div>
+      </div>
     </div>
     <div class="list-scroll" id="link-list-scroll">
       <ul class="link-rule-list" id="link-rule-list"></ul>
-      <button class="btn btn-danger" id="btn-clear-links">Clear All Links</button>
     </div>
     <div class="status" id="link-status"></div>
-
-    <div class="utm-section" id="utm-section-anchor">
-      <div class="utm-section-header">
-        <div class="utm-section-title">UTM Parameters</div>
-        <button class="btn-link" id="btn-add-utm-root">+ Add base url</button>
-      </div>
-      <div class="utm-section-desc">
-        Append UTM parameters to links inserted with <code>⌘L</code>.
-      </div>
-      <ul class="utm-list" id="utm-list"></ul>
-      <div class="status" id="utm-status"></div>
-    </div>
   </div>
 
   <!-- Corpus Tab -->
   <div class="tab-content" id="tab-corpus">
-    <input type="text" id="phrase-search" placeholder="Search phrases..." style="margin-bottom: 8px;">
+    <div class="tab-toolbar">
+      <input type="text" id="phrase-search" placeholder="Search phrases..." style="flex: 1;">
+      <div class="row-overflow-container">
+        <button class="row-overflow-btn" id="phrases-overflow" title="More">⋯</button>
+        <div class="row-overflow-menu" id="phrases-overflow-menu">
+          <div class="row-overflow-item" data-action="copy">Copy to clipboard</div>
+          <div class="row-overflow-item danger" data-action="delete">Delete all phrases</div>
+        </div>
+      </div>
+    </div>
     <div class="list-scroll" id="phrase-list-scroll">
       <ul class="phrase-list" id="phrase-list"></ul>
-      <button class="btn btn-danger" id="btn-clear">Clear All Phrases</button>
     </div>
     <div class="status" id="corpus-status"></div>
+  </div>
+
+  <!-- UTM View — reached from Links tab's ellipsis menu → UTM rules -->
+  <div class="tab-content" id="tab-utm">
+    <div class="import-view-header">
+      <button class="btn-back" id="btn-utm-back" title="Back">← Back</button>
+      <span class="import-view-title">UTM Rules</span>
+    </div>
+    <div class="utm-page-toolbar">
+      <div class="utm-section-desc">
+        Append UTM parameters to links inserted with <code>⌘L</code>.
+      </div>
+      <button class="btn-link" id="btn-add-utm-root">+ Add base url</button>
+    </div>
+    <ul class="utm-list" id="utm-list"></ul>
+    <div class="status" id="utm-status"></div>
   </div>
 
   <!-- Settings Tab -->
