@@ -70,7 +70,7 @@ function updatePhraseList() {
   phraseList.style.maxHeight = '';
 
   if (allPhrases.length === 0) {
-    const msg = filter ? 'No phrases match your search.' : 'No phrases yet. Add some in the Import tab.';
+    const msg = filter ? 'No phrases match your search.' : 'No phrases yet. Use Paste to Import to add some.';
     phraseList.innerHTML = `<li style="color: #585b70; font-size: 11px; padding: 12px 0;">${msg}</li>`;
     return;
   }
@@ -513,6 +513,42 @@ document.querySelectorAll('.tab').forEach((tab) => {
     document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
   });
 });
+
+// ── Import view ───────────────────────────────────────────
+//
+// The Import UI no longer lives in the tab bar; it opens as a
+// dedicated view via "Paste to Import" buttons on Phrases and Links
+// (and in the UTM section). openImportView remembers the tab that
+// launched it so Back can return there.
+
+let lastActiveTab = 'links';
+
+function currentActiveTab() {
+  const el = document.querySelector('.tab.active');
+  return el ? el.dataset.tab : lastActiveTab;
+}
+
+function openImportView(defaultType) {
+  lastActiveTab = currentActiveTab();
+  document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
+  document.getElementById('tab-import').classList.add('active');
+  document.body.classList.add('import-view-active');
+  setImportType(defaultType);
+  pasteArea.value = '';
+  importStatus.className = 'status';
+}
+
+function closeImportView() {
+  document.body.classList.remove('import-view-active');
+  const target = document.querySelector('.tab[data-tab="' + lastActiveTab + '"]');
+  if (target) target.click();
+}
+
+document.getElementById('btn-import-phrases').addEventListener('click', () => openImportView('phrases'));
+document.getElementById('btn-import-links').addEventListener('click', () => openImportView('links'));
+document.getElementById('btn-import-utms').addEventListener('click', () => openImportView('utms'));
+document.getElementById('btn-import-back').addEventListener('click', closeImportView);
 
 // ── Import: Type Toggle ───────────────────────────────────
 

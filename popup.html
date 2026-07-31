@@ -98,9 +98,30 @@
     }
     .btn-primary { background: #6da34d; color: #ffffff; width: 100%; margin-top: 8px; }
     .btn-primary:hover { background: #5b8c3e; }
+    .btn-secondary { background: transparent; color: #4d7a2e; border: 1px solid #c8dfa8; width: 100%; margin-top: 6px; }
+    .btn-secondary:hover { background: #eaf5db; border-color: #a8ce7e; }
     .btn-danger { background: transparent; color: #b04848; border: 1px solid #dcdcdc; width: 100%; margin-top: 8px; }
     .btn-danger:hover { background: #fbe7e7; border-color: #e7b8b8; }
     .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Import view — reached from "Paste to Import" buttons on
+       Phrases/Links/UTM. Header sits above the type toggle and
+       provides a back button to whichever tab you came from. The
+       tab bar is hidden while the view is up so the Back button is
+       the unambiguous return path. */
+    body.import-view-active .tabs { display: none; }
+    .import-view-header {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 12px;
+    }
+    .btn-back {
+      background: transparent; border: 1px solid #dcdcdc;
+      color: #4d7a2e; font-size: 11px; font-weight: 600;
+      padding: 4px 10px; border-radius: 6px; cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-back:hover { background: #eaf5db; border-color: #c8dfa8; }
+    .import-view-title { font-size: 12px; color: #7a7a7a; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
 
     /* Row that holds the primary toggle bar + the small overflow
        circle button to its right. */
@@ -296,6 +317,7 @@
     .utm-section { margin-top: 18px; padding-top: 14px; border-top: 1px solid #e2e2e2; }
     .utm-section-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
     .utm-section-title { font-size: 12px; font-weight: 600; color: #1a1a1a; }
+    .utm-section-actions { display: flex; gap: 6px; align-items: center; }
     .utm-section-desc { font-size: 10px; color: #7a7a7a; margin-top: 4px; line-height: 1.4; }
     .utm-section-desc code { color: #4d7a2e; background: #e7f0dc; padding: 1px 4px; border-radius: 3px; }
     .btn-link {
@@ -358,14 +380,18 @@
   </div>
 
   <div class="tabs">
-    <button class="tab active" data-tab="import">Import</button>
+    <button class="tab active" data-tab="links">Links</button>
     <button class="tab" data-tab="corpus">Phrases</button>
-    <button class="tab" data-tab="links">Links</button>
     <button class="tab" data-tab="settings">Settings</button>
   </div>
 
-  <!-- Import Tab -->
-  <div class="tab-content active" id="tab-import">
+  <!-- Import View (not in the tab bar — reached from "Paste to Import"
+       buttons on Phrases/Links or the UTM section) -->
+  <div class="tab-content" id="tab-import">
+    <div class="import-view-header">
+      <button class="btn-back" id="btn-import-back" title="Back">← Back</button>
+      <span class="import-view-title">Bulk Import</span>
+    </div>
     <div class="import-controls">
       <div class="import-type-toggle">
         <button class="import-type-btn active" data-type="phrases">Phrases</button>
@@ -394,20 +420,24 @@
   </div>
 
   <!-- Links Tab -->
-  <div class="tab-content" id="tab-links">
+  <div class="tab-content active" id="tab-links">
     <div style="display: flex; align-items: center; margin-bottom: 8px;">
       <input type="text" id="link-search" placeholder="Search links..." style="flex: 1;">
       <a href="javascript:void(0)" id="utm-jump-link" class="utm-jump-link">UTM params ↓</a>
     </div>
     <ul class="link-rule-list" id="link-rule-list"></ul>
     <button class="btn btn-primary" id="btn-export-links">Copy All to Clipboard</button>
+    <button class="btn btn-secondary" id="btn-import-links">Paste to Import</button>
     <div class="status" id="link-status"></div>
     <button class="btn btn-danger" id="btn-clear-links">Clear All Links</button>
 
     <div class="utm-section" id="utm-section-anchor">
       <div class="utm-section-header">
         <div class="utm-section-title">UTM Parameters</div>
-        <button class="btn-link" id="btn-add-utm-root">+ Add root</button>
+        <div class="utm-section-actions">
+          <button class="btn-link" id="btn-import-utms">Paste to Import</button>
+          <button class="btn-link" id="btn-add-utm-root">+ Add root</button>
+        </div>
       </div>
       <div class="utm-section-desc">
         Append UTM parameters automatically when inserting a link whose host matches a configured root. <code>www.</code> and apex hosts are treated as equivalent. Up to 3 parameters per root.
@@ -422,6 +452,7 @@
     <input type="text" id="phrase-search" placeholder="Search phrases..." style="margin-bottom: 8px;">
     <ul class="phrase-list" id="phrase-list"></ul>
     <button class="btn btn-primary" id="btn-export-phrases">Copy All to Clipboard</button>
+    <button class="btn btn-secondary" id="btn-import-phrases">Paste to Import</button>
     <div class="status" id="corpus-status"></div>
     <button class="btn btn-danger" id="btn-clear">Clear Entire Corpus</button>
   </div>
