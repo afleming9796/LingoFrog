@@ -14,41 +14,50 @@
     }
 
     .header {
-      padding: 16px 20px 12px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 14px;
       border-bottom: 1px solid #e2e2e2;
     }
 
-    .header h1 {
+    .brand {
       display: flex;
       align-items: center;
       gap: 8px;
+      flex-shrink: 0;
+    }
+    .brand img { width: 24px; height: 24px; display: block; }
+    .brand h1 {
       font-size: 16px;
       font-weight: 700;
       color: #1a1a1a;
-      letter-spacing: -0.3px;
+      letter-spacing: -0.2px;
     }
-    .header h1 img { width: 22px; height: 22px; display: block; }
-    .header p { font-size: 11px; color: #7a7a7a; margin-top: 4px; }
 
-    .tabs { display: flex; padding: 0 20px; gap: 2px; margin: 12px 0; }
+    .tabs { display: flex; gap: 4px; margin-left: auto; }
 
     .tab {
-      flex: 1;
-      padding: 7px 0;
+      padding: 8px 14px;
       text-align: center;
-      font-size: 11px;
+      font-size: 13px;
       font-weight: 600;
       color: #7a7a7a;
       background: transparent;
       border: none;
       cursor: pointer;
-      border-radius: 8px;
+      border-radius: 7px;
       transition: all 0.15s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
     .tab:hover { color: #1a1a1a; background: #ececec; }
     .tab.active { color: #4d7a2e; background: #e7f0dc; }
+    .tab-icon { padding: 8px; }
+    .tab-icon svg { width: 18px; height: 18px; display: block; }
 
-    .tab-content { display: none; padding: 0 20px 16px; }
+    .tab-content { display: none; padding: 12px 20px 16px; }
     .tab-content.active { display: block; }
 
     textarea {
@@ -98,6 +107,8 @@
     }
     .btn-primary { background: #6da34d; color: #ffffff; width: 100%; margin-top: 8px; }
     .btn-primary:hover { background: #5b8c3e; }
+    .btn-secondary { background: transparent; color: #4d7a2e; border: 1px solid #c8dfa8; width: 100%; margin-top: 6px; }
+    .btn-secondary:hover { background: #eaf5db; border-color: #a8ce7e; }
     .btn-danger { background: transparent; color: #b04848; border: 1px solid #dcdcdc; width: 100%; margin-top: 8px; }
     .btn-danger:hover { background: #fbe7e7; border-color: #e7b8b8; }
     .btn:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -141,6 +152,65 @@
     }
     .import-type-overflow-item:hover { background: #e7f0dc; color: #4d7a2e; }
 
+    /* Search bar + ellipsis-menu toolbar shared by Phrases and Links.
+       Reuses the import-type-overflow visual for the small circle
+       button; the menu variant below has generic row items instead of
+       type toggles. */
+    .tab-toolbar { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+    .row-overflow-container { position: relative; flex-shrink: 0; }
+    .row-overflow-btn {
+      width: 26px; height: 26px; padding: 0;
+      border-radius: 50%;
+      background: #ececec; color: #7a7a7a;
+      font-size: 14px; line-height: 1;
+      border: none; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+    }
+    .row-overflow-btn:hover { background: #dcdcdc; color: #1a1a1a; }
+    .row-overflow-btn.active { background: #e7f0dc; color: #4d7a2e; }
+
+    /* Same circle footprint as row-overflow-btn but with a chunkier
+       glyph, a soft shadow, and a small press animation — reads as a
+       primary action without swapping the neutral color palette. */
+    .btn-add-circle {
+      width: 26px; height: 26px; padding: 0;
+      border-radius: 50%;
+      background: #ececec; color: #7a7a7a;
+      font-size: 18px; font-weight: 500; line-height: 1;
+      border: none; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+    .btn-add-circle:hover { background: #dcdcdc; color: #1a1a1a; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12); }
+    .btn-add-circle:active { transform: translateY(1px); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+    .row-overflow-menu {
+      /* Pulled left of the ellipsis button so the menu doesn't sit
+         above (and hide) the trash-icon column of the rows below. */
+      position: absolute; top: calc(100% + 4px); right: 32px;
+      background: #ffffff; border: 1px solid #dcdcdc; border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      min-width: 160px; z-index: 20;
+      display: none;
+    }
+    .row-overflow-menu.open { display: block; }
+    .row-overflow-item {
+      padding: 7px 12px; font-size: 11px; color: #1a1a1a; cursor: pointer;
+      transition: background 0.1s;
+    }
+    .row-overflow-item:hover { background: #e7f0dc; color: #4d7a2e; }
+    .row-overflow-item.danger { color: #b04848; }
+    .row-overflow-item.danger:hover { background: #fbe7e7; color: #b04848; }
+
+    /* UTM page (its own view, opened from Links overflow menu — the
+       top-line header stays visible; Links tab stays highlighted so
+       users know they're on a sub-page of Links). */
+    .utm-page-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+    .utm-page-title { font-size: 14px; font-weight: 700; color: #1a1a1a; }
+    .utm-page-desc { font-size: 11px; color: #7a7a7a; margin-bottom: 12px; line-height: 1.4; }
+    .utm-page-desc code { color: #4d7a2e; background: #e7f0dc; padding: 1px 4px; border-radius: 3px; }
+
     .status { font-size: 11px; padding: 8px 12px; border-radius: 8px; margin-top: 8px; display: none; }
     .status.success { display: block; background: #eaf5db; color: #4d7a2e; border: 1px solid #c8dfa8; }
     .status.error { display: block; background: #fbe7e7; color: #b04848; border: 1px solid #f3c8c8; }
@@ -163,7 +233,10 @@
     }
     .setting-input:focus { border-color: #6da34d; }
 
-    .phrase-list { list-style: none; margin-top: 8px; max-height: 260px; overflow-y: auto; }
+    .phrase-list { list-style: none; margin-top: 8px; }
+    .list-scroll { max-height: 320px; overflow-y: auto; margin-top: 8px; }
+    .list-scroll .phrase-list, .list-scroll .link-rule-list { margin-top: 0; }
+    .list-scroll .btn-danger { margin-top: 16px; }
     .phrase-item { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 11px; border-bottom: 1px solid #ececec; }
     .phrase-freq { background: #ececec; color: #6e6e6e; border-radius: 4px; padding: 1px 6px; font-size: 10px; font-weight: 600; flex-shrink: 0; }
     .phrase-text { color: #3a3a3a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; cursor: pointer; }
@@ -241,7 +314,7 @@
     .phrase-edit-bops-item:hover { background: #e7f0dc; color: #4d7a2e; }
     .phrase-edit-bops-empty { padding: 6px 8px; font-size: 10px; color: #a0a0a0; text-align: center; }
 
-    .link-rule-list { list-style: none; margin-top: 8px; max-height: 180px; overflow-y: auto; }
+    .link-rule-list { list-style: none; margin-top: 8px; }
     .utm-jump-link {
       display: inline-block;
       font-size: 10px;
@@ -296,6 +369,7 @@
     .utm-section { margin-top: 18px; padding-top: 14px; border-top: 1px solid #e2e2e2; }
     .utm-section-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
     .utm-section-title { font-size: 12px; font-weight: 600; color: #1a1a1a; }
+    .utm-section-actions { display: flex; gap: 6px; align-items: center; }
     .utm-section-desc { font-size: 10px; color: #7a7a7a; margin-top: 4px; line-height: 1.4; }
     .utm-section-desc code { color: #4d7a2e; background: #e7f0dc; padding: 1px 4px; border-radius: 3px; }
     .btn-link {
@@ -353,19 +427,23 @@
 <body>
 
   <div class="header">
-    <h1><img src="icons/icon48.png" alt="">LingoFrog</h1>
-    <p>Autocomplete your phrases and links in Gmail</p>
+    <div class="brand">
+      <img src="icons/icon48.png" alt="">
+      <h1>LingoFrog</h1>
+    </div>
+    <div class="tabs">
+      <button class="tab active" data-tab="links">Links</button>
+      <button class="tab" data-tab="corpus">Phrases</button>
+      <button class="tab tab-icon" data-tab="settings" title="Settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </div>
   </div>
 
-  <div class="tabs">
-    <button class="tab active" data-tab="import">Import</button>
-    <button class="tab" data-tab="corpus">Phrases</button>
-    <button class="tab" data-tab="links">Links</button>
-    <button class="tab" data-tab="settings">Settings</button>
-  </div>
-
-  <!-- Import Tab -->
-  <div class="tab-content active" id="tab-import">
+  <!-- Import View — reached from Settings "Import from backup".
+       Keeps the top-line header; Settings tab stays active so the
+       tab bar itself is the way back (no dedicated Back button). -->
+  <div class="tab-content" id="tab-import">
     <div class="import-controls">
       <div class="import-type-toggle">
         <button class="import-type-btn active" data-type="phrases">Phrases</button>
@@ -394,36 +472,52 @@
   </div>
 
   <!-- Links Tab -->
-  <div class="tab-content" id="tab-links">
-    <div style="display: flex; align-items: center; margin-bottom: 8px;">
+  <div class="tab-content active" id="tab-links">
+    <div class="tab-toolbar">
       <input type="text" id="link-search" placeholder="Search links..." style="flex: 1;">
-      <a href="javascript:void(0)" id="utm-jump-link" class="utm-jump-link">UTM params ↓</a>
+      <div class="row-overflow-container">
+        <button class="row-overflow-btn" id="links-overflow" title="More">⋯</button>
+        <div class="row-overflow-menu" id="links-overflow-menu">
+          <div class="row-overflow-item" data-action="copy">Copy all to clipboard</div>
+          <div class="row-overflow-item" data-action="utm">UTM rules</div>
+          <div class="row-overflow-item danger" data-action="delete">Delete all links</div>
+        </div>
+      </div>
     </div>
-    <ul class="link-rule-list" id="link-rule-list"></ul>
-    <button class="btn btn-primary" id="btn-export-links">Copy All to Clipboard</button>
+    <div class="list-scroll" id="link-list-scroll">
+      <ul class="link-rule-list" id="link-rule-list"></ul>
+    </div>
     <div class="status" id="link-status"></div>
-    <button class="btn btn-danger" id="btn-clear-links">Clear All Links</button>
-
-    <div class="utm-section" id="utm-section-anchor">
-      <div class="utm-section-header">
-        <div class="utm-section-title">UTM Parameters</div>
-        <button class="btn-link" id="btn-add-utm-root">+ Add root</button>
-      </div>
-      <div class="utm-section-desc">
-        Append UTM parameters automatically when inserting a link whose host matches a configured root. <code>www.</code> and apex hosts are treated as equivalent. Up to 3 parameters per root.
-      </div>
-      <ul class="utm-list" id="utm-list"></ul>
-      <div class="status" id="utm-status"></div>
-    </div>
   </div>
 
   <!-- Corpus Tab -->
   <div class="tab-content" id="tab-corpus">
-    <input type="text" id="phrase-search" placeholder="Search phrases..." style="margin-bottom: 8px;">
-    <ul class="phrase-list" id="phrase-list"></ul>
-    <button class="btn btn-primary" id="btn-export-phrases">Copy All to Clipboard</button>
+    <div class="tab-toolbar">
+      <input type="text" id="phrase-search" placeholder="Search phrases..." style="flex: 1;">
+      <div class="row-overflow-container">
+        <button class="row-overflow-btn" id="phrases-overflow" title="More">⋯</button>
+        <div class="row-overflow-menu" id="phrases-overflow-menu">
+          <div class="row-overflow-item" data-action="copy">Copy all to clipboard</div>
+          <div class="row-overflow-item danger" data-action="delete">Delete all phrases</div>
+        </div>
+      </div>
+    </div>
+    <div class="list-scroll" id="phrase-list-scroll">
+      <ul class="phrase-list" id="phrase-list"></ul>
+    </div>
     <div class="status" id="corpus-status"></div>
-    <button class="btn btn-danger" id="btn-clear">Clear Entire Corpus</button>
+  </div>
+
+  <!-- UTM View — reached from Links tab's ellipsis menu → UTM rules.
+       Keeps the top-line header; the Links tab stays visually active
+       so the tab bar itself doubles as the way back. -->
+  <div class="tab-content" id="tab-utm">
+    <div class="utm-page-header">
+      <h2 class="utm-page-title">UTM Rules</h2>
+      <button class="btn-add-circle" id="btn-add-utm-root" title="Add base url" aria-label="Add base url">+</button>
+    </div>
+    <ul class="utm-list" id="utm-list"></ul>
+    <div class="status" id="utm-status"></div>
   </div>
 
   <!-- Settings Tab -->
@@ -484,9 +578,10 @@
     </div>
 
     <div style="margin-top: 20px; padding-top: 14px; border-top: 1px solid #e2e2e2;">
-      <div class="setting-label">Backup all data</div>
-      <div class="setting-desc">Copy phrases, link rules, and UTM parameters together, with section headers, for saving to a text file or doc</div>
+      <div class="setting-label">Backup &amp; restore</div>
+      <div class="setting-desc">Copy phrases, link rules, and UTM parameters to the clipboard for saving, or paste a backup to import.</div>
       <button class="btn btn-primary" id="btn-export-all">Copy All to Clipboard</button>
+      <button class="btn btn-secondary" id="btn-import-all">Import from backup</button>
       <div class="status" id="backup-status"></div>
     </div>
   </div>

@@ -10,17 +10,14 @@ const btnImport = $('#btn-import');
 const importStatus = $('#import-status');
 const importHint = $('#import-hint');
 const phraseList = $('#phrase-list');
-const btnClear = $('#btn-clear');
 const linkStatus = $('#link-status');
 const linkRuleList = $('#link-rule-list');
 const phraseSearch = $('#phrase-search');
 const corpusStatus = $('#corpus-status');
-const btnExportPhrases = $('#btn-export-phrases');
-const btnExportLinks = $('#btn-export-links');
 const btnExportAll = $('#btn-export-all');
+const btnImportAll = $('#btn-import-all');
 const backupStatus = $('#backup-status');
 const linkSearch = $('#link-search');
-const btnClearLinks = $('#btn-clear-links');
 const utmList = $('#utm-list');
 const utmStatus = $('#utm-status');
 const btnAddUtmRoot = $('#btn-add-utm-root');
@@ -65,12 +62,13 @@ function updatePhraseList() {
   const filter = phraseSearch ? phraseSearch.value.trim() : '';
   const allPhrases = corpus.getAllPhrases(filter);
   phraseList.innerHTML = '';
-  // Reset to the default scroll-internally max-height. startEditPhrase
-  // bumps this up while editing so the Bop row isn't clipped.
-  phraseList.style.maxHeight = '';
+  // Reset the scroll wrapper's max-height. startEditPhrase bumps it
+  // up while editing so the Bop row isn't clipped.
+  const scroll = document.getElementById('phrase-list-scroll');
+  if (scroll) scroll.style.maxHeight = '';
 
   if (allPhrases.length === 0) {
-    const msg = filter ? 'No phrases match your search.' : 'No phrases yet. Add some in the Import tab.';
+    const msg = filter ? 'No phrases match your search.' : 'No phrases yet. Add some via Paste to Import in Settings.';
     phraseList.innerHTML = `<li style="color: #585b70; font-size: 11px; padding: 12px 0;">${msg}</li>`;
     return;
   }
@@ -359,13 +357,14 @@ function startEditPhrase(li, originalPhrase, freqEl) {
   });
 
   // Edit mode adds a second row (Bop UI) under the phrase input. The
-  // .phrase-list has max-height: 260px with internal scrolling, which
-  // can clip the bottom of an expanded row — especially when the
-  // user has filtered the list down to just one or two phrases.
-  // Bump the cap while editing so the Bop row is always visible,
-  // and scroll the edited row into view as a safety net. Reset on
-  // re-render by updatePhraseList.
-  phraseList.style.maxHeight = 'none';
+  // scroll wrapper caps the whole list at ~320px, which can clip the
+  // bottom of an expanded row — especially when the user has
+  // filtered the list down to just one or two phrases. Bump the cap
+  // while editing so the Bop row is always visible, and scroll the
+  // edited row into view as a safety net. Reset on re-render by
+  // updatePhraseList.
+  const scroll = document.getElementById('phrase-list-scroll');
+  if (scroll) scroll.style.maxHeight = 'none';
   setTimeout(() => li.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 0);
 }
 
@@ -514,6 +513,27 @@ document.querySelectorAll('.tab').forEach((tab) => {
   });
 });
 
+// ── Import view ───────────────────────────────────────────
+//
+// The Import UI no longer lives in the tab bar; it opens from the
+// "Import from backup" button in Settings. The top-line header
+// stays visible and the Settings tab stays highlighted so the tab
+// bar itself is the way back — no dedicated Back button needed.
+
+function openImportView(defaultType) {
+  document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
+  document.getElementById('tab-import').classList.add('active');
+  // Leave the Settings tab active — this view is a sub-page of Settings.
+  document.querySelectorAll('.tab').forEach((t) => {
+    t.classList.toggle('active', t.dataset.tab === 'settings');
+  });
+  setImportType(defaultType);
+  pasteArea.value = '';
+  importStatus.className = 'status';
+}
+
+btnImportAll.addEventListener('click', () => openImportView('phrases'));
+
 // ── Import: Type Toggle ───────────────────────────────────
 
 // Per-type config for hint, placeholder, button label, and empty-
@@ -660,63 +680,53 @@ phraseSearch.addEventListener('input', () => {
   updatePhraseList();
 });
 
-// ── Corpus: Clear ──────────────────────────────────────────
+// ── Corpus / Links: named actions (wired to ellipsis menus) ─
 
-btnClear.addEventListener('click', async () => {
-  const stats = corpus.getStats();
-  if (stats.totalPhrases === 0) return;
-
-  if (confirm(`Delete all ${stats.totalPhrases} phrases? This cannot be undone.`)) {
-    await corpus.clear();
-    updateStats();
-    updatePhraseList();
-  }
-});
-
-// ── Corpus: Export Phrases ────────────────────────────────
-
-btnExportPhrases.addEventListener('click', async () => {
+async function copyPhrasesToClipboard() {
   const text = corpus.exportText();
   if (!text) {
-    showStatus(corpusStatus, 'No phrases to export', 'error');
+    showStatus(corpusStatus, 'Nothing to copy', 'error');
     return;
   }
   await navigator.clipboard.writeText(text);
   const count = corpus.phrases.size;
-  showStatus(corpusStatus, `\u2713 Copied ${count} phrase${count === 1 ? '' : 's'} to clipboard`, 'success');
-});
+  showStatus(corpusStatus, `✓ Copied ${count} phrase${count === 1 ? '' : 's'} to clipboard`, 'success');
+}
+
+async function clearAllPhrases() {
+  const stats = corpus.getStats();
+  if (stats.totalPhrases === 0) return;
+  if (!confirm(`Delete all ${stats.totalPhrases} phrases? This cannot be undone.`)) return;
+  await corpus.clear();
+  updateStats();
+  updatePhraseList();
+}
+
+async function copyLinksToClipboard() {
+  const text = corpus.linkRules.exportText();
+  if (!text) {
+    showStatus(linkStatus, 'Nothing to copy', 'error');
+    return;
+  }
+  await navigator.clipboard.writeText(text);
+  const count = corpus.linkRules.rules.size;
+  showStatus(linkStatus, `✓ Copied ${count} link rule${count === 1 ? '' : 's'} to clipboard`, 'success');
+}
+
+async function clearAllLinks() {
+  const count = corpus.linkRules.rules.size;
+  if (count === 0) return;
+  if (!confirm(`Delete all ${count} link rules? This cannot be undone.`)) return;
+  corpus.linkRules.clear();
+  await corpus.linkRules.save();
+  updateStats();
+  updateLinkRuleList();
+}
 
 // ── Links: Search ─────────────────────────────────────────
 
 linkSearch.addEventListener('input', () => {
   updateLinkRuleList();
-});
-
-// ── Links: Export ─────────────────────────────────────────
-
-btnExportLinks.addEventListener('click', async () => {
-  const text = corpus.linkRules.exportText();
-  if (!text) {
-    showStatus(linkStatus, 'No link rules to export', 'error');
-    return;
-  }
-  await navigator.clipboard.writeText(text);
-  const count = corpus.linkRules.rules.size;
-  showStatus(linkStatus, `\u2713 Copied ${count} link rule${count === 1 ? '' : 's'} to clipboard`, 'success');
-});
-
-// ── Links: Clear ──────────────────────────────────────────
-
-btnClearLinks.addEventListener('click', async () => {
-  const count = corpus.linkRules.rules.size;
-  if (count === 0) return;
-
-  if (confirm(`Delete all ${count} link rules? This cannot be undone.`)) {
-    corpus.linkRules.clear();
-    await corpus.linkRules.save();
-    updateStats();
-    updateLinkRuleList();
-  }
 });
 
 // ── Settings: Auto-persist on change ───────────────────────
@@ -854,7 +864,7 @@ function renderUtmRow(host, params) {
   const del = document.createElement('button');
   del.className = 'utm-item-delete';
   del.textContent = '×';
-  del.title = 'Remove root';
+  del.title = 'Remove base url';
   del.addEventListener('click', async (e) => {
     e.stopPropagation();
     if (!confirm(`Remove UTM rule for "${host}"?`)) return;
@@ -937,7 +947,7 @@ function renderUtmDraft() {
   // ── Body ──
   li.appendChild(renderUtmBody({
     params: utmDraftRoot.params,
-    saveLabel: 'Add root',
+    saveLabel: 'Add base url',
     onSave: async (newParams) => {
       const host = (utmDraftRoot.host || '').toLowerCase().trim();
       if (!HOST_RE.test(host)) {
@@ -1073,10 +1083,78 @@ btnAddUtmRoot.addEventListener('click', () => {
   updateUtmList();
 });
 
-$('#utm-jump-link').addEventListener('click', (e) => {
-  e.preventDefault();
-  const target = $('#utm-section-anchor');
-  if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+// ── UTM view ──────────────────────────────────────────────
+//
+// Reached from the Links tab's ellipsis menu. The top-line header
+// stays visible and the Links tab stays highlighted so the tab
+// bar itself is the way back — no dedicated Back button needed.
+
+function openUtmView() {
+  document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
+  document.getElementById('tab-utm').classList.add('active');
+  // Leave the Links tab active — this view is a sub-page of Links.
+  document.querySelectorAll('.tab').forEach((t) => {
+    t.classList.toggle('active', t.dataset.tab === 'links');
+  });
+}
+
+// ── Row-level ellipsis menus (Phrases + Links tab toolbars) ─
+
+const ROW_MENU_ACTIONS = {
+  phrases: {
+    copy: copyPhrasesToClipboard,
+    delete: clearAllPhrases,
+  },
+  links: {
+    copy: copyLinksToClipboard,
+    utm: openUtmView,
+    delete: clearAllLinks,
+  },
+};
+
+function wireRowOverflow(name) {
+  const btn = document.getElementById(name + '-overflow');
+  const menu = document.getElementById(name + '-overflow-menu');
+  if (!btn || !menu) return;
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    // Close any other open row menu first.
+    document.querySelectorAll('.row-overflow-menu.open').forEach((m) => {
+      if (m !== menu) m.classList.remove('open');
+    });
+    document.querySelectorAll('.row-overflow-btn.active').forEach((b) => {
+      if (b !== btn) b.classList.remove('active');
+    });
+    const willOpen = !menu.classList.contains('open');
+    menu.classList.toggle('open', willOpen);
+    btn.classList.toggle('active', willOpen);
+  });
+
+  menu.querySelectorAll('.row-overflow-item').forEach((item) => {
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      menu.classList.remove('open');
+      btn.classList.remove('active');
+      const handler = (ROW_MENU_ACTIONS[name] || {})[item.dataset.action];
+      if (handler) handler();
+    });
+  });
+}
+
+wireRowOverflow('phrases');
+wireRowOverflow('links');
+
+// Click outside dismisses any open row menu.
+document.addEventListener('click', (e) => {
+  document.querySelectorAll('.row-overflow-menu.open').forEach((menu) => {
+    const container = menu.parentElement;
+    if (!container || !container.contains(e.target)) {
+      menu.classList.remove('open');
+      const btn = container && container.querySelector('.row-overflow-btn');
+      if (btn) btn.classList.remove('active');
+    }
+  });
 });
 
 // ── Start ──────────────────────────────────────────────────
