@@ -34,10 +34,6 @@ let utmDraftRoot = null; // { host: '', params: [{key, value}] } when active
 
 const HOST_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/;
 
-// Feather trash-2 icon, sized to match the old × glyph. Colored via
-// the parent button's currentColor so hover/opacity keep working.
-const TRASH_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
-
 // ── Initialize ─────────────────────────────────────────────
 
 async function init() {
@@ -98,7 +94,7 @@ function updatePhraseList() {
 
     const del = document.createElement('button');
     del.className = 'phrase-delete';
-    del.innerHTML = TRASH_SVG;
+    del.textContent = '\u00d7';
     del.title = 'Delete phrase';
     del.addEventListener('click', async () => {
       await corpus.deletePhrase(item.phrase);
@@ -439,7 +435,7 @@ function renderLinkRuleRow(rule) {
 
   const del = document.createElement('button');
   del.className = 'link-rule-delete';
-  del.innerHTML = TRASH_SVG;
+  del.textContent = '\u00d7';
   del.title = 'Remove rule';
   del.addEventListener('click', async () => {
     corpus.linkRules.removeRule(rule.trigger);
@@ -866,7 +862,7 @@ function renderUtmRow(host, params) {
 
   const del = document.createElement('button');
   del.className = 'utm-item-delete';
-  del.innerHTML = TRASH_SVG;
+  del.textContent = '×';
   del.title = 'Remove base url';
   del.addEventListener('click', async (e) => {
     e.stopPropagation();
