@@ -241,11 +241,8 @@
       max-height: 320px;
       overflow-y: auto;
       margin-top: 8px;
-      /* Physical right padding so the trash icons stay clear of the
-         macOS overlay scrollbar, which floats on top of content
-         regardless of scrollbar-gutter. scrollbar-gutter is still
-         set as a belt-and-suspenders for classic-scrollbar browsers. */
-      padding-right: 12px;
+      /* Reserve space for the scrollbar so it sits in its own gutter
+         instead of covering the row-level trash icons underneath. */
       scrollbar-gutter: stable;
     }
     .list-scroll .phrase-list, .list-scroll .link-rule-list { margin-top: 0; }
