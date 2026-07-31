@@ -15,9 +15,8 @@ const linkStatus = $('#link-status');
 const linkRuleList = $('#link-rule-list');
 const phraseSearch = $('#phrase-search');
 const corpusStatus = $('#corpus-status');
-const btnExportPhrases = $('#btn-export-phrases');
-const btnExportLinks = $('#btn-export-links');
 const btnExportAll = $('#btn-export-all');
+const btnImportAll = $('#btn-import-all');
 const backupStatus = $('#backup-status');
 const linkSearch = $('#link-search');
 const btnClearLinks = $('#btn-clear-links');
@@ -70,7 +69,7 @@ function updatePhraseList() {
   phraseList.style.maxHeight = '';
 
   if (allPhrases.length === 0) {
-    const msg = filter ? 'No phrases match your search.' : 'No phrases yet. Use Paste to Import to add some.';
+    const msg = filter ? 'No phrases match your search.' : 'No phrases yet. Add some via Paste to Import in Settings.';
     phraseList.innerHTML = `<li style="color: #585b70; font-size: 11px; padding: 12px 0;">${msg}</li>`;
     return;
   }
@@ -545,9 +544,7 @@ function closeImportView() {
   if (target) target.click();
 }
 
-document.getElementById('btn-import-phrases').addEventListener('click', () => openImportView('phrases'));
-document.getElementById('btn-import-links').addEventListener('click', () => openImportView('links'));
-document.getElementById('btn-import-utms').addEventListener('click', () => openImportView('utms'));
+btnImportAll.addEventListener('click', () => openImportView('phrases'));
 document.getElementById('btn-import-back').addEventListener('click', closeImportView);
 
 // ── Import: Type Toggle ───────────────────────────────────
@@ -709,36 +706,10 @@ btnClear.addEventListener('click', async () => {
   }
 });
 
-// ── Corpus: Export Phrases ────────────────────────────────
-
-btnExportPhrases.addEventListener('click', async () => {
-  const text = corpus.exportText();
-  if (!text) {
-    showStatus(corpusStatus, 'No phrases to export', 'error');
-    return;
-  }
-  await navigator.clipboard.writeText(text);
-  const count = corpus.phrases.size;
-  showStatus(corpusStatus, `\u2713 Copied ${count} phrase${count === 1 ? '' : 's'} to clipboard`, 'success');
-});
-
 // ── Links: Search ─────────────────────────────────────────
 
 linkSearch.addEventListener('input', () => {
   updateLinkRuleList();
-});
-
-// ── Links: Export ─────────────────────────────────────────
-
-btnExportLinks.addEventListener('click', async () => {
-  const text = corpus.linkRules.exportText();
-  if (!text) {
-    showStatus(linkStatus, 'No link rules to export', 'error');
-    return;
-  }
-  await navigator.clipboard.writeText(text);
-  const count = corpus.linkRules.rules.size;
-  showStatus(linkStatus, `\u2713 Copied ${count} link rule${count === 1 ? '' : 's'} to clipboard`, 'success');
 });
 
 // ── Links: Clear ──────────────────────────────────────────

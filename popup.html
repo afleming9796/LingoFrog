@@ -426,18 +426,13 @@
       <a href="javascript:void(0)" id="utm-jump-link" class="utm-jump-link">UTM params ↓</a>
     </div>
     <ul class="link-rule-list" id="link-rule-list"></ul>
-    <button class="btn btn-primary" id="btn-export-links">Copy All to Clipboard</button>
-    <button class="btn btn-secondary" id="btn-import-links">Paste to Import</button>
     <div class="status" id="link-status"></div>
     <button class="btn btn-danger" id="btn-clear-links">Clear All Links</button>
 
     <div class="utm-section" id="utm-section-anchor">
       <div class="utm-section-header">
         <div class="utm-section-title">UTM Parameters</div>
-        <div class="utm-section-actions">
-          <button class="btn-link" id="btn-import-utms">Paste to Import</button>
-          <button class="btn-link" id="btn-add-utm-root">+ Add root</button>
-        </div>
+        <button class="btn-link" id="btn-add-utm-root">+ Add root</button>
       </div>
       <div class="utm-section-desc">
         Append UTM parameters automatically when inserting a link whose host matches a configured root. <code>www.</code> and apex hosts are treated as equivalent. Up to 3 parameters per root.
@@ -451,10 +446,8 @@
   <div class="tab-content" id="tab-corpus">
     <input type="text" id="phrase-search" placeholder="Search phrases..." style="margin-bottom: 8px;">
     <ul class="phrase-list" id="phrase-list"></ul>
-    <button class="btn btn-primary" id="btn-export-phrases">Copy All to Clipboard</button>
-    <button class="btn btn-secondary" id="btn-import-phrases">Paste to Import</button>
     <div class="status" id="corpus-status"></div>
-    <button class="btn btn-danger" id="btn-clear">Clear Entire Corpus</button>
+    <button class="btn btn-danger" id="btn-clear">Clear All Phrases</button>
   </div>
 
   <!-- Settings Tab -->
@@ -515,9 +508,10 @@
     </div>
 
     <div style="margin-top: 20px; padding-top: 14px; border-top: 1px solid #e2e2e2;">
-      <div class="setting-label">Backup all data</div>
-      <div class="setting-desc">Copy phrases, link rules, and UTM parameters together, with section headers, for saving to a text file or doc</div>
+      <div class="setting-label">Backup &amp; restore</div>
+      <div class="setting-desc">Copy phrases, link rules, and UTM parameters to the clipboard for saving, or paste a backup to import.</div>
       <button class="btn btn-primary" id="btn-export-all">Copy All to Clipboard</button>
+      <button class="btn btn-secondary" id="btn-import-all">Paste to Import</button>
       <div class="status" id="backup-status"></div>
     </div>
   </div>
