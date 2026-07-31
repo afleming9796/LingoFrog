@@ -861,7 +861,7 @@ function renderUtmRow(host, params) {
   const del = document.createElement('button');
   del.className = 'utm-item-delete';
   del.textContent = '×';
-  del.title = 'Remove root';
+  del.title = 'Remove base url';
   del.addEventListener('click', async (e) => {
     e.stopPropagation();
     if (!confirm(`Remove UTM rule for "${host}"?`)) return;
@@ -944,7 +944,7 @@ function renderUtmDraft() {
   // ── Body ──
   li.appendChild(renderUtmBody({
     params: utmDraftRoot.params,
-    saveLabel: 'Add root',
+    saveLabel: 'Add base url',
     onSave: async (newParams) => {
       const host = (utmDraftRoot.host || '').toLowerCase().trim();
       if (!HOST_RE.test(host)) {
