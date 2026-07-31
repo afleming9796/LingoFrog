@@ -188,6 +188,22 @@
     }
     .row-overflow-btn:hover { background: #dcdcdc; color: #1a1a1a; }
     .row-overflow-btn.active { background: #e7f0dc; color: #4d7a2e; }
+
+    /* Same circle footprint as row-overflow-btn but with a chunkier
+       glyph, a soft shadow, and a small press animation — reads as a
+       primary action without swapping the neutral color palette. */
+    .btn-add-circle {
+      width: 26px; height: 26px; padding: 0;
+      border-radius: 50%;
+      background: #ececec; color: #7a7a7a;
+      font-size: 18px; font-weight: 500; line-height: 1;
+      border: none; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+    .btn-add-circle:hover { background: #dcdcdc; color: #1a1a1a; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12); }
+    .btn-add-circle:active { transform: translateY(1px); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
     .row-overflow-menu {
       /* Pulled left of the ellipsis button so the menu doesn't sit
          above (and hide) the trash-icon column of the rows below. */
@@ -520,7 +536,7 @@
   <div class="tab-content" id="tab-utm">
     <div class="utm-page-header">
       <h2 class="utm-page-title">UTM Rules</h2>
-      <button class="row-overflow-btn" id="btn-add-utm-root" title="Add base url" aria-label="Add base url">+</button>
+      <button class="btn-add-circle" id="btn-add-utm-root" title="Add base url" aria-label="Add base url">+</button>
     </div>
     <ul class="utm-list" id="utm-list"></ul>
     <div class="status" id="utm-status"></div>
