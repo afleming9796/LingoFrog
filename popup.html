@@ -189,7 +189,9 @@
     .row-overflow-btn:hover { background: #dcdcdc; color: #1a1a1a; }
     .row-overflow-btn.active { background: #e7f0dc; color: #4d7a2e; }
     .row-overflow-menu {
-      position: absolute; top: calc(100% + 4px); right: 0;
+      /* Pulled left of the ellipsis button so the menu doesn't sit
+         above (and hide) the trash-icon column of the rows below. */
+      position: absolute; top: calc(100% + 4px); right: 32px;
       background: #ffffff; border: 1px solid #dcdcdc; border-radius: 6px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.08);
       min-width: 160px; z-index: 20;
