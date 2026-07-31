@@ -508,10 +508,6 @@ document.querySelectorAll('.tab').forEach((tab) => {
   tab.addEventListener('click', () => {
     document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
-    // Any dedicated view (Import / UTM) hides the tab bar via a
-    // body class — clear both here so clicking a tab always
-    // exits whichever view was up.
-    document.body.classList.remove('import-view-active', 'utm-view-active');
     tab.classList.add('active');
     document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
   });
@@ -519,37 +515,24 @@ document.querySelectorAll('.tab').forEach((tab) => {
 
 // ── Import view ───────────────────────────────────────────
 //
-// The Import UI no longer lives in the tab bar; it opens as a
-// dedicated view via "Paste to Import" buttons on Phrases and Links
-// (and in the UTM section). openImportView remembers the tab that
-// launched it so Back can return there.
-
-let lastActiveTab = 'links';
-
-function currentActiveTab() {
-  const el = document.querySelector('.tab.active');
-  return el ? el.dataset.tab : lastActiveTab;
-}
+// The Import UI no longer lives in the tab bar; it opens from the
+// "Import from backup" button in Settings. The top-line header
+// stays visible and the Settings tab stays highlighted so the tab
+// bar itself is the way back — no dedicated Back button needed.
 
 function openImportView(defaultType) {
-  lastActiveTab = currentActiveTab();
-  document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
   document.getElementById('tab-import').classList.add('active');
-  document.body.classList.add('import-view-active');
+  // Leave the Settings tab active — this view is a sub-page of Settings.
+  document.querySelectorAll('.tab').forEach((t) => {
+    t.classList.toggle('active', t.dataset.tab === 'settings');
+  });
   setImportType(defaultType);
   pasteArea.value = '';
   importStatus.className = 'status';
 }
 
-function closeImportView() {
-  document.body.classList.remove('import-view-active');
-  const target = document.querySelector('.tab[data-tab="' + lastActiveTab + '"]');
-  if (target) target.click();
-}
-
 btnImportAll.addEventListener('click', () => openImportView('phrases'));
-document.getElementById('btn-import-back').addEventListener('click', closeImportView);
 
 // ── Import: Type Toggle ───────────────────────────────────
 

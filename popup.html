@@ -113,25 +113,6 @@
     .btn-danger:hover { background: #fbe7e7; border-color: #e7b8b8; }
     .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    /* Import view — reached from "Paste to Import" buttons on
-       Phrases/Links/UTM. Header sits above the type toggle and
-       provides a back button to whichever tab you came from. The
-       tab bar is hidden while the view is up so the Back button is
-       the unambiguous return path. */
-    body.import-view-active .tabs { display: none; }
-    .import-view-header {
-      display: flex; align-items: center; gap: 8px;
-      margin-bottom: 12px;
-    }
-    .btn-back {
-      background: transparent; border: 1px solid #dcdcdc;
-      color: #4d7a2e; font-size: 11px; font-weight: 600;
-      padding: 4px 10px; border-radius: 6px; cursor: pointer;
-      transition: all 0.15s;
-    }
-    .btn-back:hover { background: #eaf5db; border-color: #c8dfa8; }
-    .import-view-title { font-size: 12px; color: #7a7a7a; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
-
     /* Row that holds the primary toggle bar + the small overflow
        circle button to its right. */
     .import-controls { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
@@ -459,13 +440,10 @@
     </div>
   </div>
 
-  <!-- Import View (not in the tab bar — reached from "Paste to Import"
-       buttons on Phrases/Links or the UTM section) -->
+  <!-- Import View — reached from Settings "Import from backup".
+       Keeps the top-line header; Settings tab stays active so the
+       tab bar itself is the way back (no dedicated Back button). -->
   <div class="tab-content" id="tab-import">
-    <div class="import-view-header">
-      <button class="btn-back" id="btn-import-back" title="Back">← Back</button>
-      <span class="import-view-title">Bulk Import</span>
-    </div>
     <div class="import-controls">
       <div class="import-type-toggle">
         <button class="import-type-btn active" data-type="phrases">Phrases</button>
