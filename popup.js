@@ -64,9 +64,10 @@ function updatePhraseList() {
   const filter = phraseSearch ? phraseSearch.value.trim() : '';
   const allPhrases = corpus.getAllPhrases(filter);
   phraseList.innerHTML = '';
-  // Reset to the default scroll-internally max-height. startEditPhrase
-  // bumps this up while editing so the Bop row isn't clipped.
-  phraseList.style.maxHeight = '';
+  // Reset the scroll wrapper's max-height. startEditPhrase bumps it
+  // up while editing so the Bop row isn't clipped.
+  const scroll = document.getElementById('phrase-list-scroll');
+  if (scroll) scroll.style.maxHeight = '';
 
   if (allPhrases.length === 0) {
     const msg = filter ? 'No phrases match your search.' : 'No phrases yet. Add some via Paste to Import in Settings.';
@@ -358,13 +359,14 @@ function startEditPhrase(li, originalPhrase, freqEl) {
   });
 
   // Edit mode adds a second row (Bop UI) under the phrase input. The
-  // .phrase-list has max-height: 260px with internal scrolling, which
-  // can clip the bottom of an expanded row — especially when the
-  // user has filtered the list down to just one or two phrases.
-  // Bump the cap while editing so the Bop row is always visible,
-  // and scroll the edited row into view as a safety net. Reset on
-  // re-render by updatePhraseList.
-  phraseList.style.maxHeight = 'none';
+  // scroll wrapper caps the whole list at ~320px, which can clip the
+  // bottom of an expanded row — especially when the user has
+  // filtered the list down to just one or two phrases. Bump the cap
+  // while editing so the Bop row is always visible, and scroll the
+  // edited row into view as a safety net. Reset on re-render by
+  // updatePhraseList.
+  const scroll = document.getElementById('phrase-list-scroll');
+  if (scroll) scroll.style.maxHeight = 'none';
   setTimeout(() => li.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 0);
 }
 
