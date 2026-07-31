@@ -14,27 +14,31 @@
     }
 
     .header {
-      padding: 16px 20px 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 12px;
       border-bottom: 1px solid #e2e2e2;
     }
 
-    .header h1 {
+    .brand {
       display: flex;
       align-items: center;
-      gap: 8px;
-      font-size: 16px;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .brand img { width: 18px; height: 18px; display: block; }
+    .brand h1 {
+      font-size: 13px;
       font-weight: 700;
       color: #1a1a1a;
-      letter-spacing: -0.3px;
+      letter-spacing: -0.2px;
     }
-    .header h1 img { width: 22px; height: 22px; display: block; }
-    .header p { font-size: 11px; color: #7a7a7a; margin-top: 4px; }
 
-    .tabs { display: flex; padding: 0 20px; gap: 2px; margin: 12px 0; }
+    .tabs { display: flex; gap: 2px; margin-left: auto; }
 
     .tab {
-      flex: 1;
-      padding: 7px 0;
+      padding: 6px 10px;
       text-align: center;
       font-size: 11px;
       font-weight: 600;
@@ -42,13 +46,18 @@
       background: transparent;
       border: none;
       cursor: pointer;
-      border-radius: 8px;
+      border-radius: 6px;
       transition: all 0.15s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
     .tab:hover { color: #1a1a1a; background: #ececec; }
     .tab.active { color: #4d7a2e; background: #e7f0dc; }
+    .tab-icon { padding: 6px; }
+    .tab-icon svg { width: 15px; height: 15px; display: block; }
 
-    .tab-content { display: none; padding: 0 20px 16px; }
+    .tab-content { display: none; padding: 12px 20px 16px; }
     .tab-content.active { display: block; }
 
     textarea {
@@ -416,14 +425,17 @@
 <body>
 
   <div class="header">
-    <h1><img src="icons/icon48.png" alt="">LingoFrog</h1>
-    <p>Link magic and phrase autocomplete for Gmail</p>
-  </div>
-
-  <div class="tabs">
-    <button class="tab active" data-tab="links">Links</button>
-    <button class="tab" data-tab="corpus">Phrases</button>
-    <button class="tab" data-tab="settings">Settings</button>
+    <div class="brand">
+      <img src="icons/icon48.png" alt="">
+      <h1>LingoFrog</h1>
+    </div>
+    <div class="tabs">
+      <button class="tab active" data-tab="links">Links</button>
+      <button class="tab" data-tab="corpus">Phrases</button>
+      <button class="tab tab-icon" data-tab="settings" title="Settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </div>
   </div>
 
   <!-- Import View (not in the tab bar — reached from "Paste to Import"
