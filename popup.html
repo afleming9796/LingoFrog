@@ -204,10 +204,13 @@
     .row-overflow-item.danger { color: #b04848; }
     .row-overflow-item.danger:hover { background: #fbe7e7; color: #b04848; }
 
-    /* UTM page (its own view, opened from Links overflow menu). */
-    body.utm-view-active .tabs { display: none; }
-    .utm-page-toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
-    .utm-page-toolbar .btn-link { flex-shrink: 0; }
+    /* UTM page (its own view, opened from Links overflow menu — the
+       top-line header stays visible; Links tab stays highlighted so
+       users know they're on a sub-page of Links). */
+    .utm-page-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+    .utm-page-title { font-size: 14px; font-weight: 700; color: #1a1a1a; }
+    .utm-page-desc { font-size: 11px; color: #7a7a7a; margin-bottom: 12px; line-height: 1.4; }
+    .utm-page-desc code { color: #4d7a2e; background: #e7f0dc; padding: 1px 4px; border-radius: 3px; }
 
     .status { font-size: 11px; padding: 8px 12px; border-radius: 8px; margin-top: 8px; display: none; }
     .status.success { display: block; background: #eaf5db; color: #4d7a2e; border: 1px solid #c8dfa8; }
@@ -509,17 +512,16 @@
     <div class="status" id="corpus-status"></div>
   </div>
 
-  <!-- UTM View — reached from Links tab's ellipsis menu → UTM rules -->
+  <!-- UTM View — reached from Links tab's ellipsis menu → UTM rules.
+       Keeps the top-line header; the Links tab stays visually active
+       so the tab bar itself doubles as the way back. -->
   <div class="tab-content" id="tab-utm">
-    <div class="import-view-header">
-      <button class="btn-back" id="btn-utm-back" title="Back">← Back</button>
-      <span class="import-view-title">UTM Rules</span>
-    </div>
-    <div class="utm-page-toolbar">
-      <div class="utm-section-desc">
-        Append UTM parameters to links inserted with <code>⌘L</code>.
-      </div>
+    <div class="utm-page-header">
+      <h2 class="utm-page-title">UTM Rules</h2>
       <button class="btn-link" id="btn-add-utm-root">+ Add base url</button>
+    </div>
+    <div class="utm-page-desc">
+      Append UTM parameters to links inserted with <code>⌘L</code>.
     </div>
     <ul class="utm-list" id="utm-list"></ul>
     <div class="status" id="utm-status"></div>

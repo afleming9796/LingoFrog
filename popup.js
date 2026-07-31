@@ -1102,23 +1102,18 @@ btnAddUtmRoot.addEventListener('click', () => {
 
 // ── UTM view ──────────────────────────────────────────────
 //
-// The UTM section is now a dedicated view, opened from the Links
-// tab's ellipsis menu. Mirrors the Bulk Import view pattern.
+// Reached from the Links tab's ellipsis menu. The top-line header
+// stays visible and the Links tab stays highlighted so the tab
+// bar itself is the way back — no dedicated Back button needed.
 
 function openUtmView() {
-  document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
   document.getElementById('tab-utm').classList.add('active');
-  document.body.classList.add('utm-view-active');
+  // Leave the Links tab active — this view is a sub-page of Links.
+  document.querySelectorAll('.tab').forEach((t) => {
+    t.classList.toggle('active', t.dataset.tab === 'links');
+  });
 }
-
-function closeUtmView() {
-  document.body.classList.remove('utm-view-active');
-  const target = document.querySelector('.tab[data-tab="links"]');
-  if (target) target.click();
-}
-
-document.getElementById('btn-utm-back').addEventListener('click', closeUtmView);
 
 // ── Row-level ellipsis menus (Phrases + Links tab toolbars) ─
 
