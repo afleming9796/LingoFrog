@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    [hidden] { display: none !important; }
 
     body {
       width: 380px;
@@ -185,6 +186,46 @@
     }
     .btn-add-circle:hover { background: #dcdcdc; color: #1a1a1a; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12); }
     .btn-add-circle:active { transform: translateY(1px); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+
+    /* Save/cancel circles that replace the ＋ / ⋯ pair while an
+       inline add form is open. Save goes green when the form is
+       valid; disabled otherwise. */
+    .btn-save-circle, .btn-cancel-circle {
+      width: 26px; height: 26px; padding: 0;
+      border-radius: 50%;
+      font-size: 13px; font-weight: 700; line-height: 1;
+      border: none; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+    }
+    .btn-save-circle {
+      background: #6da34d; color: #ffffff;
+      box-shadow: 0 1px 3px rgba(109, 163, 77, 0.35);
+    }
+    .btn-save-circle:hover:not(:disabled) { background: #5b8c3e; box-shadow: 0 2px 6px rgba(109, 163, 77, 0.45); }
+    .btn-save-circle:active:not(:disabled) { transform: translateY(1px); }
+    .btn-save-circle:disabled { background: #ececec; color: #b5b5b5; cursor: not-allowed; box-shadow: none; }
+    .btn-cancel-circle { background: #ececec; color: #7a7a7a; font-size: 15px; }
+    .btn-cancel-circle:hover { background: #fbe7e7; color: #b04848; }
+
+    /* Second field of the add-link form. Indented under the search
+       input with a ↳ guide arrow leading down from it. */
+    .add-url-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-left: 18px;
+      margin-top: 6px;
+      margin-bottom: 8px;
+    }
+    .add-url-arrow {
+      color: #a0a0a0;
+      font-size: 16px;
+      line-height: 1;
+      flex-shrink: 0;
+      user-select: none;
+    }
+    .add-url-row input { flex: 1; }
     .row-overflow-menu {
       /* Pulled left of the ellipsis button so the menu doesn't sit
          above (and hide) the trash-icon column of the rows below. */
@@ -475,7 +516,10 @@
   <div class="tab-content active" id="tab-links">
     <div class="tab-toolbar">
       <input type="text" id="link-search" placeholder="Search links..." style="flex: 1;">
-      <div class="row-overflow-container">
+      <button class="btn-add-circle" id="btn-add-link" title="Add link" aria-label="Add link">+</button>
+      <button class="btn-save-circle" id="btn-save-link" title="Save" aria-label="Save" hidden>✓</button>
+      <button class="btn-cancel-circle" id="btn-cancel-link" title="Cancel" aria-label="Cancel" hidden>×</button>
+      <div class="row-overflow-container" id="link-overflow-container">
         <button class="row-overflow-btn" id="links-overflow" title="More">⋯</button>
         <div class="row-overflow-menu" id="links-overflow-menu">
           <div class="row-overflow-item" data-action="copy">Copy all to clipboard</div>
@@ -483,6 +527,10 @@
           <div class="row-overflow-item danger" data-action="delete">Delete all links</div>
         </div>
       </div>
+    </div>
+    <div class="add-url-row" id="add-link-url-row" hidden>
+      <span class="add-url-arrow" aria-hidden="true">↳</span>
+      <input type="text" id="add-link-url" placeholder="Add the link URL here, e.g. example.com/ribbit">
     </div>
     <div class="list-scroll" id="link-list-scroll">
       <ul class="link-rule-list" id="link-rule-list"></ul>
@@ -494,7 +542,10 @@
   <div class="tab-content" id="tab-corpus">
     <div class="tab-toolbar">
       <input type="text" id="phrase-search" placeholder="Search phrases..." style="flex: 1;">
-      <div class="row-overflow-container">
+      <button class="btn-add-circle" id="btn-add-phrase" title="Add phrase" aria-label="Add phrase">+</button>
+      <button class="btn-save-circle" id="btn-save-phrase" title="Save" aria-label="Save" hidden>✓</button>
+      <button class="btn-cancel-circle" id="btn-cancel-phrase" title="Cancel" aria-label="Cancel" hidden>×</button>
+      <div class="row-overflow-container" id="phrase-overflow-container">
         <button class="row-overflow-btn" id="phrases-overflow" title="More">⋯</button>
         <div class="row-overflow-menu" id="phrases-overflow-menu">
           <div class="row-overflow-item" data-action="copy">Copy all to clipboard</div>

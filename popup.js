@@ -30,6 +30,13 @@ let importType = 'phrases';
 let utmExpandedHost = null;
 let utmDraftRoot = null; // { host: '', params: [{key, value}] } when active
 
+// Add-mode state for the inline "morph" forms on Phrases and
+// Links tabs. While true, the tab's search input is repurposed as
+// the "Add …" prompt and its normal input handler skips the
+// list-filter re-render.
+let phraseAddMode = false;
+let linkAddMode = false;
+
 const HOST_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/;
 
 // ── Initialize ─────────────────────────────────────────────
@@ -45,8 +52,10 @@ async function init() {
 
 function updateStats() {
   const stats = corpus.getStats();
-  phraseSearch.placeholder = searchPlaceholder(stats.totalPhrases, 'phrase');
-  linkSearch.placeholder = searchPlaceholder(stats.totalLinkRules, 'link');
+  // Skip while an add form is up — the search input is showing an
+  // "Add …" prompt then, and we don't want to clobber it.
+  if (!phraseAddMode) phraseSearch.placeholder = searchPlaceholder(stats.totalPhrases, 'phrase');
+  if (!linkAddMode) linkSearch.placeholder = searchPlaceholder(stats.totalLinkRules, 'link');
 }
 
 // Singular-aware count baked into the search-input placeholder.
@@ -677,6 +686,10 @@ btnImport.addEventListener('click', async () => {
 // ── Corpus: Search ────────────────────────────────────────
 
 phraseSearch.addEventListener('input', () => {
+  if (phraseAddMode) {
+    updatePhraseSaveEnabled();
+    return;
+  }
   updatePhraseList();
 });
 
@@ -726,6 +739,10 @@ async function clearAllLinks() {
 // ── Links: Search ─────────────────────────────────────────
 
 linkSearch.addEventListener('input', () => {
+  if (linkAddMode) {
+    updateLinkSaveEnabled();
+    return;
+  }
   updateLinkRuleList();
 });
 
@@ -1154,6 +1171,184 @@ document.addEventListener('click', (e) => {
       const btn = container && container.querySelector('.row-overflow-btn');
       if (btn) btn.classList.remove('active');
     }
+  });
+});
+
+// ── Add-mode: inline "morph" forms on Phrases and Links ────
+//
+// Clicking ＋ swaps the tab's search input into an "Add …" prompt.
+// On Links a second URL input drops in below with a ↳ arrow.
+// ＋ hides while add mode is up; ✓ (save) and ✕ (cancel) take its
+// place. ✓ is enabled once the form is valid. Enter advances /
+// saves, Esc cancels.
+
+// ---- Phrases ----
+
+const btnAddPhrase = document.getElementById('btn-add-phrase');
+const btnSavePhrase = document.getElementById('btn-save-phrase');
+const btnCancelPhrase = document.getElementById('btn-cancel-phrase');
+const phraseOverflowContainer = document.getElementById('phrase-overflow-container');
+
+function updatePhraseSaveEnabled() {
+  btnSavePhrase.disabled = phraseSearch.value.trim().length === 0;
+}
+
+function enterPhraseAddMode() {
+  if (phraseAddMode) return;
+  phraseAddMode = true;
+  phraseSearch.value = '';
+  phraseSearch.placeholder = 'Add a phrase, e.g. Thanks for reaching out';
+  btnAddPhrase.hidden = true;
+  btnSavePhrase.hidden = false;
+  btnCancelPhrase.hidden = false;
+  phraseOverflowContainer.hidden = true;
+  updatePhraseSaveEnabled();
+  phraseSearch.focus();
+}
+
+function exitPhraseAddMode() {
+  if (!phraseAddMode) return;
+  phraseAddMode = false;
+  phraseSearch.value = '';
+  btnAddPhrase.hidden = false;
+  btnSavePhrase.hidden = true;
+  btnCancelPhrase.hidden = true;
+  phraseOverflowContainer.hidden = false;
+  updateStats();       // restore "Search N phrases..." placeholder
+  updatePhraseList();  // list may have filtered on last keystroke
+}
+
+async function savePhraseFromAddForm() {
+  const text = phraseSearch.value.trim();
+  if (!text) return;
+  const result = await corpus.addOrBumpPhrase(text, 'popup');
+  updateStats();
+  const label = text.length > 40 ? text.slice(0, 40) + '…' : text;
+  showStatus(corpusStatus, result.added
+    ? `✓ Added "${label}"`
+    : `✓ Bumped "${label}"`, 'success');
+  exitPhraseAddMode();
+  updatePhraseList();
+}
+
+btnAddPhrase.addEventListener('click', enterPhraseAddMode);
+btnCancelPhrase.addEventListener('click', exitPhraseAddMode);
+btnSavePhrase.addEventListener('click', savePhraseFromAddForm);
+
+phraseSearch.addEventListener('keydown', (e) => {
+  if (!phraseAddMode) return;
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (phraseSearch.value.trim()) savePhraseFromAddForm();
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    exitPhraseAddMode();
+  }
+});
+
+// ---- Links ----
+
+const btnAddLink = document.getElementById('btn-add-link');
+const btnSaveLink = document.getElementById('btn-save-link');
+const btnCancelLink = document.getElementById('btn-cancel-link');
+const linkOverflowContainer = document.getElementById('link-overflow-container');
+const addLinkUrlRow = document.getElementById('add-link-url-row');
+const addLinkUrl = document.getElementById('add-link-url');
+
+function normalizeAddedUrl(raw) {
+  const t = (raw || '').trim();
+  if (!t) return null;
+  if (/^(javascript|data|vbscript|file):/i.test(t)) return null;
+  if (/^(mailto|tel):/i.test(t)) return t;
+  const candidate = /^https?:\/\//i.test(t) ? t : 'https://' + t;
+  try {
+    const u = new URL(candidate);
+    if (!u.hostname.includes('.')) return null;
+    return u.toString();
+  } catch (e) {
+    return null;
+  }
+}
+
+function updateLinkSaveEnabled() {
+  const textOk = linkSearch.value.trim().length > 0;
+  const urlOk = normalizeAddedUrl(addLinkUrl.value) !== null;
+  btnSaveLink.disabled = !(textOk && urlOk);
+}
+
+function enterLinkAddMode() {
+  if (linkAddMode) return;
+  linkAddMode = true;
+  linkSearch.value = '';
+  linkSearch.placeholder = 'Add the link text here, e.g. ribbit';
+  addLinkUrl.value = '';
+  addLinkUrlRow.hidden = false;
+  btnAddLink.hidden = true;
+  btnSaveLink.hidden = false;
+  btnCancelLink.hidden = false;
+  linkOverflowContainer.hidden = true;
+  updateLinkSaveEnabled();
+  linkSearch.focus();
+}
+
+function exitLinkAddMode() {
+  if (!linkAddMode) return;
+  linkAddMode = false;
+  linkSearch.value = '';
+  addLinkUrl.value = '';
+  addLinkUrlRow.hidden = true;
+  btnAddLink.hidden = false;
+  btnSaveLink.hidden = true;
+  btnCancelLink.hidden = true;
+  linkOverflowContainer.hidden = false;
+  updateStats();
+  updateLinkRuleList();
+}
+
+async function saveLinkFromAddForm() {
+  const text = linkSearch.value.trim();
+  const url = normalizeAddedUrl(addLinkUrl.value);
+  if (!text || !url) return;
+  corpus.linkRules.addRule(text, url);
+  await corpus.linkRules.save();
+  updateStats();
+  const label = text.length > 40 ? text.slice(0, 40) + '…' : text;
+  showStatus(linkStatus, `✓ Added "${label}"`, 'success');
+  exitLinkAddMode();
+  updateLinkRuleList();
+}
+
+btnAddLink.addEventListener('click', enterLinkAddMode);
+btnCancelLink.addEventListener('click', exitLinkAddMode);
+btnSaveLink.addEventListener('click', saveLinkFromAddForm);
+addLinkUrl.addEventListener('input', updateLinkSaveEnabled);
+
+linkSearch.addEventListener('keydown', (e) => {
+  if (!linkAddMode) return;
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    addLinkUrl.focus();
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    exitLinkAddMode();
+  }
+});
+
+addLinkUrl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (!btnSaveLink.disabled) saveLinkFromAddForm();
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    exitLinkAddMode();
+  }
+});
+
+// Cancel add mode when the user switches tabs mid-add.
+document.querySelectorAll('.tab').forEach((tab) => {
+  tab.addEventListener('click', () => {
+    if (phraseAddMode && tab.dataset.tab !== 'corpus') exitPhraseAddMode();
+    if (linkAddMode && tab.dataset.tab !== 'links') exitLinkAddMode();
   });
 });
 
