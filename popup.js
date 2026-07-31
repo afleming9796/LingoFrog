@@ -1280,7 +1280,7 @@ function enterLinkAddMode() {
   if (linkAddMode) return;
   linkAddMode = true;
   linkSearch.value = '';
-  linkSearch.placeholder = 'Add the link text here, e.g. ribbit';
+  linkSearch.placeholder = 'Add text, e.g. ribbit';
   addLinkUrl.value = '';
   addLinkUrlRow.hidden = false;
   btnAddLink.hidden = true;
