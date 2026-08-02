@@ -1097,7 +1097,10 @@ function addBopToForm(phrase) {
 }
 
 async function savePhraseForm() {
-  const text = phraseFormInput.value.trim();
+  // Collapse any line breaks (from paste or an old browser
+  // shortcut) into single spaces — multi-line phrases silently
+  // break Gmail autocomplete.
+  const text = phraseFormInput.value.replace(/\s*\r?\n\s*/g, ' ').trim();
   if (!text) return;
 
   let targetPhrase = text;
@@ -1141,9 +1144,10 @@ btnPhraseFormDelete.addEventListener('click', deletePhraseFromForm);
 
 phraseFormInput.addEventListener('input', updatePhraseFormSaveEnabled);
 phraseFormInput.addEventListener('keydown', (e) => {
-  // Enter defaults to inserting a newline (textarea). Cmd/Ctrl+Enter
-  // saves as a keyboard shortcut convenience; Esc cancels.
-  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+  // Textarea is here for visual wrapping only — line breaks in a
+  // phrase would silently break Gmail autocomplete. Enter saves
+  // (never inserts a newline); Esc cancels.
+  if (e.key === 'Enter') {
     e.preventDefault();
     if (!btnPhraseFormSave.disabled) savePhraseForm();
   } else if (e.key === 'Escape') {
