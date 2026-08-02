@@ -1145,11 +1145,12 @@ btnPhraseFormDelete.addEventListener('click', deletePhraseFromForm);
 phraseFormInput.addEventListener('input', updatePhraseFormSaveEnabled);
 phraseFormInput.addEventListener('keydown', (e) => {
   // Textarea is here for visual wrapping only — line breaks in a
-  // phrase would silently break Gmail autocomplete. Enter saves
-  // (never inserts a newline); Esc cancels.
+  // phrase would silently break Gmail autocomplete. Enter flags a
+  // warning instead of inserting a newline (users save via the ✓
+  // button); Esc cancels.
   if (e.key === 'Enter') {
     e.preventDefault();
-    if (!btnPhraseFormSave.disabled) savePhraseForm();
+    showStatus(phraseFormStatus, "You can't use line breaks", 'error');
   } else if (e.key === 'Escape') {
     e.preventDefault();
     closePhraseForm();
