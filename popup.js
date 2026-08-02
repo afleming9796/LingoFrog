@@ -61,9 +61,9 @@ function updateStats() {
 // Empty state falls back to "Search phrases..." so "Search 0 phrases..."
 // never shows.
 function searchPlaceholder(count, noun) {
-  if (count === 0) return `Search ${noun}s ...`;
+  if (count === 0) return `Search ${noun}s...`;
   const label = count.toLocaleString() + ' ' + noun + (count === 1 ? '' : 's');
-  return `Search ${label} ...`;
+  return `Search ${label}...`;
 }
 
 function updatePhraseList() {
