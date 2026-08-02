@@ -1150,7 +1150,7 @@ phraseFormInput.addEventListener('keydown', (e) => {
   // button); Esc cancels.
   if (e.key === 'Enter') {
     e.preventDefault();
-    showStatus(phraseFormStatus, "You can't use line breaks", 'error');
+    showStatus(phraseFormStatus, 'Line breaks are not supported', 'error');
   } else if (e.key === 'Escape') {
     e.preventDefault();
     closePhraseForm();
