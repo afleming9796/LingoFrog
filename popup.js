@@ -863,11 +863,13 @@ function openUtmView() {
 const ROW_MENU_ACTIONS = {
   phrases: {
     copy: copyPhrasesToClipboard,
+    import: () => openImportView('phrases'),
     delete: clearAllPhrases,
   },
   links: {
-    copy: copyLinksToClipboard,
     utm: openUtmView,
+    copy: copyLinksToClipboard,
+    import: () => openImportView('links'),
     delete: clearAllLinks,
   },
 };
