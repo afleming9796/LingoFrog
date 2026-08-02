@@ -971,8 +971,22 @@ function openPhraseForm(mode, phrase) {
     t.classList.toggle('active', t.dataset.tab === 'corpus');
   });
 
+  autoGrowPhraseInput();
   phraseFormInput.focus();
   if (mode === 'edit') phraseFormInput.select();
+}
+
+// Grow the textarea to fit its content. Manual resize via the drag
+// handle keeps working — the next input event will re-fit based on
+// content, so if the user dragged it larger and then adds text,
+// their extra height is only preserved up to the point where new
+// content needs more room.
+function autoGrowPhraseInput() {
+  // border-y (1px + 1px) since scrollHeight excludes borders and
+  // box-sizing: border-box means the assigned height must include
+  // them for a stable measurement.
+  phraseFormInput.style.height = 'auto';
+  phraseFormInput.style.height = (phraseFormInput.scrollHeight + 2) + 'px';
 }
 
 function closePhraseForm() {
@@ -1142,7 +1156,10 @@ btnPhraseFormCancel.addEventListener('click', closePhraseForm);
 btnPhraseFormSave.addEventListener('click', savePhraseForm);
 btnPhraseFormDelete.addEventListener('click', deletePhraseFromForm);
 
-phraseFormInput.addEventListener('input', updatePhraseFormSaveEnabled);
+phraseFormInput.addEventListener('input', () => {
+  updatePhraseFormSaveEnabled();
+  autoGrowPhraseInput();
+});
 phraseFormInput.addEventListener('keydown', (e) => {
   // Textarea is here for visual wrapping only — line breaks in a
   // phrase would silently break Gmail autocomplete. Enter flags a
