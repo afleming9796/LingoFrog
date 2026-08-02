@@ -275,6 +275,16 @@
       margin-bottom: 16px;
     }
     .form-field-large:focus { border-color: #6da34d; }
+    /* Textarea variant of .form-field-large — overrides the global
+       .textarea rule (monospace, 140px min-height) to keep the popup's
+       sans-serif look at a compact 3-row size. */
+    .phrase-form-textarea {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      font-size: 13px;
+      line-height: 1.4;
+      min-height: 0;
+      resize: vertical;
+    }
     .form-section-header { display: flex; align-items: baseline; justify-content: space-between; }
     .form-section-counter { font-size: 10px; color: #7a7a7a; }
     .form-helper { font-size: 11px; color: #7a7a7a; line-height: 1.4; margin-top: 8px; margin-bottom: 8px; }
@@ -651,17 +661,17 @@
     </div>
 
     <label class="form-label" for="phrase-form-input">Phrase</label>
-    <input type="text" id="phrase-form-input" class="form-field-large" placeholder="Type your phrase here…" spellcheck="true">
+    <textarea id="phrase-form-input" class="form-field-large phrase-form-textarea" placeholder="Type your phrase here…" spellcheck="true" rows="3"></textarea>
 
     <div class="form-section-header">
-      <label class="form-label" for="phrase-form-bops-search">Bops — suggest a follow-up</label>
-      <span class="form-section-counter" id="phrase-form-bops-counter">0 / 3</span>
+      <label class="form-label" for="phrase-form-bops-search">Bops</label>
+      <span class="form-section-counter" id="phrase-form-bops-counter" hidden></span>
     </div>
     <div class="phrase-form-bops-box" id="phrase-form-bops-box">
       <input type="text" id="phrase-form-bops-search" class="phrase-form-bops-search" placeholder="Search phrases to add a bop…" autocomplete="off" spellcheck="false">
     </div>
     <div class="phrase-form-bops-dropdown" id="phrase-form-bops-dropdown" hidden></div>
-    <div class="form-helper">Bops let you chain phrases. Once someone accepts the phrase above, the bop is offered as the next suggestion.</div>
+    <div class="form-helper">Add a follow-up phrase, a Bop, to see it automatically suggested.</div>
 
     <button class="btn btn-danger phrase-form-delete" id="btn-phrase-form-delete" hidden>Delete phrase</button>
     <div class="status" id="phrase-form-status"></div>

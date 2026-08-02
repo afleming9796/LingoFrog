@@ -1025,7 +1025,14 @@ function renderPhraseFormBops() {
     phraseFormBopsBox.insertBefore(chip, phraseFormBopsSearch);
   });
 
-  phraseFormBopsCounter.textContent = `${workingBops.length} / ${BOPS_MAX}`;
+  // Only show the counter when the max is > 1 — a "1 / 1" reads
+  // as noise when there's only ever one bop slot.
+  if (BOPS_MAX > 1) {
+    phraseFormBopsCounter.hidden = false;
+    phraseFormBopsCounter.textContent = `${workingBops.length} / ${BOPS_MAX}`;
+  } else {
+    phraseFormBopsCounter.hidden = true;
+  }
 
   if (workingBops.length >= BOPS_MAX) {
     phraseFormBopsSearch.style.display = 'none';
@@ -1134,7 +1141,9 @@ btnPhraseFormDelete.addEventListener('click', deletePhraseFromForm);
 
 phraseFormInput.addEventListener('input', updatePhraseFormSaveEnabled);
 phraseFormInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
+  // Enter defaults to inserting a newline (textarea). Cmd/Ctrl+Enter
+  // saves as a keyboard shortcut convenience; Esc cancels.
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
     e.preventDefault();
     if (!btnPhraseFormSave.disabled) savePhraseForm();
   } else if (e.key === 'Escape') {
