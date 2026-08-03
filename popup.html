@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    [hidden] { display: none !important; }
 
     body {
       width: 380px;
@@ -185,6 +186,46 @@
     }
     .btn-add-circle:hover { background: #dcdcdc; color: #1a1a1a; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12); }
     .btn-add-circle:active { transform: translateY(1px); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+
+    /* Save/cancel circles that replace the ＋ / ⋯ pair while an
+       inline add form is open. Save goes green when the form is
+       valid; disabled otherwise. */
+    .btn-save-circle, .btn-cancel-circle {
+      width: 26px; height: 26px; padding: 0;
+      border-radius: 50%;
+      font-size: 13px; font-weight: 700; line-height: 1;
+      border: none; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+    }
+    .btn-save-circle {
+      background: #6da34d; color: #ffffff;
+      box-shadow: 0 1px 3px rgba(109, 163, 77, 0.35);
+    }
+    .btn-save-circle:hover:not(:disabled) { background: #5b8c3e; box-shadow: 0 2px 6px rgba(109, 163, 77, 0.45); }
+    .btn-save-circle:active:not(:disabled) { transform: translateY(1px); }
+    .btn-save-circle:disabled { background: #ececec; color: #b5b5b5; cursor: not-allowed; box-shadow: none; }
+    .btn-cancel-circle { background: #ececec; color: #7a7a7a; font-size: 15px; }
+    .btn-cancel-circle:hover { background: #fbe7e7; color: #b04848; }
+
+    /* Second field of the add-link form. Indented under the search
+       input with a ↳ guide arrow leading down from it. */
+    .add-url-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-left: 18px;
+      margin-top: 6px;
+      margin-bottom: 8px;
+    }
+    .add-url-arrow {
+      color: #a0a0a0;
+      font-size: 16px;
+      line-height: 1;
+      flex-shrink: 0;
+      user-select: none;
+    }
+    .add-url-row input { flex: 1; }
     .row-overflow-menu {
       /* Pulled left of the ellipsis button so the menu doesn't sit
          above (and hide) the trash-icon column of the rows below. */
@@ -202,6 +243,82 @@
     .row-overflow-item:hover { background: #e7f0dc; color: #4d7a2e; }
     .row-overflow-item.danger { color: #b04848; }
     .row-overflow-item.danger:hover { background: #fbe7e7; color: #b04848; }
+
+    /* Phrase form page (add / edit) — reached from Phrases ＋ or
+       from clicking a row in the list. */
+    .phrase-form-header {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; margin-bottom: 14px;
+    }
+    .phrase-form-title { font-size: 14px; font-weight: 700; color: #1a1a1a; }
+    .phrase-form-actions { display: flex; align-items: center; gap: 8px; }
+    .btn-form-cancel {
+      background: transparent; border: none;
+      color: #7a7a7a; font-size: 12px; font-weight: 600;
+      cursor: pointer; padding: 4px 10px; border-radius: 6px;
+      transition: all 0.15s;
+    }
+    .btn-form-cancel:hover { color: #1a1a1a; background: #ececec; }
+
+    .form-label {
+      display: block;
+      font-size: 10px; font-weight: 600; color: #7a7a7a;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+    .form-field-large {
+      width: 100%;
+      padding: 10px 12px; font-size: 13px;
+      background: #ffffff; border: 1px solid #dcdcdc; border-radius: 8px;
+      color: #1a1a1a; outline: none;
+      transition: border-color 0.15s;
+      margin-bottom: 16px;
+    }
+    .form-field-large:focus { border-color: #6da34d; }
+    /* Textarea variant of .form-field-large — overrides the global
+       .textarea rule (monospace, 140px min-height) to keep the popup's
+       sans-serif look at a compact 3-row size. */
+    .phrase-form-textarea {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      font-size: 13px;
+      line-height: 1.4;
+      min-height: 0;
+      resize: vertical;
+    }
+    .form-section-header { display: flex; align-items: baseline; justify-content: space-between; }
+    .form-section-counter { font-size: 10px; color: #7a7a7a; }
+    .form-helper { font-size: 11px; color: #7a7a7a; line-height: 1.4; margin-top: 8px; margin-bottom: 8px; }
+
+    .phrase-form-bops-box {
+      min-height: 38px;
+      padding: 6px 8px;
+      background: #ffffff; border: 1px solid #dcdcdc; border-radius: 8px;
+      display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+      transition: border-color 0.15s;
+    }
+    .phrase-form-bops-box:focus-within { border-color: #6da34d; }
+    .phrase-form-bops-search {
+      flex: 1; min-width: 120px;
+      border: none; outline: none;
+      background: transparent;
+      font-size: 12px; padding: 2px 4px;
+      color: #1a1a1a;
+    }
+    .phrase-form-bops-search::placeholder { color: #b5b5b5; }
+    .phrase-form-bops-dropdown {
+      background: #ffffff; border: 1px solid #dcdcdc; border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      margin-top: 4px; max-height: 200px; overflow-y: auto;
+    }
+    .phrase-form-bops-item {
+      padding: 7px 10px; font-size: 12px; color: #1a1a1a; cursor: pointer;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .phrase-form-bops-item:hover { background: #e7f0dc; color: #4d7a2e; }
+    .phrase-form-bops-empty {
+      padding: 7px 10px; font-size: 11px; color: #7a7a7a; font-style: italic;
+    }
+    .phrase-form-delete { margin-top: 20px; }
 
     /* UTM page (its own view, opened from Links overflow menu — the
        top-line header stays visible; Links tab stays highlighted so
@@ -475,14 +592,22 @@
   <div class="tab-content active" id="tab-links">
     <div class="tab-toolbar">
       <input type="text" id="link-search" placeholder="Search links..." style="flex: 1;">
-      <div class="row-overflow-container">
+      <button class="btn-add-circle" id="btn-add-link" title="Add link" aria-label="Add link">+</button>
+      <button class="btn-save-circle" id="btn-save-link" title="Save" aria-label="Save" hidden>✓</button>
+      <button class="btn-cancel-circle" id="btn-cancel-link" title="Cancel" aria-label="Cancel" hidden>×</button>
+      <div class="row-overflow-container" id="link-overflow-container">
         <button class="row-overflow-btn" id="links-overflow" title="More">⋯</button>
         <div class="row-overflow-menu" id="links-overflow-menu">
-          <div class="row-overflow-item" data-action="copy">Copy all to clipboard</div>
           <div class="row-overflow-item" data-action="utm">UTM rules</div>
+          <div class="row-overflow-item" data-action="copy">Copy all to clipboard</div>
+          <div class="row-overflow-item" data-action="import">Bulk import</div>
           <div class="row-overflow-item danger" data-action="delete">Delete all links</div>
         </div>
       </div>
+    </div>
+    <div class="add-url-row" id="add-link-url-row" hidden>
+      <span class="add-url-arrow" aria-hidden="true">↳</span>
+      <input type="text" id="add-link-url" placeholder="Add URL, e.g. example.com/ribbit">
     </div>
     <div class="list-scroll" id="link-list-scroll">
       <ul class="link-rule-list" id="link-rule-list"></ul>
@@ -494,10 +619,12 @@
   <div class="tab-content" id="tab-corpus">
     <div class="tab-toolbar">
       <input type="text" id="phrase-search" placeholder="Search phrases..." style="flex: 1;">
-      <div class="row-overflow-container">
+      <button class="btn-add-circle" id="btn-add-phrase" title="Add phrase" aria-label="Add phrase">+</button>
+      <div class="row-overflow-container" id="phrase-overflow-container">
         <button class="row-overflow-btn" id="phrases-overflow" title="More">⋯</button>
         <div class="row-overflow-menu" id="phrases-overflow-menu">
           <div class="row-overflow-item" data-action="copy">Copy all to clipboard</div>
+          <div class="row-overflow-item" data-action="import">Bulk import</div>
           <div class="row-overflow-item danger" data-action="delete">Delete all phrases</div>
         </div>
       </div>
@@ -518,6 +645,36 @@
     </div>
     <ul class="utm-list" id="utm-list"></ul>
     <div class="status" id="utm-status"></div>
+  </div>
+
+  <!-- Phrase Form View — full-page add/edit for a single phrase.
+       Reached from the Phrases tab's ＋ button (add) or by clicking
+       a phrase in the list (edit). Phrases tab stays highlighted
+       so the tab bar is the way back. -->
+  <div class="tab-content" id="tab-phrase-form">
+    <div class="phrase-form-header">
+      <h2 class="phrase-form-title" id="phrase-form-title">New phrase</h2>
+      <div class="phrase-form-actions">
+        <button class="btn-form-cancel" id="btn-phrase-form-cancel">Cancel</button>
+        <button class="btn-save-circle" id="btn-phrase-form-save" title="Save" aria-label="Save" disabled>✓</button>
+      </div>
+    </div>
+
+    <label class="form-label" for="phrase-form-input">Phrase</label>
+    <textarea id="phrase-form-input" class="form-field-large phrase-form-textarea" placeholder="Type your phrase here…" spellcheck="true" rows="3"></textarea>
+
+    <div class="form-section-header">
+      <label class="form-label" for="phrase-form-bops-search">Bops</label>
+      <span class="form-section-counter" id="phrase-form-bops-counter" hidden></span>
+    </div>
+    <div class="phrase-form-bops-box" id="phrase-form-bops-box">
+      <input type="text" id="phrase-form-bops-search" class="phrase-form-bops-search" placeholder="Search phrases to add a bop…" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="phrase-form-bops-dropdown" id="phrase-form-bops-dropdown" hidden></div>
+    <div class="form-helper">Do you often use one phrase after another? Add the follow-up phrase as a Bop to see it auto suggested</div>
+
+    <button class="btn btn-danger phrase-form-delete" id="btn-phrase-form-delete" hidden>Delete phrase</button>
+    <div class="status" id="phrase-form-status"></div>
   </div>
 
   <!-- Settings Tab -->
