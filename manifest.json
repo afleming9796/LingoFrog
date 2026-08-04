@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "LingoFrog",
   "version": "1.2.0",
-  "description": "Local autocomplete powered by you. Your words, your links, at your service.",
+  "description": "Gmail autocomplete powered by you. Your links, your phrases, at your service.",
   "permissions": ["storage"],
   "icons": {
     "16": "icons/icon16.png",
