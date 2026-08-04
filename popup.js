@@ -553,8 +553,8 @@ btnExportAll.addEventListener('click', async () => {
   }
 
   const sections = [];
-  if (phrasesText) sections.push(`# Phrases\n\n${phrasesText}`);
   if (linksText) sections.push(`# Links\n\n${linksText}`);
+  if (phrasesText) sections.push(`# Phrases\n\n${phrasesText}`);
   if (utmsText) sections.push(`# UTM Parameters\n\n${utmsText}`);
   if (bopsText) sections.push(`# Bops\n\n${bopsText}`);
 
@@ -565,8 +565,8 @@ btnExportAll.addEventListener('click', async () => {
   const utmCount = [...corpus.utmRules.rules.values()].filter((p) => p && p.length).length;
   const bopCount = bopsText ? bopsText.split('\n').length : 0;
   const parts = [
-    `${phraseCount} phrase${phraseCount === 1 ? '' : 's'}`,
     `${linkCount} link rule${linkCount === 1 ? '' : 's'}`,
+    `${phraseCount} phrase${phraseCount === 1 ? '' : 's'}`,
     `${utmCount} UTM rule${utmCount === 1 ? '' : 's'}`,
     `${bopCount} bop${bopCount === 1 ? '' : 's'}`,
   ];
