@@ -76,8 +76,8 @@ function updatePhraseList() {
   if (scroll) scroll.style.maxHeight = '';
 
   if (allPhrases.length === 0) {
-    const msg = filter ? 'No phrases match your search.' : 'No phrases yet. Click ＋ to add one.';
-    phraseList.innerHTML = `<li style="color: #585b70; font-size: 11px; padding: 12px 0;">${msg}</li>`;
+    const msg = filter ? 'No phrases match your search.' : 'No phrases yet. Click + to add one.';
+    phraseList.innerHTML = `<li class="link-empty">${msg}</li>`;
     return;
   }
 
@@ -134,7 +134,7 @@ function updateLinkRuleList() {
     : rules;
 
   if (filtered.length === 0) {
-    const msg = filter ? 'No links match your search.' : 'No link rules yet. Add some in the Import tab.';
+    const msg = filter ? 'No links match your search.' : 'No link rules yet. Click + to add one.';
     linkRuleList.innerHTML = `<li class="link-empty">${msg}</li>`;
     return;
   }
