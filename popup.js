@@ -77,7 +77,7 @@ function updatePhraseList() {
 
   if (allPhrases.length === 0) {
     const msg = filter ? 'No phrases match your search.' : 'No phrases yet. Click + to add one.';
-    phraseList.innerHTML = `<li style="color: #585b70; font-size: 11px; padding: 12px 0;">${msg}</li>`;
+    phraseList.innerHTML = `<li class="link-empty">${msg}</li>`;
     return;
   }
 
