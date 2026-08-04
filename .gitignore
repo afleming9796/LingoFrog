@@ -13,4 +13,7 @@
 *.crx
 *.pem
 
+# Build artifacts
+dist/
+
 .claude/
