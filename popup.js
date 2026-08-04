@@ -288,7 +288,7 @@ function openImportView(defaultType) {
   importStatus.className = 'status';
 }
 
-btnImportAll.addEventListener('click', () => openImportView('phrases'));
+btnImportAll.addEventListener('click', () => openImportView('links'));
 
 // ── Import: Type Toggle ───────────────────────────────────
 
