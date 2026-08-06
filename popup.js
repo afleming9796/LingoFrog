@@ -30,12 +30,6 @@ let importType = 'phrases';
 let utmExpandedHost = null;
 let utmDraftRoot = null; // { host: '', params: [{key, value}] } when active
 
-// Add-mode state for the inline "morph" form on the Links tab.
-// While true, the search input is repurposed as the "Add …" prompt
-// and its normal input handler skips the list-filter re-render.
-// Phrases use a full-page form instead (see openPhraseForm below).
-let linkAddMode = false;
-
 const HOST_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/;
 
 // ── Initialize ─────────────────────────────────────────────
@@ -52,9 +46,7 @@ async function init() {
 function updateStats() {
   const stats = corpus.getStats();
   phraseSearch.placeholder = searchPlaceholder(stats.totalPhrases, 'phrase');
-  // Skip while the link morph form is up — that input's placeholder
-  // is temporarily showing the "Add …" prompt.
-  if (!linkAddMode) linkSearch.placeholder = searchPlaceholder(stats.totalLinkRules, 'link');
+  linkSearch.placeholder = searchPlaceholder(stats.totalLinkRules, 'link');
 }
 
 // Singular-aware count baked into the search-input placeholder.
@@ -156,27 +148,24 @@ function isSafeNavigableUrl(url) {
   }
 }
 
+// Inline SVGs for the row action buttons. Kept small; sized by the
+// .link-rule-action svg CSS rule.
+const ICON_OPEN_URL = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 11L11 5"/><path d="M6 5h5v5"/></svg>';
+const ICON_COPY = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="8.5" height="9.5" rx="1.5"/><path d="M10.5 5V3.5A1.5 1.5 0 0 0 9 2H4A1.5 1.5 0 0 0 2.5 3.5v6A1.5 1.5 0 0 0 4 11h1"/></svg>';
+
 function renderLinkRuleRow(rule) {
   const li = document.createElement('li');
   li.className = 'link-rule-item';
 
-  // Trigger: clickable <a> that navigates to the raw URL in a new
-  // tab. No UTM application \u2014 the popup is an admin/inspection view
-  // and applying UTMs here would muddy the analytics signal. Unsafe
-  // schemes fall back to a plain span without the navigate
-  // affordance.
-  let trigger;
-  if (isSafeNavigableUrl(rule.url)) {
-    trigger = document.createElement('a');
-    trigger.href = rule.url;
-    trigger.target = '_blank';
-    trigger.rel = 'noopener noreferrer';
-  } else {
-    trigger = document.createElement('span');
-  }
+  // Trigger: click opens the Edit Link sub-view. Was previously an
+  // <a> that navigated to the URL \u2014 that job now belongs to the Open
+  // action button below.
+  const trigger = document.createElement('button');
+  trigger.type = 'button';
   trigger.className = 'link-rule-trigger';
   trigger.textContent = rule.trigger;
-  trigger.title = rule.trigger;
+  trigger.title = 'Edit ' + rule.trigger;
+  trigger.addEventListener('click', () => openLinkForm('edit', rule.trigger));
 
   const arrow = document.createElement('span');
   arrow.className = 'link-rule-arrow';
@@ -187,21 +176,45 @@ function renderLinkRuleRow(rule) {
   url.textContent = rule.url;
   url.title = rule.url;
 
-  const del = document.createElement('button');
-  del.className = 'link-rule-delete';
-  del.textContent = '\u00d7';
-  del.title = 'Remove rule';
-  del.addEventListener('click', async () => {
-    corpus.linkRules.removeRule(rule.trigger);
-    await corpus.linkRules.save();
-    updateLinkRuleList();
-    updateStats();
+  // Open: <a> with target=_blank when the URL is safe; disabled span
+  // otherwise. Anchor keeps us free of the "tabs" permission we'd
+  // otherwise need for chrome.tabs.create.
+  const safe = isSafeNavigableUrl(rule.url);
+  const openBtn = document.createElement(safe ? 'a' : 'span');
+  openBtn.className = 'link-rule-action';
+  openBtn.innerHTML = ICON_OPEN_URL;
+  if (safe) {
+    openBtn.href = rule.url;
+    openBtn.target = '_blank';
+    openBtn.rel = 'noopener noreferrer';
+    openBtn.title = 'Open URL in new tab';
+    openBtn.setAttribute('aria-label', 'Open URL in new tab');
+  } else {
+    openBtn.setAttribute('aria-disabled', 'true');
+    openBtn.title = 'Cannot open this URL scheme';
+    openBtn.setAttribute('aria-label', 'Cannot open this URL scheme');
+  }
+
+  const copyBtn = document.createElement('button');
+  copyBtn.type = 'button';
+  copyBtn.className = 'link-rule-action';
+  copyBtn.innerHTML = ICON_COPY;
+  copyBtn.title = 'Copy URL';
+  copyBtn.setAttribute('aria-label', 'Copy URL');
+  copyBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(rule.url);
+      showStatus(linkStatus, '\u2713 URL copied', 'success');
+    } catch (e) {
+      showStatus(linkStatus, 'Copy failed: ' + e.message, 'error');
+    }
   });
 
   li.appendChild(trigger);
   li.appendChild(arrow);
   li.appendChild(url);
-  li.appendChild(del);
+  li.appendChild(openBtn);
+  li.appendChild(copyBtn);
   return li;
 }
 
@@ -481,13 +494,7 @@ async function clearAllLinks() {
 
 // ── Links: Search ─────────────────────────────────────────
 
-linkSearch.addEventListener('input', () => {
-  if (linkAddMode) {
-    updateLinkSaveEnabled();
-    return;
-  }
-  updateLinkRuleList();
-});
+linkSearch.addEventListener('input', updateLinkRuleList);
 
 // ── Settings: Auto-persist on change ───────────────────────
 
@@ -1194,17 +1201,26 @@ phraseFormBopsSearch.addEventListener('keydown', (e) => {
   }
 });
 
-// ---- Links ----
+// ---- Links: add / edit sub-view ----
 
 const btnAddLink = document.getElementById('btn-add-link');
-const btnSaveLink = document.getElementById('btn-save-link');
-const btnCancelLink = document.getElementById('btn-cancel-link');
-const linkOverflowContainer = document.getElementById('link-overflow-container');
-const addLinkUrlRow = document.getElementById('add-link-url-row');
-const addLinkUrl = document.getElementById('add-link-url');
+const linkFormTitle = document.getElementById('link-form-title');
+const linkFormTrigger = document.getElementById('link-form-trigger');
+const linkFormUrl = document.getElementById('link-form-url');
+const btnLinkFormCancel = document.getElementById('btn-link-form-cancel');
+const btnLinkFormSave = document.getElementById('btn-link-form-save');
+const btnLinkFormDelete = document.getElementById('btn-link-form-delete');
+const linkFormStatus = document.getElementById('link-form-status');
 
+// Normalize what the user typed into the URL field: allow schemeless
+// input ("example.com/foo" → "https://example.com/foo"), preserve
+// mailto:/tel:, reject dangerous schemes and hostnames that aren't
+// actual domains. Returns null when the input can't be salvaged.
 function normalizeAddedUrl(raw) {
-  const t = (raw || '').trim();
+  // Strip all whitespace, not just leading/trailing — the URL field
+  // is now a wrapping textarea, so pasted URLs may carry embedded
+  // newlines that URL() would otherwise reject.
+  const t = (raw || '').replace(/\s+/g, '');
   if (!t) return null;
   if (/^(javascript|data|vbscript|file):/i.test(t)) return null;
   if (/^(mailto|tel):/i.test(t)) return t;
@@ -1218,86 +1234,128 @@ function normalizeAddedUrl(raw) {
   }
 }
 
-function updateLinkSaveEnabled() {
-  const textOk = linkSearch.value.trim().length > 0;
-  const urlOk = normalizeAddedUrl(addLinkUrl.value) !== null;
-  btnSaveLink.disabled = !(textOk && urlOk);
+// Null in add mode, or the trigger key being edited otherwise.
+let linkFormOriginal = null;
+
+function openLinkForm(mode, trigger) {
+  linkFormOriginal = mode === 'edit' ? trigger : null;
+
+  if (mode === 'edit') {
+    const data = corpus.linkRules.rules.get(trigger);
+    // Prefill with the trigger key (lowercased) rather than the stored
+    // label. Every display surface — this row, the Gmail link-prompt,
+    // the link-search overlay — already shows the key, so mirroring
+    // that here keeps the "matching is case-insensitive" mental model
+    // intact: a "My Calendly" saved by an older version won't come
+    // back as "My Calendly" in the form and read as case-sensitive.
+    linkFormTrigger.value = trigger;
+    linkFormUrl.value = data ? data.url : '';
+  } else {
+    linkFormTrigger.value = '';
+    linkFormUrl.value = '';
+  }
+  linkFormStatus.className = 'status';
+  linkFormTitle.textContent = mode === 'edit' ? 'Edit link' : 'New link';
+  btnLinkFormDelete.hidden = mode !== 'edit';
+
+  updateLinkFormSaveEnabled();
+
+  document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
+  document.getElementById('tab-link-form').classList.add('active');
+  document.querySelectorAll('.tab').forEach((t) => {
+    t.classList.toggle('active', t.dataset.tab === 'links');
+  });
+
+  autoGrowLinkFormUrl();
+  linkFormTrigger.focus();
+  if (mode === 'edit') linkFormTrigger.select();
 }
 
-function enterLinkAddMode() {
-  if (linkAddMode) return;
-  linkAddMode = true;
-  linkSearch.value = '';
-  linkSearch.placeholder = 'Add text, e.g. ribbit';
-  addLinkUrl.value = '';
-  addLinkUrlRow.hidden = false;
-  btnAddLink.hidden = true;
-  btnSaveLink.hidden = false;
-  btnCancelLink.hidden = false;
-  linkOverflowContainer.hidden = true;
-  updateLinkSaveEnabled();
-  linkSearch.focus();
+function closeLinkForm() {
+  document.querySelector('.tab[data-tab="links"]').click();
 }
 
-function exitLinkAddMode() {
-  if (!linkAddMode) return;
-  linkAddMode = false;
-  linkSearch.value = '';
-  addLinkUrl.value = '';
-  addLinkUrlRow.hidden = true;
-  btnAddLink.hidden = false;
-  btnSaveLink.hidden = true;
-  btnCancelLink.hidden = true;
-  linkOverflowContainer.hidden = false;
-  updateStats();
-  updateLinkRuleList();
+// Grow the URL textarea to fit its content (mirrors
+// autoGrowPhraseInput). The +2 accounts for the 1px top and bottom
+// borders that scrollHeight excludes but border-box height must
+// include.
+function autoGrowLinkFormUrl() {
+  linkFormUrl.style.height = 'auto';
+  linkFormUrl.style.height = (linkFormUrl.scrollHeight + 2) + 'px';
 }
 
-async function saveLinkFromAddForm() {
-  const text = linkSearch.value.trim();
-  const url = normalizeAddedUrl(addLinkUrl.value);
+function updateLinkFormSaveEnabled() {
+  const text = linkFormTrigger.value.trim();
+  const urlOk = normalizeAddedUrl(linkFormUrl.value) !== null;
+  btnLinkFormSave.disabled = !(text.length > 0 && urlOk);
+}
+
+async function saveLinkForm() {
+  const text = linkFormTrigger.value.trim();
+  const url = normalizeAddedUrl(linkFormUrl.value);
   if (!text || !url) return;
-  corpus.linkRules.addRule(text, url);
-  await corpus.linkRules.save();
+
+  try {
+    if (linkFormOriginal === null) {
+      const newKey = text.toLowerCase();
+      if (corpus.linkRules.rules.has(newKey)) {
+        showStatus(linkFormStatus, 'A rule already exists for that trigger', 'error');
+        return;
+      }
+      corpus.linkRules.addRule(text, url);
+    } else {
+      corpus.linkRules.updateRule(linkFormOriginal, { trigger: text, url });
+    }
+    await corpus.linkRules.save();
+  } catch (e) {
+    showStatus(linkFormStatus, e.message, 'error');
+    return;
+  }
+
   updateStats();
   const label = text.length > 40 ? text.slice(0, 40) + '…' : text;
-  showStatus(linkStatus, `✓ Added "${label}"`, 'success');
-  exitLinkAddMode();
+  showStatus(linkStatus, `✓ Saved "${label}"`, 'success');
+  closeLinkForm();
   updateLinkRuleList();
 }
 
-btnAddLink.addEventListener('click', enterLinkAddMode);
-btnCancelLink.addEventListener('click', exitLinkAddMode);
-btnSaveLink.addEventListener('click', saveLinkFromAddForm);
-addLinkUrl.addEventListener('input', updateLinkSaveEnabled);
+async function deleteLinkFromForm() {
+  if (linkFormOriginal === null) return;
+  if (!confirm(`Delete "${linkFormOriginal}"? This cannot be undone.`)) return;
+  corpus.linkRules.removeRule(linkFormOriginal);
+  await corpus.linkRules.save();
+  updateStats();
+  showStatus(linkStatus, '✓ Deleted', 'success');
+  closeLinkForm();
+  updateLinkRuleList();
+}
 
-linkSearch.addEventListener('keydown', (e) => {
-  if (!linkAddMode) return;
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    addLinkUrl.focus();
-  } else if (e.key === 'Escape') {
-    e.preventDefault();
-    exitLinkAddMode();
-  }
+btnAddLink.addEventListener('click', () => openLinkForm('add'));
+btnLinkFormCancel.addEventListener('click', closeLinkForm);
+btnLinkFormSave.addEventListener('click', saveLinkForm);
+btnLinkFormDelete.addEventListener('click', deleteLinkFromForm);
+
+linkFormTrigger.addEventListener('input', updateLinkFormSaveEnabled);
+linkFormUrl.addEventListener('input', () => {
+  updateLinkFormSaveEnabled();
+  autoGrowLinkFormUrl();
 });
 
-addLinkUrl.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    if (!btnSaveLink.disabled) saveLinkFromAddForm();
-  } else if (e.key === 'Escape') {
-    e.preventDefault();
-    exitLinkAddMode();
-  }
-});
-
-// Cancel add mode when the user switches tabs mid-add.
-document.querySelectorAll('.tab').forEach((tab) => {
-  tab.addEventListener('click', () => {
-    if (linkAddMode && tab.dataset.tab !== 'links') exitLinkAddMode();
+for (const el of [linkFormTrigger, linkFormUrl]) {
+  el.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (el === linkFormTrigger) {
+        linkFormUrl.focus();
+      } else if (!btnLinkFormSave.disabled) {
+        saveLinkForm();
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      closeLinkForm();
+    }
   });
-});
+}
 
 // ── Start ──────────────────────────────────────────────────
 

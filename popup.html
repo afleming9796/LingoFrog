@@ -208,24 +208,6 @@
     .btn-cancel-circle { background: #ececec; color: #7a7a7a; font-size: 15px; }
     .btn-cancel-circle:hover { background: #fbe7e7; color: #b04848; }
 
-    /* Second field of the add-link form. Indented under the search
-       input with a ↳ guide arrow leading down from it. */
-    .add-url-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding-left: 18px;
-      margin-top: 6px;
-      margin-bottom: 8px;
-    }
-    .add-url-arrow {
-      color: #a0a0a0;
-      font-size: 16px;
-      line-height: 1;
-      flex-shrink: 0;
-      user-select: none;
-    }
-    .add-url-row input { flex: 1; }
     .row-overflow-menu {
       /* Pulled left of the ellipsis button so the menu doesn't sit
          above (and hide) the trash-icon column of the rows below. */
@@ -244,14 +226,15 @@
     .row-overflow-item.danger { color: #b04848; }
     .row-overflow-item.danger:hover { background: #fbe7e7; color: #b04848; }
 
-    /* Phrase form page (add / edit) — reached from Phrases ＋ or
-       from clicking a row in the list. */
-    .phrase-form-header {
+    /* Shared header row for full-page forms (phrase and link edit).
+       Both reach here from the ＋ button on their tab or by clicking
+       a row in the list. */
+    .form-page-header {
       display: flex; align-items: center; justify-content: space-between;
       gap: 12px; margin-bottom: 14px;
     }
-    .phrase-form-title { font-size: 14px; font-weight: 700; color: #1a1a1a; }
-    .phrase-form-actions { display: flex; align-items: center; gap: 8px; }
+    .form-page-title { font-size: 14px; font-weight: 700; color: #1a1a1a; }
+    .form-page-actions { display: flex; align-items: center; gap: 8px; }
     .btn-form-cancel {
       background: transparent; border: none;
       color: #7a7a7a; font-size: 12px; font-weight: 600;
@@ -284,6 +267,19 @@
       line-height: 1.4;
       min-height: 0;
       resize: vertical;
+    }
+    /* URL textarea in the Link edit form: shares the phrase-form
+       sizing but breaks anywhere so long URLs wrap and auto-grow
+       instead of scrolling horizontally. The 2.8em min-height keeps
+       the box a comfortable 2 rows even when the URL is short — the
+       JS auto-grow only extends it beyond that. */
+    .link-form-url-textarea {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      font-size: 13px;
+      line-height: 1.4;
+      min-height: calc(2.8em + 22px);
+      resize: vertical;
+      word-break: break-all;
     }
     .form-section-header { display: flex; align-items: baseline; justify-content: space-between; }
     .form-section-counter { font-size: 10px; color: #7a7a7a; }
@@ -443,13 +439,28 @@
     }
     .utm-jump-link:hover { background: #e7f0dc; text-decoration: underline; }
     .link-rule-item { display: flex; align-items: center; gap: 6px; padding: 6px 0; font-size: 11px; border-bottom: 1px solid #ececec; }
-    .link-rule-trigger { color: #4d7a2e; font-weight: 600; flex-shrink: 0; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: none; }
-    a.link-rule-trigger { cursor: pointer; }
-    a.link-rule-trigger:hover { text-decoration: underline; }
+    .link-rule-trigger {
+      color: #4d7a2e; font-weight: 600; flex-shrink: 0;
+      max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      background: none; border: none; padding: 0; font-size: 11px; font-family: inherit;
+      text-align: left; cursor: pointer;
+    }
+    .link-rule-trigger:hover { text-decoration: underline; }
     .link-rule-arrow { color: #b5b5b5; flex-shrink: 0; }
     .link-rule-url { color: #7a7a7a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; font-size: 10px; }
-    .link-rule-delete { background: none; border: none; color: #b04848; cursor: pointer; font-size: 14px; padding: 0 4px; flex-shrink: 0; opacity: 0.5; transition: opacity 0.15s; }
-    .link-rule-delete:hover { opacity: 1; }
+    /* Icon-only row actions (open URL, copy URL). Kept compact so the
+       row stays legible at 380px popup width. */
+    .link-rule-action {
+      background: none; border: none; padding: 2px; cursor: pointer;
+      color: #7a7a7a; border-radius: 4px;
+      display: inline-flex; align-items: center; justify-content: center;
+      flex-shrink: 0; opacity: 0.55; transition: opacity 0.15s, color 0.15s, background 0.15s;
+      text-decoration: none;
+    }
+    .link-rule-action:hover { opacity: 1; color: #4d7a2e; background: #e7f0dc; }
+    .link-rule-action[aria-disabled="true"] { opacity: 0.25; cursor: not-allowed; }
+    .link-rule-action[aria-disabled="true"]:hover { color: #7a7a7a; background: none; }
+    .link-rule-action svg { width: 14px; height: 14px; display: block; }
     .link-empty { color: #a0a0a0; font-size: 11px; padding: 12px 0; text-align: center; }
 
     .import-hint {
@@ -593,8 +604,6 @@
     <div class="tab-toolbar">
       <input type="text" id="link-search" placeholder="Search links..." style="flex: 1;">
       <button class="btn-add-circle" id="btn-add-link" title="Add link" aria-label="Add link">+</button>
-      <button class="btn-save-circle" id="btn-save-link" title="Save" aria-label="Save" hidden>✓</button>
-      <button class="btn-cancel-circle" id="btn-cancel-link" title="Cancel" aria-label="Cancel" hidden>×</button>
       <div class="row-overflow-container" id="link-overflow-container">
         <button class="row-overflow-btn" id="links-overflow" title="More">⋯</button>
         <div class="row-overflow-menu" id="links-overflow-menu">
@@ -604,10 +613,6 @@
           <div class="row-overflow-item danger" data-action="delete">Delete all links</div>
         </div>
       </div>
-    </div>
-    <div class="add-url-row" id="add-link-url-row" hidden>
-      <span class="add-url-arrow" aria-hidden="true">↳</span>
-      <input type="text" id="add-link-url" placeholder="Add URL, e.g. example.com/ribbit">
     </div>
     <div class="list-scroll" id="link-list-scroll">
       <ul class="link-rule-list" id="link-rule-list"></ul>
@@ -652,9 +657,9 @@
        a phrase in the list (edit). Phrases tab stays highlighted
        so the tab bar is the way back. -->
   <div class="tab-content" id="tab-phrase-form">
-    <div class="phrase-form-header">
-      <h2 class="phrase-form-title" id="phrase-form-title">New phrase</h2>
-      <div class="phrase-form-actions">
+    <div class="form-page-header">
+      <h2 class="form-page-title" id="phrase-form-title">New phrase</h2>
+      <div class="form-page-actions">
         <button class="btn-form-cancel" id="btn-phrase-form-cancel">Cancel</button>
         <button class="btn-save-circle" id="btn-phrase-form-save" title="Save" aria-label="Save" disabled>✓</button>
       </div>
@@ -675,6 +680,29 @@
 
     <button class="btn btn-danger phrase-form-delete" id="btn-phrase-form-delete" hidden>Delete phrase</button>
     <div class="status" id="phrase-form-status"></div>
+  </div>
+
+  <!-- Link Form View — full-page add/edit for a single link rule.
+       Reached from the Links tab's ＋ button (add) or by clicking a
+       trigger in the list (edit). Links tab stays highlighted so the
+       tab bar is the way back. -->
+  <div class="tab-content" id="tab-link-form">
+    <div class="form-page-header">
+      <h2 class="form-page-title" id="link-form-title">New link</h2>
+      <div class="form-page-actions">
+        <button class="btn-form-cancel" id="btn-link-form-cancel">Cancel</button>
+        <button class="btn-save-circle" id="btn-link-form-save" title="Save" aria-label="Save" disabled>✓</button>
+      </div>
+    </div>
+
+    <label class="form-label" for="link-form-trigger">Trigger</label>
+    <input type="text" id="link-form-trigger" class="form-field-large" placeholder="e.g. ribbit" autocomplete="off" spellcheck="false">
+
+    <label class="form-label" for="link-form-url">URL</label>
+    <textarea id="link-form-url" class="form-field-large link-form-url-textarea" placeholder="e.g. example.com/ribbit" autocomplete="off" spellcheck="false" rows="2"></textarea>
+
+    <button class="btn btn-danger phrase-form-delete" id="btn-link-form-delete" hidden>Delete link</button>
+    <div class="status" id="link-form-status"></div>
   </div>
 
   <!-- Settings Tab -->
