@@ -268,6 +268,19 @@
       min-height: 0;
       resize: vertical;
     }
+    /* URL textarea in the Link edit form: shares the phrase-form
+       sizing but breaks anywhere so long URLs wrap and auto-grow
+       instead of scrolling horizontally. The 2.8em min-height keeps
+       the box a comfortable 2 rows even when the URL is short — the
+       JS auto-grow only extends it beyond that. */
+    .link-form-url-textarea {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      font-size: 13px;
+      line-height: 1.4;
+      min-height: calc(2.8em + 22px);
+      resize: vertical;
+      word-break: break-all;
+    }
     .form-section-header { display: flex; align-items: baseline; justify-content: space-between; }
     .form-section-counter { font-size: 10px; color: #7a7a7a; }
     .form-helper { font-size: 11px; color: #7a7a7a; line-height: 1.4; margin-top: 8px; margin-bottom: 8px; }
@@ -686,7 +699,7 @@
     <input type="text" id="link-form-trigger" class="form-field-large" placeholder="e.g. ribbit" autocomplete="off" spellcheck="false">
 
     <label class="form-label" for="link-form-url">URL</label>
-    <input type="text" id="link-form-url" class="form-field-large" placeholder="e.g. example.com/ribbit" autocomplete="off" spellcheck="false">
+    <textarea id="link-form-url" class="form-field-large link-form-url-textarea" placeholder="e.g. example.com/ribbit" autocomplete="off" spellcheck="false" rows="2"></textarea>
 
     <button class="btn btn-danger phrase-form-delete" id="btn-link-form-delete" hidden>Delete link</button>
     <div class="status" id="link-form-status"></div>

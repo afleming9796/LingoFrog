@@ -1217,7 +1217,10 @@ const linkFormStatus = document.getElementById('link-form-status');
 // mailto:/tel:, reject dangerous schemes and hostnames that aren't
 // actual domains. Returns null when the input can't be salvaged.
 function normalizeAddedUrl(raw) {
-  const t = (raw || '').trim();
+  // Strip all whitespace, not just leading/trailing — the URL field
+  // is now a wrapping textarea, so pasted URLs may carry embedded
+  // newlines that URL() would otherwise reject.
+  const t = (raw || '').replace(/\s+/g, '');
   if (!t) return null;
   if (/^(javascript|data|vbscript|file):/i.test(t)) return null;
   if (/^(mailto|tel):/i.test(t)) return t;
@@ -1257,12 +1260,22 @@ function openLinkForm(mode, trigger) {
     t.classList.toggle('active', t.dataset.tab === 'links');
   });
 
+  autoGrowLinkFormUrl();
   linkFormTrigger.focus();
   if (mode === 'edit') linkFormTrigger.select();
 }
 
 function closeLinkForm() {
   document.querySelector('.tab[data-tab="links"]').click();
+}
+
+// Grow the URL textarea to fit its content (mirrors
+// autoGrowPhraseInput). The +2 accounts for the 1px top and bottom
+// borders that scrollHeight excludes but border-box height must
+// include.
+function autoGrowLinkFormUrl() {
+  linkFormUrl.style.height = 'auto';
+  linkFormUrl.style.height = (linkFormUrl.scrollHeight + 2) + 'px';
 }
 
 function updateLinkFormSaveEnabled() {
@@ -1317,7 +1330,10 @@ btnLinkFormSave.addEventListener('click', saveLinkForm);
 btnLinkFormDelete.addEventListener('click', deleteLinkFromForm);
 
 linkFormTrigger.addEventListener('input', updateLinkFormSaveEnabled);
-linkFormUrl.addEventListener('input', updateLinkFormSaveEnabled);
+linkFormUrl.addEventListener('input', () => {
+  updateLinkFormSaveEnabled();
+  autoGrowLinkFormUrl();
+});
 
 for (const el of [linkFormTrigger, linkFormUrl]) {
   el.addEventListener('keydown', (e) => {
