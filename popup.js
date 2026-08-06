@@ -88,16 +88,6 @@ function updatePhraseList() {
 
     text.addEventListener('click', () => openPhraseForm('edit', item.phrase));
 
-    const del = document.createElement('button');
-    del.className = 'phrase-delete';
-    del.textContent = '\u00d7';
-    del.title = 'Delete phrase';
-    del.addEventListener('click', async () => {
-      await corpus.deletePhrase(item.phrase);
-      updateStats();
-      updatePhraseList();
-    });
-
     li.appendChild(freq);
     li.appendChild(text);
     // Small badge if this phrase has any follow-ups configured, so
@@ -110,7 +100,6 @@ function updatePhraseList() {
       badge.title = 'This phrase bops to ' + followCount + ' follow-up phrase' + (followCount === 1 ? '' : 's');
       li.appendChild(badge);
     }
-    li.appendChild(del);
     phraseList.appendChild(li);
   }
 }
