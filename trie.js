@@ -129,6 +129,24 @@ class LinkRules {
     this.rules.delete(phrase.toLowerCase().trim());
   }
 
+  // Rename a rule and/or update its URL. Throws if the new trigger
+  // normalizes to an existing key that isn't the one being edited —
+  // the Link edit page relies on this to surface a "trigger already
+  // exists" error instead of silently overwriting.
+  updateRule(oldPhrase, { trigger, url }) {
+    const oldKey = oldPhrase.toLowerCase().trim();
+    const newKey = trigger.toLowerCase().trim();
+    if (!this.rules.has(oldKey)) throw new Error('Rule not found');
+    if (newKey !== oldKey && this.rules.has(newKey)) {
+      const err = new Error('A rule already exists for that trigger');
+      err.code = 'DUPLICATE_TRIGGER';
+      throw err;
+    }
+    const next = { url: url.trim(), label: trigger.trim() };
+    if (newKey !== oldKey) this.rules.delete(oldKey);
+    this.rules.set(newKey, next);
+  }
+
   getAll() {
     return [...this.rules.entries()].map(([trigger, data]) => ({
       trigger,
