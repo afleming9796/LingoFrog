@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "LingoFrog",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Gmail autocomplete powered by you. Your links, your phrases, at your service.",
   "permissions": ["storage"],
   "icons": {
