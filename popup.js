@@ -1242,7 +1242,13 @@ function openLinkForm(mode, trigger) {
 
   if (mode === 'edit') {
     const data = corpus.linkRules.rules.get(trigger);
-    linkFormTrigger.value = data ? (data.label || trigger) : trigger;
+    // Prefill with the trigger key (lowercased) rather than the stored
+    // label. Every display surface — this row, the Gmail link-prompt,
+    // the link-search overlay — already shows the key, so mirroring
+    // that here keeps the "matching is case-insensitive" mental model
+    // intact: a "My Calendly" saved by an older version won't come
+    // back as "My Calendly" in the form and read as case-sensitive.
+    linkFormTrigger.value = trigger;
     linkFormUrl.value = data ? data.url : '';
   } else {
     linkFormTrigger.value = '';
