@@ -36,8 +36,7 @@
   "commands": {
     "_execute_action": {
       "suggested_key": {
-        "default": "Ctrl+L",
-        "mac": "MacCtrl+L"
+        "default": "Alt+Shift+L"
       },
       "description": "Open LingoFrog"
     }
