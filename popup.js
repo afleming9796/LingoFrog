@@ -41,6 +41,17 @@ async function init() {
   updateLinkRuleList();
   updateUtmList();
   loadSettings();
+  focusActiveTabSearch();
+}
+
+// On popup open, drop the cursor in the current tab's search input so
+// users can start typing (or hit ⌃L → type) without an extra click.
+// Only Links and Phrases have a search; other tabs are no-ops.
+function focusActiveTabSearch() {
+  const active = document.querySelector('.tab-content.active');
+  if (!active) return;
+  const search = active.querySelector('#link-search, #phrase-search');
+  if (search) search.focus();
 }
 
 function updateStats() {
