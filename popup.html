@@ -6,8 +6,22 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     [hidden] { display: none !important; }
 
+    /* Hard-cap the popup width. Chrome's action popup auto-sizes to
+       fit its content, so a child with an unusually wide computed
+       layout (a very tall textarea rendering a long unbroken token,
+       an oversize dropdown item, etc.) can otherwise push the whole
+       popup out to ~2× width. Pinning html + body to 380px and
+       clipping horizontal overflow keeps the popup at its intended
+       size no matter what the content asks for. */
+    html {
+      width: 380px;
+      max-width: 380px;
+      overflow-x: hidden;
+    }
     body {
       width: 380px;
+      max-width: 380px;
+      overflow-x: hidden;
       min-height: 400px;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
       background: #f5f5f5;
@@ -266,7 +280,9 @@
       font-size: 13px;
       line-height: 1.4;
       min-height: 0;
+      max-width: 100%;
       resize: vertical;
+      overflow-wrap: anywhere;
     }
     /* URL textarea in the Link edit form: shares the phrase-form
        sizing but breaks anywhere so long URLs wrap and auto-grow
@@ -348,12 +364,37 @@
 
     .phrase-list { list-style: none; margin-top: 8px; }
     .list-scroll { max-height: 320px; overflow-y: auto; margin-top: 8px; }
-    .list-scroll .phrase-list, .list-scroll .link-rule-list { margin-top: 0; }
+    /* padding-right leaves room for the trailing focus ring on
+       .phrase-copy-btn / .link-rule-action (their outlines sit ~3px
+       outside the button box) so it isn't clipped by .list-scroll's
+       overflow rectangle. */
+    .list-scroll .phrase-list, .list-scroll .link-rule-list { margin-top: 0; padding-right: 4px; }
     .list-scroll .btn-danger { margin-top: 16px; }
     .phrase-item { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 11px; border-bottom: 1px solid #ececec; }
-    .phrase-freq { background: #ececec; color: #6e6e6e; border-radius: 4px; padding: 1px 6px; font-size: 10px; font-weight: 600; flex-shrink: 0; }
-    .phrase-text { color: #3a3a3a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; cursor: pointer; }
+    /* Copy icon on the left of each phrase row (replaces the old
+       .phrase-freq badge). Mirrors .link-rule-action so both tabs
+       share the same visual language for row-level icon actions. */
+    .phrase-copy-btn {
+      background: none; border: none; padding: 2px; cursor: pointer;
+      color: #7a7a7a; border-radius: 4px;
+      display: inline-flex; align-items: center; justify-content: center;
+      flex-shrink: 0; opacity: 0.55; transition: opacity 0.15s, color 0.15s, background 0.15s;
+    }
+    .phrase-copy-btn:hover { opacity: 1; color: #4d7a2e; background: #e7f0dc; }
+    .phrase-copy-btn:focus-visible { opacity: 1; outline: 2px solid #6da34d; outline-offset: 1px; }
+    .phrase-copy-btn svg { width: 14px; height: 14px; display: block; }
+    /* .phrase-text is a <button> so Tab traverses the phrase list;
+       reset the browser's default button chrome so it still reads as
+       inline text, and give it a visible focus ring for keyboard use. */
+    .phrase-text {
+      color: #3a3a3a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      flex: 1; cursor: pointer;
+      background: none; border: none; padding: 0; margin: 0;
+      font: inherit; text-align: left;
+      border-radius: 4px;
+    }
     .phrase-text:hover { color: #6da34d; }
+    .phrase-text:focus-visible { outline: 2px solid #6da34d; outline-offset: 1px; color: #4d7a2e; }
     .phrase-edit-input {
       flex: 1;
       min-width: 0;

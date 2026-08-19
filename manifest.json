@@ -19,6 +19,9 @@
       "128": "icons/lf128.png"
     }
   },
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
       "matches": ["https://mail.google.com/*"],
@@ -36,9 +39,15 @@
   "commands": {
     "_execute_action": {
       "suggested_key": {
-        "default": "Alt+Shift+L"
+        "default": "Alt+L"
       },
       "description": "Open LingoFrog"
+    },
+    "open_phrases": {
+      "suggested_key": {
+        "default": "Alt+P"
+      },
+      "description": "Open LingoFrog on the Phrases tab"
     }
   }
 }
