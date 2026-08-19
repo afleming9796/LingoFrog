@@ -41,7 +41,53 @@ async function init() {
   updateLinkRuleList();
   updateUtmList();
   loadSettings();
+  await applyOpenTabTarget();
   focusActiveTabSearch();
+}
+
+// Alt+P lands in background.js, which stashes a target tab id in
+// session storage before opening the popup. Read and clear that flag
+// here so the popup lands on the Phrases tab. Alt+L uses Chrome's
+// native _execute_action command — no flag, popup opens on its HTML
+// default (Links) — so there's nothing extra to do for that case.
+async function applyOpenTabTarget() {
+  if (!chrome.storage || !chrome.storage.session) return;
+  try {
+    const { lingofrog_open_tab: target } = await chrome.storage.session.get('lingofrog_open_tab');
+    if (!target) return;
+    await chrome.storage.session.remove('lingofrog_open_tab');
+    const tabBtn = document.querySelector(`.tab[data-tab="${target}"]`);
+    if (tabBtn) tabBtn.click();
+  } catch (e) {
+    // session storage may be unavailable in some contexts; harmless.
+  }
+}
+
+// While the popup is open, Alt+P still fires the background command
+// listener (Chrome doesn't route it to the popup's own keydown).
+// background.js forwards it here as { type: 'lingofrog_shortcut',
+// target: 'corpus' }. If the tab bar already shows Phrases as active,
+// treat the second press as toggle-off and close the popup; otherwise
+// switch to Phrases. Sub-views (phrase form, import) leave the parent
+// tab visually active, so this "match .tab.active" check does the
+// right thing there too. Responding { ok: true } tells background
+// not to fall through to openPopup().
+if (chrome.runtime && chrome.runtime.onMessage) {
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (!msg || msg.type !== 'lingofrog_shortcut') return;
+    const activeTab = document.querySelector('.tab.active');
+    const current = activeTab ? activeTab.dataset.tab : null;
+    if (current === msg.target) {
+      sendResponse({ ok: true });
+      window.close();
+    } else {
+      const tabBtn = document.querySelector(`.tab[data-tab="${msg.target}"]`);
+      if (tabBtn) tabBtn.click();
+      focusActiveTabSearch();
+      sendResponse({ ok: true });
+    }
+    return false;
+  });
 }
 
 // On popup open, drop the cursor in the current tab's search input so
@@ -88,18 +134,36 @@ function updatePhraseList() {
     const li = document.createElement('li');
     li.className = 'phrase-item';
 
-    const freq = document.createElement('span');
-    freq.className = 'phrase-freq';
-    freq.textContent = Math.round(item.score);
+    // Copy button (was the frequency badge). Copies the raw phrase
+    // — not the possibly-ellipsized display text — so users get the
+    // full string on the clipboard even when the row was truncated
+    // to fit the popup width.
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.className = 'phrase-copy-btn';
+    copyBtn.innerHTML = ICON_COPY;
+    copyBtn.title = 'Copy phrase';
+    copyBtn.setAttribute('aria-label', 'Copy phrase');
+    copyBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      try {
+        await navigator.clipboard.writeText(item.phrase);
+        showStatus(corpusStatus, '✓ Phrase copied', 'success');
+      } catch (err) {
+        showStatus(corpusStatus, 'Copy failed: ' + err.message, 'error');
+      }
+    });
 
-    const text = document.createElement('span');
+    // Real <button> (was <span>) so Tab traverses the phrase list and
+    // Enter opens the edit form on the focused row.
+    const text = document.createElement('button');
+    text.type = 'button';
     text.className = 'phrase-text';
     text.textContent = item.phrase.length > 60 ? item.phrase.slice(0, 60) + '\u2026' : item.phrase;
     text.title = item.phrase;
 
     text.addEventListener('click', () => openPhraseForm('edit', item.phrase));
 
-    li.appendChild(freq);
     li.appendChild(text);
     // Small badge if this phrase has any follow-ups configured, so
     // users can scan the list and see which entries are bopped.
@@ -111,6 +175,9 @@ function updatePhraseList() {
       badge.title = 'This phrase bops to ' + followCount + ' follow-up phrase' + (followCount === 1 ? '' : 's');
       li.appendChild(badge);
     }
+    // Copy icon lives on the right — after the bop badge — so both
+    // Phrases and Links share the "icon actions on the right" layout.
+    li.appendChild(copyBtn);
     phraseList.appendChild(li);
   }
 }
