@@ -368,7 +368,9 @@
        .phrase-copy-btn / .link-rule-action (their outlines sit ~3px
        outside the button box) so it isn't clipped by .list-scroll's
        overflow rectangle. */
-    .list-scroll .phrase-list, .list-scroll .link-rule-list { margin-top: 0; padding-right: 4px; }
+    .list-scroll .phrase-list,
+    .list-scroll .link-rule-list,
+    .list-scroll .block-list { margin-top: 0; padding-right: 4px; }
     .list-scroll .btn-danger { margin-top: 16px; }
     .phrase-item { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 11px; border-bottom: 1px solid #ececec; }
     /* Copy icon on the left of each phrase row (replaces the old
@@ -395,6 +397,43 @@
     }
     .phrase-text:hover { color: #6da34d; }
     .phrase-text:focus-visible { outline: 2px solid #6da34d; outline-offset: 1px; color: #4d7a2e; }
+
+    /* Blocks list. Row shape mirrors .phrase-item but the badge here
+       marks "extra lines beyond the first" instead of a bop count. */
+    .block-list { list-style: none; margin-top: 8px; }
+    .block-item { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 11px; border-bottom: 1px solid #ececec; }
+    .block-text {
+      color: #3a3a3a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      flex: 1; cursor: pointer;
+      background: none; border: none; padding: 0; margin: 0;
+      font: inherit; text-align: left;
+      border-radius: 4px;
+    }
+    .block-text:hover { color: #6da34d; }
+    .block-text:focus-visible { outline: 2px solid #6da34d; outline-offset: 1px; color: #4d7a2e; }
+    /* "+N lines" chip. Neutral grey so it reads as a size indicator,
+       not a status. Sits between the preview text and the copy icon
+       the same way .phrase-bop-badge does on a phrase row. */
+    .block-lines-badge {
+      background: #ececec; color: #6e6e6e;
+      border-radius: 4px; padding: 0 5px;
+      font-size: 9px; font-weight: 600;
+      flex-shrink: 0; letter-spacing: 0.3px;
+    }
+
+    /* Block edit form textarea. Same visual language as the phrase
+       form's textarea, but starts a lot taller — blocks are the
+       multi-line case, so a compact 3-row default reads as cramped. */
+    .block-form-textarea {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      font-size: 13px;
+      line-height: 1.4;
+      min-height: 180px;
+      max-width: 100%;
+      resize: vertical;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+    }
     .phrase-edit-input {
       flex: 1;
       min-width: 0;
@@ -601,6 +640,7 @@
     <div class="tabs">
       <button class="tab active" data-tab="links">Links</button>
       <button class="tab" data-tab="corpus">Phrases</button>
+      <button class="tab" data-tab="blocks">Blocks</button>
       <button class="tab tab-icon" data-tab="settings" title="Settings" aria-label="Settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       </button>
@@ -619,6 +659,7 @@
       <div class="import-type-overflow-container">
         <button class="import-type-btn-overflow" id="import-type-overflow" title="More types">⋯</button>
         <div class="import-type-overflow-menu" id="import-type-overflow-menu">
+          <div class="import-type-overflow-item" data-type="blocks">Blocks</div>
           <div class="import-type-overflow-item" data-type="utms">UTM Parameters</div>
           <div class="import-type-overflow-item" data-type="bops">Bops</div>
         </div>
@@ -677,6 +718,52 @@
       <ul class="phrase-list" id="phrase-list"></ul>
     </div>
     <div class="status" id="corpus-status"></div>
+  </div>
+
+  <!-- Blocks Tab — multi-line reusable snippets (paragraphs, bulleted
+       lists). Copy-only; not surfaced in Gmail autocomplete. Same
+       search + add + overflow toolbar shape as Phrases and Links so
+       the tab reads as a sibling. -->
+  <div class="tab-content" id="tab-blocks">
+    <div class="tab-toolbar">
+      <input type="text" id="block-search" placeholder="Search blocks..." style="flex: 1;">
+      <button class="btn-add-circle" id="btn-add-block" title="Add block" aria-label="Add block">+</button>
+      <div class="row-overflow-container" id="block-overflow-container">
+        <button class="row-overflow-btn" id="blocks-overflow" title="More">⋯</button>
+        <div class="row-overflow-menu" id="blocks-overflow-menu">
+          <div class="row-overflow-item" data-action="copy">Copy all to clipboard</div>
+          <div class="row-overflow-item" data-action="import">Bulk import</div>
+          <div class="row-overflow-item danger" data-action="delete">Delete all blocks</div>
+        </div>
+      </div>
+    </div>
+    <div class="list-scroll" id="block-list-scroll">
+      <ul class="block-list" id="block-list"></ul>
+    </div>
+    <div class="status" id="block-status"></div>
+  </div>
+
+  <!-- Block Form View — full-page add/edit for a single block. Reached
+       from the Blocks tab's ＋ button (add) or by clicking a block in
+       the list (edit). Blocks tab stays highlighted so the tab bar is
+       the way back. Unlike the Phrase form, Enter inserts a real
+       newline — the whole point of a block is to preserve line breaks
+       and bulleted lists — and there's no Bops section. -->
+  <div class="tab-content" id="tab-block-form">
+    <div class="form-page-header">
+      <h2 class="form-page-title" id="block-form-title">New block</h2>
+      <div class="form-page-actions">
+        <button class="btn-form-cancel" id="btn-block-form-cancel">Cancel</button>
+        <button class="btn-save-circle" id="btn-block-form-save" title="Save" aria-label="Save" disabled>✓</button>
+      </div>
+    </div>
+
+    <label class="form-label" for="block-form-input">Block</label>
+    <textarea id="block-form-input" class="form-field-large block-form-textarea" placeholder="Type or paste your block here…&#10;&#10;Line breaks are preserved.&#10;- Start a line with &quot;- &quot; or &quot;* &quot; for a bulleted list" spellcheck="true" rows="10"></textarea>
+    <div class="form-helper">Copied blocks paste into Gmail as formatted rich text — line breaks stay, and lines starting with <code>- </code> or <code>* </code> paste as a bulleted list.</div>
+
+    <button class="btn btn-danger phrase-form-delete" id="btn-block-form-delete" hidden>Delete block</button>
+    <div class="status" id="block-form-status"></div>
   </div>
 
   <!-- UTM View — reached from Links tab's ellipsis menu → UTM rules.

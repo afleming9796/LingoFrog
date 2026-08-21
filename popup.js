@@ -21,6 +21,9 @@ const linkSearch = $('#link-search');
 const utmList = $('#utm-list');
 const utmStatus = $('#utm-status');
 const btnAddUtmRoot = $('#btn-add-utm-root');
+const blockList = $('#block-list');
+const blockSearch = $('#block-search');
+const blockStatus = $('#block-status');
 
 let importType = 'phrases';
 
@@ -39,6 +42,7 @@ async function init() {
   updateStats();
   updatePhraseList();
   updateLinkRuleList();
+  updateBlockList();
   updateUtmList();
   loadSettings();
   await applyOpenTabTarget();
@@ -104,6 +108,9 @@ function updateStats() {
   const stats = corpus.getStats();
   phraseSearch.placeholder = searchPlaceholder(stats.totalPhrases, 'phrase');
   linkSearch.placeholder = searchPlaceholder(stats.totalLinkRules, 'link');
+  if (blockSearch) {
+    blockSearch.placeholder = searchPlaceholder(corpus.blocks.entries.size, 'block');
+  }
 }
 
 // Singular-aware count baked into the search-input placeholder.
@@ -396,6 +403,13 @@ const IMPORT_TYPES = {
     hint: 'One Bop per line: <code>source phrase -&gt; follower phrase</code><br>Both phrases must already be saved in your corpus.',
     placeholder: 'Paste Bops here, one per line...\n\nThanks for the quick turnaround -> Let me know if you have any questions',
   },
+  blocks: {
+    label: 'Blocks',
+    button: 'Import Blocks',
+    empty: 'Paste some blocks first',
+    hint: 'One block per record. Records are separated by a blank line. Line breaks inside a record are preserved, and lines starting with <code>- </code> or <code>* </code> paste as a bulleted list on copy.',
+    placeholder: 'Paste blocks here, blank line between each...\n\nHi there,\n\nThanks for reaching out — happy to help. Here are the next steps:\n- Reply with your account email\n- Confirm the timezone you\'d like to meet in\n\nBest,\nAlex\n\nAnother block goes here.',
+  },
   utms: {
     label: 'UTM Parameters',
     button: 'Import UTM Rules',
@@ -404,7 +418,7 @@ const IMPORT_TYPES = {
     placeholder: 'Paste UTM rules here, one per line...\n\nexample.com; utm_source=lingofrog; utm_medium=email\ndocs.example.com; utm_source=lingofrog',
   },
 };
-const OVERFLOW_TYPES = new Set(['bops', 'utms']);
+const OVERFLOW_TYPES = new Set(['blocks', 'bops', 'utms']);
 
 const importOverflowBtn = $('#import-type-overflow');
 const importOverflowMenu = $('#import-type-overflow-menu');
@@ -499,6 +513,10 @@ btnImport.addEventListener('click', async () => {
       const skipNote = skipped ? ` (${skipped} skipped)` : '';
       showStatus(importStatus, `\u2713 ${added} UTM rule${added === 1 ? '' : 's'} imported${skipNote}`, 'success');
       updateUtmList();
+    } else if (importType === 'blocks') {
+      const added = await corpus.blocks.importBulk(text);
+      showStatus(importStatus, `\u2713 ${added} new block${added === 1 ? '' : 's'} added`, 'success');
+      updateBlockList();
     }
     pasteArea.value = '';
     updateStats();
@@ -557,6 +575,27 @@ async function clearAllLinks() {
   await corpus.linkRules.save();
   updateStats();
   updateLinkRuleList();
+}
+
+async function copyBlocksToClipboard() {
+  const text = corpus.blocks.exportText();
+  if (!text) {
+    showStatus(blockStatus, 'Nothing to copy', 'error');
+    return;
+  }
+  await navigator.clipboard.writeText(text);
+  const count = corpus.blocks.entries.size;
+  showStatus(blockStatus, `✓ Copied ${count} block${count === 1 ? '' : 's'} to clipboard`, 'success');
+}
+
+async function clearAllBlocks() {
+  const count = corpus.blocks.entries.size;
+  if (count === 0) return;
+  if (!confirm(`Delete all ${count} blocks? This cannot be undone.`)) return;
+  corpus.blocks.clear();
+  await corpus.blocks.save();
+  updateStats();
+  updateBlockList();
 }
 
 // ── Links: Search ─────────────────────────────────────────
@@ -620,8 +659,9 @@ btnExportAll.addEventListener('click', async () => {
   const linksText = corpus.linkRules.exportText();
   const utmsText = corpus.utmRules.exportText();
   const bopsText = corpus.exportBops();
+  const blocksText = corpus.blocks.exportText();
 
-  if (!phrasesText && !linksText && !utmsText && !bopsText) {
+  if (!phrasesText && !linksText && !utmsText && !bopsText && !blocksText) {
     showStatus(backupStatus, 'Nothing to copy', 'error');
     return;
   }
@@ -629,6 +669,7 @@ btnExportAll.addEventListener('click', async () => {
   const sections = [];
   if (linksText) sections.push(`# Links\n\n${linksText}`);
   if (phrasesText) sections.push(`# Phrases\n\n${phrasesText}`);
+  if (blocksText) sections.push(`# Blocks\n\n${blocksText}`);
   if (utmsText) sections.push(`# UTM Parameters\n\n${utmsText}`);
   if (bopsText) sections.push(`# Bops\n\n${bopsText}`);
 
@@ -638,9 +679,11 @@ btnExportAll.addEventListener('click', async () => {
   const linkCount = corpus.linkRules.rules.size;
   const utmCount = [...corpus.utmRules.rules.values()].filter((p) => p && p.length).length;
   const bopCount = bopsText ? bopsText.split('\n').length : 0;
+  const blockCount = corpus.blocks.entries.size;
   const parts = [
     `${linkCount} link rule${linkCount === 1 ? '' : 's'}`,
     `${phraseCount} phrase${phraseCount === 1 ? '' : 's'}`,
+    `${blockCount} block${blockCount === 1 ? '' : 's'}`,
     `${utmCount} UTM rule${utmCount === 1 ? '' : 's'}`,
     `${bopCount} bop${bopCount === 1 ? '' : 's'}`,
   ];
@@ -946,6 +989,11 @@ const ROW_MENU_ACTIONS = {
     import: () => openImportView('links'),
     delete: clearAllLinks,
   },
+  blocks: {
+    copy: copyBlocksToClipboard,
+    import: () => openImportView('blocks'),
+    delete: clearAllBlocks,
+  },
 };
 
 function wireRowOverflow(name) {
@@ -980,6 +1028,7 @@ function wireRowOverflow(name) {
 
 wireRowOverflow('phrases');
 wireRowOverflow('links');
+wireRowOverflow('blocks');
 
 // Click outside dismisses any open row menu.
 document.addEventListener('click', (e) => {
@@ -1423,6 +1472,251 @@ for (const el of [linkFormTrigger, linkFormUrl]) {
     }
   });
 }
+
+// ── Blocks: list + edit sub-view ────────────────────────────
+//
+// Blocks are multi-line reusable snippets — paragraphs, bulleted
+// lists — surfaced through the Blocks tab and copied on click. They
+// are intentionally NOT fed to the autocomplete trie (multi-line
+// completions would be a UX surprise); the copy icon is how they
+// reach Gmail. Row shape mirrors .phrase-item.
+
+const blockListScroll = document.getElementById('block-list-scroll');
+const btnAddBlock = document.getElementById('btn-add-block');
+const blockFormInput = document.getElementById('block-form-input');
+const blockFormTitle = document.getElementById('block-form-title');
+const blockFormStatus = document.getElementById('block-form-status');
+const btnBlockFormSave = document.getElementById('btn-block-form-save');
+const btnBlockFormCancel = document.getElementById('btn-block-form-cancel');
+const btnBlockFormDelete = document.getElementById('btn-block-form-delete');
+
+// Null in add mode, or the original block text being edited otherwise.
+let blockFormOriginal = null;
+
+function updateBlockList() {
+  if (!blockList) return;
+  const filter = blockSearch ? blockSearch.value.trim() : '';
+  const rows = corpus.blocks.getAll(filter);
+  blockList.innerHTML = '';
+
+  if (rows.length === 0) {
+    const msg = filter ? 'No blocks match your search.' : 'No blocks yet. Click + to add one.';
+    blockList.innerHTML = `<li class="link-empty">${msg}</li>`;
+    return;
+  }
+
+  for (const row of rows) {
+    blockList.appendChild(renderBlockRow(row));
+  }
+}
+
+// Row layout: [preview button] [+N chip] [copy icon]. Preview is the
+// first non-empty line (ellipsized to 60 chars). The chip counts the
+// additional line-break-separated lines — matches the "extra content
+// you don't see in the row" mental model.
+function renderBlockRow(row) {
+  const li = document.createElement('li');
+  li.className = 'block-item';
+
+  // Real <button> so Tab traverses the list and Enter opens edit.
+  const text = document.createElement('button');
+  text.type = 'button';
+  text.className = 'block-text';
+  const lines = row.text.split('\n');
+  const firstLine = lines.find((l) => l.trim().length) || row.text;
+  const preview = firstLine.length > 60 ? firstLine.slice(0, 60) + '…' : firstLine;
+  text.textContent = preview;
+  // title = the full block, up to a sensible cap so the browser
+  // tooltip doesn't blow past the screen edge on very long entries.
+  text.title = row.text.length > 400 ? row.text.slice(0, 400) + '…' : row.text;
+  text.addEventListener('click', () => openBlockForm('edit', row.text));
+
+  li.appendChild(text);
+
+  const extra = Math.max(0, lines.length - 1);
+  if (extra > 0) {
+    const badge = document.createElement('span');
+    badge.className = 'block-lines-badge';
+    badge.textContent = `+${extra} line${extra === 1 ? '' : 's'}`;
+    badge.title = `${extra} additional line${extra === 1 ? '' : 's'}`;
+    li.appendChild(badge);
+  }
+
+  const copyBtn = document.createElement('button');
+  copyBtn.type = 'button';
+  copyBtn.className = 'phrase-copy-btn';
+  copyBtn.innerHTML = ICON_COPY;
+  copyBtn.title = 'Copy block';
+  copyBtn.setAttribute('aria-label', 'Copy block');
+  copyBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    try {
+      await copyBlockToClipboard(row.text);
+      corpus.blocks.recordUsage(row.text);
+      await corpus.blocks.save();
+      showStatus(blockStatus, '✓ Block copied', 'success');
+    } catch (err) {
+      showStatus(blockStatus, 'Copy failed: ' + err.message, 'error');
+    }
+  });
+  li.appendChild(copyBtn);
+
+  return li;
+}
+
+// Escape a string for insertion into HTML text content or attribute
+// values. Used by blockToHtml — blocks are user-typed content, so
+// we never trust the raw text with innerHTML.
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Convert a stored block (plain text with '\n' line breaks and
+// '- '/'* ' list prefixes) into an HTML fragment suitable for the
+// clipboard's text/html mime type. Grouping rules:
+//   - Consecutive lines that start with '- ' or '* ' become a single
+//     <ul><li>…</li></ul>.
+//   - Empty lines emit <div><br></div> for visual spacing (matches
+//     how Gmail's compose treats a blank line).
+//   - Everything else emits <div>…</div>.
+// Kept intentionally small — this is a compatibility layer, not a
+// markdown renderer. Adding numbered lists later means adding one
+// more prefix regex to the group check.
+function blockToHtml(text) {
+  const lines = String(text).replace(/\r\n/g, '\n').split('\n');
+  const parts = [];
+  let inList = false;
+  for (const line of lines) {
+    const bulletMatch = /^\s*[-*]\s+(.*)$/.exec(line);
+    if (bulletMatch) {
+      if (!inList) { parts.push('<ul>'); inList = true; }
+      parts.push('<li>' + escapeHtml(bulletMatch[1]) + '</li>');
+      continue;
+    }
+    if (inList) { parts.push('</ul>'); inList = false; }
+    if (!line.trim()) {
+      parts.push('<div><br></div>');
+    } else {
+      parts.push('<div>' + escapeHtml(line) + '</div>');
+    }
+  }
+  if (inList) parts.push('</ul>');
+  return parts.join('');
+}
+
+// Write a block to the clipboard with BOTH text/plain (so
+// destinations that only take plain text keep the newlines and '- '
+// markers verbatim) and text/html (so Gmail's compose renders the
+// bulleted lists and line breaks as intended). Older browsers that
+// don't support ClipboardItem fall back to writeText.
+async function copyBlockToClipboard(text) {
+  const plain = text;
+  const html = blockToHtml(text);
+  if (typeof ClipboardItem !== 'undefined' && navigator.clipboard.write) {
+    const item = new ClipboardItem({
+      'text/plain': new Blob([plain], { type: 'text/plain' }),
+      'text/html': new Blob([html], { type: 'text/html' }),
+    });
+    await navigator.clipboard.write([item]);
+    return;
+  }
+  await navigator.clipboard.writeText(plain);
+}
+
+function openBlockForm(mode, text) {
+  blockFormOriginal = mode === 'edit' ? text : null;
+  blockFormInput.value = text || '';
+  blockFormStatus.className = 'status';
+
+  blockFormTitle.textContent = mode === 'edit' ? 'Edit block' : 'New block';
+  btnBlockFormDelete.hidden = mode !== 'edit';
+  updateBlockFormSaveEnabled();
+
+  document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
+  document.getElementById('tab-block-form').classList.add('active');
+  document.querySelectorAll('.tab').forEach((t) => {
+    t.classList.toggle('active', t.dataset.tab === 'blocks');
+  });
+
+  blockFormInput.focus();
+  if (mode === 'edit') blockFormInput.select();
+}
+
+function closeBlockForm() {
+  document.querySelector('.tab[data-tab="blocks"]').click();
+}
+
+function updateBlockFormSaveEnabled() {
+  const normalized = Blocks.normalize(blockFormInput.value);
+  let dirty = true;
+  if (blockFormOriginal !== null) dirty = normalized !== blockFormOriginal;
+  btnBlockFormSave.disabled = normalized.length === 0 || !dirty;
+}
+
+async function saveBlockForm() {
+  const normalized = Blocks.normalize(blockFormInput.value);
+  if (!normalized) return;
+
+  try {
+    if (blockFormOriginal === null) {
+      if (corpus.blocks.entries.has(normalized)) {
+        showStatus(blockFormStatus, 'An identical block already exists', 'error');
+        return;
+      }
+      corpus.blocks.add(normalized);
+    } else {
+      corpus.blocks.edit(blockFormOriginal, normalized);
+    }
+    await corpus.blocks.save();
+  } catch (e) {
+    showStatus(blockFormStatus, e.message, 'error');
+    return;
+  }
+
+  updateStats();
+  const label = normalized.length > 40 ? normalized.slice(0, 40) + '…' : normalized;
+  showStatus(blockStatus, `✓ Saved "${label.replace(/\n/g, ' ')}"`, 'success');
+  closeBlockForm();
+  updateBlockList();
+}
+
+async function deleteBlockFromForm() {
+  if (blockFormOriginal === null) return;
+  if (!confirm('Delete this block? This cannot be undone.')) return;
+  corpus.blocks.remove(blockFormOriginal);
+  await corpus.blocks.save();
+  updateStats();
+  showStatus(blockStatus, '✓ Deleted', 'success');
+  closeBlockForm();
+  updateBlockList();
+}
+
+btnAddBlock.addEventListener('click', () => openBlockForm('add'));
+btnBlockFormCancel.addEventListener('click', closeBlockForm);
+btnBlockFormSave.addEventListener('click', saveBlockForm);
+btnBlockFormDelete.addEventListener('click', deleteBlockFromForm);
+
+blockFormInput.addEventListener('input', updateBlockFormSaveEnabled);
+blockFormInput.addEventListener('keydown', (e) => {
+  // Blocks want real line breaks — Enter inserts a newline (browser
+  // default). Only Escape and Cmd/Ctrl+Enter are trapped: Escape
+  // cancels the form; the save shortcut mirrors what most rich-text
+  // editors use for "commit this multi-line entry."
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    closeBlockForm();
+  } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    e.preventDefault();
+    if (!btnBlockFormSave.disabled) saveBlockForm();
+  }
+});
+
+blockSearch.addEventListener('input', updateBlockList);
 
 // ── Start ──────────────────────────────────────────────────
 

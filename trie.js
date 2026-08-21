@@ -396,6 +396,142 @@ class UtmRules {
 UtmRules.MAX_PARAMS = 3;
 
 
+// ── Blocks ────────────────────────────────────────────────────
+//
+// Multi-line reusable snippets (paragraphs, bulleted lists). Unlike
+// phrases, blocks are *not* fed to the autocomplete trie — they are
+// copy-only, surfaced through the popup's Blocks tab. Storage is a
+// Map<string, { addedAt, lastUsedAt }> keyed by the block's raw text
+// (mirrors LinkRules' shape). Content-as-key means two identical
+// blocks collapse to one entry, same behavior Phrases has.
+
+class Blocks {
+  constructor() {
+    this.entries = new Map();
+  }
+
+  async load() {
+    return new Promise((resolve) => {
+      chrome.storage.local.get(['lingofrog_blocks'], (data) => {
+        if (data.lingofrog_blocks) {
+          this.entries = new Map(Object.entries(data.lingofrog_blocks));
+        }
+        resolve();
+      });
+    });
+  }
+
+  async save() {
+    const obj = Object.fromEntries(this.entries);
+    return new Promise((resolve) => {
+      chrome.storage.local.set({ lingofrog_blocks: obj }, resolve);
+    });
+  }
+
+  // Normalization = trim leading/trailing whitespace but preserve
+  // internal newlines and bullet prefixes verbatim. Smart quotes are
+  // converted to straight quotes to match Phrases' behavior.
+  static normalize(text) {
+    return (text || '')
+      .replace(/[‘’]/g, "'")
+      .replace(/[“”]/g, '"')
+      .replace(/\r\n/g, '\n')
+      .replace(/^\s+|\s+$/g, '');
+  }
+
+  add(text) {
+    const key = Blocks.normalize(text);
+    if (!key) return { added: false, key: '' };
+    const now = Date.now();
+    if (this.entries.has(key)) {
+      const entry = this.entries.get(key);
+      entry.lastUsedAt = now;
+      this.entries.set(key, entry);
+      return { added: false, key };
+    }
+    this.entries.set(key, { addedAt: now, lastUsedAt: now });
+    return { added: true, key };
+  }
+
+  remove(text) {
+    this.entries.delete(text);
+  }
+
+  // Rename a block. Throws with code DUPLICATE if the new text
+  // normalizes to a key that already exists and isn't the one being
+  // edited — the block edit page relies on this to surface a "block
+  // already exists" error instead of silently overwriting.
+  edit(oldText, newText) {
+    const nextKey = Blocks.normalize(newText);
+    if (!nextKey) throw new Error('Block cannot be empty');
+    if (!this.entries.has(oldText)) throw new Error('Block not found');
+    if (nextKey !== oldText && this.entries.has(nextKey)) {
+      const err = new Error('An identical block already exists');
+      err.code = 'DUPLICATE';
+      throw err;
+    }
+    const data = this.entries.get(oldText);
+    if (nextKey !== oldText) {
+      this.entries.delete(oldText);
+      this.entries.set(nextKey, data);
+    }
+    return nextKey;
+  }
+
+  recordUsage(text) {
+    const data = this.entries.get(text);
+    if (!data) return;
+    data.lastUsedAt = Date.now();
+    this.entries.set(text, data);
+  }
+
+  // Most-recent first — blocks aren't ranked by frequency (no
+  // autocomplete signal to lean on), so recency of addition is the
+  // default sort and search filters that ordering.
+  getAll(filter = '') {
+    const filterLower = (filter || '').toLowerCase();
+    const rows = [...this.entries.entries()].map(([text, data]) => ({
+      text,
+      addedAt: data.addedAt || 0,
+      lastUsedAt: data.lastUsedAt || 0,
+    }));
+    const filtered = filterLower
+      ? rows.filter((r) => r.text.toLowerCase().includes(filterLower))
+      : rows;
+    filtered.sort((a, b) => (b.addedAt - a.addedAt) || b.lastUsedAt - a.lastUsedAt);
+    return filtered;
+  }
+
+  clear() {
+    this.entries.clear();
+  }
+
+  // Backup export. Blocks may span multiple lines, so entries are
+  // separated by a blank line — one entry per record. The importBulk
+  // parser is the round-trip counterpart.
+  exportText() {
+    return [...this.entries.keys()].join('\n\n');
+  }
+
+  // Blank line (one or more) between records. Each record is stored
+  // verbatim after Blocks.normalize (trim + smart-quote normalization).
+  // Records that normalize to empty are silently dropped.
+  async importBulk(text) {
+    if (!text) return 0;
+    const records = String(text).replace(/\r\n/g, '\n').split(/\n{2,}/);
+    let added = 0;
+    for (const record of records) {
+      const normalized = Blocks.normalize(record);
+      if (!normalized) continue;
+      const result = this.add(normalized);
+      if (result.added) added++;
+    }
+    await this.save();
+    return added;
+  }
+}
+
+
 // ── Corpus ────────────────────────────────────────────────────
 
 class Corpus {
@@ -404,6 +540,7 @@ class Corpus {
     this.phrases = new Map(); // original phrase -> { frequency, source, importedAt, lastUsed, followedBy?: string[] }
     this.linkRules = new LinkRules();
     this.utmRules = new UtmRules();
+    this.blocks = new Blocks();
     this.config = {
       maxSuggestions: 5,
       triggerAfterChars: 8,
@@ -448,7 +585,11 @@ class Corpus {
         }
 
         this._rebuildTrie();
-        Promise.all([this.linkRules.load(), this.utmRules.load()]).then(() => resolve());
+        Promise.all([
+          this.linkRules.load(),
+          this.utmRules.load(),
+          this.blocks.load(),
+        ]).then(() => resolve());
       });
     });
   }
