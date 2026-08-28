@@ -58,9 +58,22 @@
 
   // ── Initialization ──────────────────────────────────────────
 
-  async function init() {
+  function init() {
     if (initialized) return;
-    await corpus.load();
+    // Attach listeners and build UI SYNCHRONOUSLY before kicking off
+    // corpus.load(). Previously init() was `async` and awaited the
+    // storage read first, which left a race window: the IIFE fires at
+    // document_idle, but chrome.storage.local is async, and any input
+    // or Cmd+L pressed before it resolved landed on unwired listeners
+    // and got dropped. Users saw this as "the extension didn't load"
+    // and reflexively refreshed — which worked because the second
+    // load's storage read is fast enough to beat the first keystroke.
+    //
+    // The Corpus constructor already gives us a valid empty object
+    // (default config with `enabled: true`, empty phrases/linkRules
+    // maps), so handleInput gracefully returns no suggestions during
+    // the sub-second load window. As soon as the load resolves, the
+    // next keystroke picks up the real corpus.
     createSuggestionUI();
     createLinkPromptUI();
     createLinkSearchUI();
@@ -69,10 +82,20 @@
     createSuccessToastUI();
     attachListeners();
     initialized = true;
-    console.log(
-      '[LingoFrog] Loaded —',
-      corpus.phrases.size, 'phrases,',
-      corpus.linkRules.rules.size, 'link rules'
+
+    corpus.load().then(
+      () => {
+        console.log(
+          '[LingoFrog] Loaded —',
+          corpus.phrases.size, 'phrases,',
+          corpus.linkRules.rules.size, 'link rules'
+        );
+      },
+      (err) => {
+        // Silent failure here was one reason the race above went
+        // undiagnosed — log it so future issues are visible.
+        console.warn('[LingoFrog] corpus.load() failed:', err);
+      }
     );
   }
 
@@ -1830,9 +1853,6 @@
         hideSavePhraseChip();
       }
     }, true);
-
-    const observer = new MutationObserver(() => {});
-    observer.observe(document.body, { childList: true, subtree: true });
   }
 
   chrome.storage.onChanged.addListener((changes) => {
