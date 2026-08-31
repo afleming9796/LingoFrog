@@ -13,6 +13,15 @@
 
   const corpus = new Corpus();
   let initialized = false;
+  // Resolves once the initial corpus.load() has populated the
+  // in-memory phrases + link/utm/blocks maps from storage. Write
+  // handlers (save-rule chip, save-phrase chip) await this before
+  // touching Corpus, because save() serializes the whole in-memory
+  // map back to storage — writing before load resolves would clobber
+  // every previously-stored entry with just the one the user is
+  // saving right now. Listeners still attach synchronously (that's
+  // what #136 fixed); only the write path is gated.
+  let corpusReady = Promise.resolve();
   let suggestionBox = null;
   let ghostSpan = null;
   let activeElement = null;
@@ -83,7 +92,7 @@
     attachListeners();
     initialized = true;
 
-    corpus.load().then(
+    corpusReady = corpus.load().then(
       () => {
         console.log(
           '[LingoFrog] Loaded —',
@@ -956,8 +965,17 @@
 
   async function acceptSaveRuleChip() {
     if (!pendingSaveRuleChip) return;
-    const { trigger, url, existingRule } = pendingSaveRuleChip;
-    const wasReplace = !!existingRule;
+    // Wait for the initial corpus.load() before writing — see the
+    // `corpusReady` comment at the top of the IIFE. Missing this
+    // await lets a pre-load save() clobber every previously-stored
+    // link rule.
+    await corpusReady;
+    if (!pendingSaveRuleChip) return; // chip may have been dismissed in the meantime
+    const { trigger, url } = pendingSaveRuleChip;
+    // Re-check for an existing rule now that the map is populated;
+    // the flag captured at chip-show time may be stale if the chip
+    // opened before load resolved.
+    const wasReplace = corpus.linkRules.rules.has(trigger);
 
     corpus.linkRules.addRule(trigger, url);
     await corpus.linkRules.save();
@@ -1067,6 +1085,11 @@
 
   async function acceptSavePhraseChip() {
     if (!pendingSavePhraseChip) return;
+    // Same guard as acceptSaveRuleChip — the phrase corpus's save()
+    // serializes the whole in-memory phrases map, so a pre-load
+    // addOrBumpPhrase would clobber every previously-stored phrase.
+    await corpusReady;
+    if (!pendingSavePhraseChip) return; // chip may have been dismissed in the meantime
     const { text } = pendingSavePhraseChip;
     const result = await corpus.addOrBumpPhrase(text, 'highlight');
     let toastMessage = null;
