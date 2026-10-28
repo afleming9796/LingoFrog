@@ -411,6 +411,7 @@ class Corpus {
       autoComplete: true,
       autoLink: true,
       showSaveRuleChip: true,
+      applyUtmOnCopy: true,
     };
   }
 

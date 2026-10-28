@@ -270,7 +270,14 @@ function renderLinkRuleRow(rule) {
   copyBtn.setAttribute('aria-label', 'Copy URL');
   copyBtn.addEventListener('click', async () => {
     try {
-      await navigator.clipboard.writeText(rule.url);
+      // The stored URL is kept raw so UTM rules stay re-evaluable; we
+      // only decorate at the moment of copy. Direct-nav (openBtn's
+      // href above) stays raw per #138. The Open-tab icon is a
+      // navigation, not a copy \u2014 if the user wanted a UTM-tagged
+      // click, they'd use the copy icon and paste.
+      const applyUtm = corpus.config && corpus.config.applyUtmOnCopy !== false;
+      const toCopy = applyUtm ? corpus.utmRules.applyTo(rule.url) : rule.url;
+      await navigator.clipboard.writeText(toCopy);
       showStatus(linkStatus, '\u2713 URL copied', 'success');
     } catch (e) {
       showStatus(linkStatus, 'Copy failed: ' + e.message, 'error');
@@ -307,6 +314,7 @@ function loadSettings() {
       $('#set-autocomplete').checked = cfg.autoComplete !== false;
       $('#set-autolink').checked = cfg.autoLink !== false;
       $('#set-save-rule-chip').checked = cfg.showSaveRuleChip !== false;
+      $('#set-apply-utm-on-copy').checked = cfg.applyUtmOnCopy !== false;
     }
     updateToggleStates();
   });
@@ -592,6 +600,7 @@ function persistConfig() {
     autoComplete: $('#set-autocomplete').checked,
     autoLink: $('#set-autolink').checked,
     showSaveRuleChip: $('#set-save-rule-chip').checked,
+    applyUtmOnCopy: $('#set-apply-utm-on-copy').checked,
   };
   chrome.storage.local.set({ lingofrog_config: config });
   corpus.config = { ...corpus.config, ...config };
@@ -603,6 +612,7 @@ function persistConfig() {
   '#set-autocomplete',
   '#set-autolink',
   '#set-save-rule-chip',
+  '#set-apply-utm-on-copy',
   '#set-trigger',
   '#set-max',
 ].forEach((sel) => {
