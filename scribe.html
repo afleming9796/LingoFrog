@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LingoFrog Scribe</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    [hidden] { display: none !important; }
+
+    html, body { height: 100%; }
+    body {
+      display: flex;
+      flex-direction: column;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: #f5f5f5;
+      color: #1a1a1a;
+      font-size: 13px;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-bottom: 1px solid #e2e2e2;
+      flex-shrink: 0;
+    }
+    .brand { display: flex; align-items: center; gap: 8px; }
+    .brand img { width: 24px; height: 24px; display: block; }
+    .brand h1 { font-size: 16px; font-weight: 700; letter-spacing: -0.2px; }
+    .brand h1 span { color: #4d7a2e; }
+
+    .icon-btn {
+      background: none; border: none; cursor: pointer;
+      color: #7a7a7a; border-radius: 6px; padding: 5px;
+      display: inline-flex; align-items: center; justify-content: center;
+      transition: color 0.15s, background 0.15s;
+    }
+    .icon-btn:hover { color: #1a1a1a; background: #ececec; }
+    .icon-btn:focus-visible { outline: 2px solid #6da34d; outline-offset: 1px; }
+    .icon-btn svg { width: 16px; height: 16px; display: block; }
+    #btn-key { margin-left: auto; }
+    #btn-key.active { color: #4d7a2e; background: #e7f0dc; }
+
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 16px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .section-label { font-size: 11px; font-weight: 700; color: #7a7a7a; text-transform: uppercase; letter-spacing: 0.06em; }
+
+    .link-btn {
+      background: none; border: none; cursor: pointer;
+      color: #4d7a2e; font-size: 11px; font-weight: 600;
+      padding: 3px 6px; border-radius: 5px;
+    }
+    .link-btn:hover { background: #e7f0dc; }
+    .link-btn:focus-visible { outline: 2px solid #6da34d; outline-offset: 1px; }
+    .link-btn:disabled { opacity: 0.4; cursor: not-allowed; background: none; }
+
+    textarea, input[type="text"], input[type="password"] {
+      width: 100%;
+      background: #ffffff;
+      border: 1px solid #dcdcdc;
+      border-radius: 8px;
+      color: #1a1a1a;
+      font-family: inherit;
+      font-size: 12px;
+      padding: 9px 10px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    textarea { resize: vertical; line-height: 1.45; }
+    textarea:focus, input:focus { border-color: #6da34d; }
+    textarea::placeholder, input::placeholder { color: #b5b5b5; }
+    #context { min-height: 140px; }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 8px 16px; border-radius: 8px; border: none;
+      font-size: 12px; font-weight: 600; cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-primary { background: #6da34d; color: #ffffff; }
+    .btn-primary:hover { background: #5b8c3e; }
+    .btn-secondary { background: transparent; color: #4d7a2e; border: 1px solid #c8dfa8; }
+    .btn-secondary:hover { background: #eaf5db; border-color: #a8ce7e; }
+    .btn-quiet { background: transparent; color: #7a7a7a; }
+    .btn-quiet:hover { background: #ececec; color: #1a1a1a; }
+    .btn-danger-text { background: transparent; color: #b04848; }
+    .btn-danger-text:hover { background: #fbe7e7; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn:focus-visible { outline: 2px solid #6da34d; outline-offset: 1px; }
+    .btn-row { display: flex; gap: 6px; justify-content: flex-end; margin-top: 8px; }
+
+    #btn-write { width: 100%; padding: 10px 16px; font-size: 13px; }
+    #btn-write.stopping { background: #ffffff; color: #b04848; border: 1px solid #e7b8b8; }
+    #btn-write.stopping:hover { background: #fbe7e7; }
+
+    /* API key card */
+    .card {
+      background: #ffffff;
+      border: 1px solid #e2e2e2;
+      border-radius: 10px;
+      padding: 12px;
+    }
+    .card p { font-size: 11px; color: #5a5a5a; line-height: 1.5; margin-bottom: 8px; }
+    .card p a { color: #4d7a2e; }
+    .key-current { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px; color: #4d7a2e; margin-bottom: 8px; }
+
+    /* Styles */
+    .style-list { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+    .style-row {
+      display: flex; align-items: center; gap: 2px;
+      background: #ffffff; border: 1px solid #e2e2e2; border-radius: 8px;
+      padding: 2px 4px 2px 2px;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .style-row.selected { border-color: #a8ce7e; background: #f3f9ec; }
+    .style-pick {
+      flex: 1; min-width: 0;
+      display: flex; align-items: center; gap: 8px;
+      background: none; border: none; cursor: pointer; text-align: left;
+      padding: 6px 6px; border-radius: 6px; font: inherit; color: inherit;
+    }
+    .style-pick:focus-visible { outline: 2px solid #6da34d; outline-offset: 0; }
+    .style-radio {
+      width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0;
+      border: 1.5px solid #c4c4c4; background: #ffffff;
+    }
+    .style-row.selected .style-radio { border: 4px solid #6da34d; }
+    .style-text { min-width: 0; }
+    .style-name { font-size: 12px; font-weight: 600; display: block; }
+    .style-desc {
+      font-size: 11px; color: #7a7a7a; display: block;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .style-row .icon-btn { opacity: 0.55; padding: 4px; }
+    .style-row .icon-btn:hover { opacity: 1; }
+    .style-row .icon-btn svg { width: 14px; height: 14px; }
+    .style-row .style-delete:hover { color: #b04848; background: #fbe7e7; }
+    .style-empty { font-size: 11px; color: #7a7a7a; padding: 4px 2px; }
+    #style-form { margin-top: 6px; display: flex; flex-direction: column; gap: 6px; }
+    #style-instructions { min-height: 90px; }
+
+    /* Draft */
+    .draft-section { display: flex; flex-direction: column; }
+    .output {
+      background: #ffffff;
+      border: 1px solid #e2e2e2;
+      border-radius: 10px;
+      padding: 12px 14px;
+      min-height: 160px;
+      font-size: 13px;
+      line-height: 1.55;
+      overflow-wrap: anywhere;
+      user-select: text;
+    }
+    .output p + p, .output p + ul, .output p + ol, .output ul + p, .output ol + p,
+    .output ul + ul, .output ol + ol, .output ul + ol, .output ol + ul { margin-top: 0.8em; }
+    .output ul, .output ol { padding-left: 1.4em; }
+    .output li + li { margin-top: 0.2em; }
+    .output a { color: #2f6fb3; }
+    .output .placeholder { color: #b5b5b5; }
+    .output.streaming::after {
+      content: '';
+      display: inline-block;
+      width: 7px; height: 14px;
+      margin-left: 2px;
+      vertical-align: -2px;
+      background: #6da34d;
+      animation: blink 1s steps(2, start) infinite;
+    }
+    @keyframes blink { to { visibility: hidden; } }
+
+    .link-warning {
+      margin-top: 8px;
+      font-size: 11px;
+      line-height: 1.5;
+      background: #fff6e0;
+      color: #8a5a00;
+      border: 1px solid #f1dca6;
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+    .link-warning ul { list-style: none; margin-top: 4px; }
+    .link-warning li { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 10px; overflow-wrap: anywhere; }
+
+    .status { font-size: 11px; padding: 8px 12px; border-radius: 8px; margin-top: 8px; display: none; line-height: 1.45; }
+    .status.success { display: block; background: #eaf5db; color: #4d7a2e; border: 1px solid #c8dfa8; }
+    .status.error { display: block; background: #fbe7e7; color: #b04848; border: 1px solid #f3c8c8; }
+    .status.info { display: block; background: #ececec; color: #5a5a5a; border: 1px solid #dcdcdc; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="brand">
+      <img src="icons/icon48.png" alt="">
+      <h1>LingoFrog <span>Scribe</span></h1>
+    </div>
+    <button class="icon-btn" id="btn-key" title="Anthropic API key" aria-label="Anthropic API key">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>
+    </button>
+  </div>
+
+  <div class="content">
+
+    <!-- API key — shown on first run, or from the key button. -->
+    <section class="card" id="key-card" hidden>
+      <div class="section-head"><span class="section-label">Anthropic API key</span></div>
+      <p>
+        Scribe writes drafts with Claude using your own Anthropic API key
+        (create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">console.anthropic.com</a>).
+        The key is stored only on this device. When you click Write, your
+        context, chosen style, and saved links are sent to Anthropic's API —
+        nothing is sent before that.
+      </p>
+      <div class="key-current" id="key-current" hidden></div>
+      <input type="password" id="api-key-input" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
+      <div class="btn-row">
+        <button class="btn btn-danger-text" id="btn-key-remove" hidden>Remove key</button>
+        <button class="btn btn-quiet" id="btn-key-cancel" hidden>Cancel</button>
+        <button class="btn btn-primary" id="btn-key-save">Save key</button>
+      </div>
+      <div class="status" id="key-status"></div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <label class="section-label" for="context">Context</label>
+        <button class="link-btn" id="btn-use-selection" title="Add the text highlighted in the current Gmail tab">Use Gmail selection</button>
+      </div>
+      <textarea id="context" placeholder="Paste notes or an email thread, or describe what you want to say…"></textarea>
+      <div class="status" id="context-status"></div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <span class="section-label" id="style-label">Style</span>
+        <button class="link-btn" id="btn-add-style">+ Add style</button>
+      </div>
+      <ul class="style-list" id="style-list" role="radiogroup" aria-labelledby="style-label"></ul>
+      <div id="style-form" hidden>
+        <input type="text" id="style-name" placeholder="Style name, e.g. Post-call follow-up" maxlength="60">
+        <textarea id="style-instructions" placeholder="Describe the email: purpose, tone, length, structure…"></textarea>
+        <div class="btn-row" style="margin-top: 0;">
+          <button class="btn btn-quiet" id="btn-style-cancel">Cancel</button>
+          <button class="btn btn-primary" id="btn-style-save">Save style</button>
+        </div>
+      </div>
+    </section>
+
+    <button class="btn btn-primary" id="btn-write">Write</button>
+
+    <section class="draft-section">
+      <div class="section-head">
+        <span class="section-label">Draft</span>
+        <button class="link-btn" id="btn-copy" disabled>Copy</button>
+      </div>
+      <div class="output" id="output" aria-live="polite"></div>
+      <div class="link-warning" id="link-warning" hidden></div>
+      <div class="status" id="write-status"></div>
+    </section>
+
+  </div>
+
+  <script src="trie.js"></script>
+  <script type="module" src="scribe.js"></script>
+</body>
+</html>

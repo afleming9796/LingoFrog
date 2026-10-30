@@ -28,6 +28,17 @@ Like a best friend, LingoFrog finishes your sentences and inserts relevant hyper
 - **Highlight + Cmd + P** to add new phrases
 - **Highlight + CMD + L** brings up dropdown of your links to insert and let's you insert ad-hoc links. 
 
+## Scribe (AI drafts)
+
+Scribe drafts emails with Claude in Chrome's side panel. Click the extension icon → **Scribe** to open it.
+
+1. Add your Anthropic API key (key icon in the panel). Create one at [console.anthropic.com](https://console.anthropic.com/settings/keys). It's stored only on this device, and you pay Anthropic directly for usage.
+2. Fill in **Context**: paste notes or an email thread, or highlight text in Gmail and click **Use Gmail selection**.
+3. Pick a **Style** (post-call follow-up, intro email, quick reply, or your own).
+4. Click **Write** (or press Cmd/Ctrl + Enter in the context box). The draft streams in with formatting and links, and **Copy** puts it on your clipboard as rich text for Gmail.
+
+Scribe can include your saved links where they fit. Any link in a draft that isn't one of your saved links is listed under the draft, so check those before sending. Context is sent to Anthropic only when you click Write. See [PRIVACY.md](PRIVACY.md).
+
 ## Settings
 
 Click the extension icon → **Settings** tab:
@@ -47,4 +58,6 @@ Phrases don't support special formatting or hyperlinks, but hyperlinks will get 
 GitHub issues are welcome.
 
 ## If Developing
+The extension loads straight from this folder with no build step. The one exception is the Anthropic SDK, which is bundled into `vendor/anthropic-sdk.js`. To update it, change the version in `package.json`, then run `npm install && npm run vendor`. When packaging for the Chrome Web Store, leave out `node_modules/`, `scripts/`, and the npm files.
+
 While developing and testing different versions, you may find yourself needing remove the extension via chrome://extensions and then add it back in, in which case you'll lose your attached corpous of phrases and links. It's best to export your phrases and links in this case and then import them back.
