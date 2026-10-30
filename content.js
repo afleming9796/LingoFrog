@@ -1902,5 +1902,18 @@
     }
   });
 
+  // Scribe's "Use Gmail selection" button asks the active tab for its
+  // highlighted text. The message reaches every frame we're injected
+  // into (all_frames: true), so only a frame that actually holds a
+  // selection answers — otherwise the top frame's empty reply could
+  // win the race against the iframe that has the real one. If no frame
+  // answers, the side panel treats that as "nothing selected".
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (!msg || msg.type !== 'lingofrog_get_selection') return;
+    const text = String(window.getSelection() || '').trim();
+    if (!text) return;
+    sendResponse({ text });
+  });
+
   init();
 })();

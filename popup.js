@@ -348,13 +348,33 @@ function showStatus(el, message, type, duration) {
 
 // ── Tab Switching ──────────────────────────────────────────
 
-document.querySelectorAll('.tab').forEach((tab) => {
+document.querySelectorAll('.tab[data-tab]').forEach((tab) => {
   tab.addEventListener('click', () => {
     document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
     tab.classList.add('active');
     document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
   });
+});
+
+// Scribe isn't a popup tab: it opens in Chrome's side panel, which
+// (unlike the popup) stays open while the user reads and selects text
+// in Gmail. sidePanel.open() must run synchronously inside the click's
+// user gesture, so the window id is looked up ahead of time.
+let currentWindowId = null;
+if (chrome.windows) {
+  chrome.windows.getCurrent().then((win) => { currentWindowId = win.id; }).catch(() => {});
+}
+document.getElementById('btn-open-scribe').addEventListener('click', () => {
+  // Report failures in whichever view is showing.
+  const status = document.querySelector('.tab-content.active .status') || linkStatus;
+  if (!chrome.sidePanel || currentWindowId === null) {
+    showStatus(status, 'Scribe needs a newer version of Chrome (116+).', 'error');
+    return;
+  }
+  chrome.sidePanel.open({ windowId: currentWindowId })
+    .then(() => window.close())
+    .catch((e) => showStatus(status, 'Couldn\'t open Scribe: ' + e.message, 'error'));
 });
 
 // ── Import view ───────────────────────────────────────────

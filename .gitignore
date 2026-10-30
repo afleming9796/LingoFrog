@@ -17,3 +17,6 @@
 dist/
 
 .claude/
+
+# npm (only used to regenerate vendor/)
+node_modules/
