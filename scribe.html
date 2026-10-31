@@ -60,6 +60,7 @@
       margin-bottom: 6px;
     }
     .section-label { font-size: 11px; font-weight: 700; color: #7a7a7a; text-transform: uppercase; letter-spacing: 0.06em; }
+    .section-hint { font-size: 11px; color: #a0a0a0; }
 
     .link-btn {
       background: none; border: none; cursor: pointer;
@@ -155,6 +156,30 @@
     #style-form { margin-top: 6px; display: flex; flex-direction: column; gap: 6px; }
     #style-instructions { min-height: 90px; }
 
+    /* General style guide: one collapsed row that expands to an editor. */
+    .guide-row {
+      width: 100%;
+      display: flex; align-items: center; gap: 8px;
+      background: #ffffff; border: 1px dashed #c4c4c4; border-radius: 8px;
+      padding: 8px 10px; cursor: pointer; text-align: left;
+      font: inherit; color: inherit;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .guide-row:hover { border-color: #a8ce7e; background: #f3f9ec; }
+    .guide-row:focus-visible { outline: 2px solid #6da34d; outline-offset: 1px; }
+    .guide-row .style-text { flex: 1; }
+    .guide-row.empty .style-desc { color: #b5b5b5; }
+    .guide-row svg { width: 14px; height: 14px; flex-shrink: 0; color: #7a7a7a; }
+    #guide-form { display: flex; flex-direction: column; gap: 6px; }
+    #guide-input { min-height: 110px; }
+
+    .clear-row { display: flex; justify-content: center; margin-top: 4px; }
+    .status .status-action {
+      background: none; border: none; cursor: pointer; font: inherit;
+      color: inherit; font-weight: 700; text-decoration: underline;
+      margin-left: 6px; padding: 0;
+    }
+
     /* Draft */
     .draft-section { display: flex; flex-direction: column; }
     .output {
@@ -225,8 +250,8 @@
         Scribe writes drafts with Claude using your own Anthropic API key
         (create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">console.anthropic.com</a>).
         The key is stored only on this device. When you click Write, your
-        context, chosen style, and saved links are sent to Anthropic's API —
-        nothing is sent before that.
+        context, style guide and chosen style, saved links, and top phrases
+        are sent to Anthropic's API — nothing is sent before that.
       </p>
       <div class="key-current" id="key-current" hidden></div>
       <input type="password" id="api-key-input" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
@@ -245,6 +270,26 @@
       </div>
       <textarea id="context" placeholder="Paste notes or an email thread, or describe what you want to say…"></textarea>
       <div class="status" id="context-status"></div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <span class="section-label">Style guide</span>
+        <span class="section-hint">Applies to every style</span>
+      </div>
+      <button class="guide-row" id="guide-row" title="Edit your general style guide">
+        <span class="style-text">
+          <span class="style-desc" id="guide-preview"></span>
+        </span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+      </button>
+      <div id="guide-form" hidden>
+        <textarea id="guide-input" placeholder="Rules for every draft, for example:&#10;- Use American English&#10;- No exclamation marks&#10;- Keep it under 150 words unless the style says otherwise&#10;- Sign off with &quot;Best,&quot;"></textarea>
+        <div class="btn-row" style="margin-top: 0;">
+          <button class="btn btn-quiet" id="btn-guide-cancel">Cancel</button>
+          <button class="btn btn-primary" id="btn-guide-save">Save guide</button>
+        </div>
+      </div>
     </section>
 
     <section>
@@ -274,6 +319,10 @@
       <div class="link-warning" id="link-warning" hidden></div>
       <div class="status" id="write-status"></div>
     </section>
+
+    <div class="clear-row">
+      <button class="btn btn-quiet" id="btn-clear" disabled>Clear context and draft</button>
+    </div>
 
   </div>
 

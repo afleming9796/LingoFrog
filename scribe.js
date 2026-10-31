@@ -10,11 +10,12 @@
  *   local   lingofrog_anthropic_api_key   the user's own key (never synced)
  *   local   lingofrog_scribe_styles       [{ id, name, instructions }]
  *   local   lingofrog_scribe_style_id     selected style id
+ *   local   lingofrog_scribe_guide        general style guide (string)
  *   session lingofrog_scribe_draft        { context, output } — survives
  *                                         closing the panel, not a restart
  *
- * LinkRules / UtmRules come from trie.js, loaded as a classic script
- * ahead of this module.
+ * Corpus (saved links, phrases, UTM rules, config) comes from trie.js,
+ * loaded as a classic script ahead of this module.
  */
 
 import Anthropic from './vendor/anthropic-sdk.js';
@@ -27,6 +28,13 @@ const KEY_STORAGE = 'lingofrog_anthropic_api_key';
 const STYLES_STORAGE = 'lingofrog_scribe_styles';
 const STYLE_ID_STORAGE = 'lingofrog_scribe_style_id';
 const DRAFT_STORAGE = 'lingofrog_scribe_draft';
+const GUIDE_STORAGE = 'lingofrog_scribe_guide';
+
+// Phrases ride along in every request, so cap them: the highest-scoring
+// ones (same frequency × recency score autocomplete uses) until either
+// limit is hit. ~12k characters is roughly 3k tokens.
+const MAX_PHRASES = 200;
+const MAX_PHRASE_CHARS = 12000;
 
 const DEFAULT_STYLES = [
   {
@@ -61,6 +69,11 @@ const contextEl = $('#context');
 const contextStatus = $('#context-status');
 const btnUseSelection = $('#btn-use-selection');
 
+const guideRow = $('#guide-row');
+const guidePreview = $('#guide-preview');
+const guideForm = $('#guide-form');
+const guideInput = $('#guide-input');
+
 const styleList = $('#style-list');
 const styleForm = $('#style-form');
 const styleNameInput = $('#style-name');
@@ -72,11 +85,13 @@ const btnCopy = $('#btn-copy');
 const outputEl = $('#output');
 const linkWarning = $('#link-warning');
 const writeStatus = $('#write-status');
+const btnClear = $('#btn-clear');
 
 const state = {
   apiKey: '',
   styles: [],
   styleId: null,
+  guide: '',
   editingStyleId: null, // null = form closed, '' = adding, id = editing
   draft: '',
   // What the current draft was written from, for the link check.
@@ -164,6 +179,7 @@ function persistDraft() {
 
 contextEl.addEventListener('input', () => {
   updateWriteButton();
+  updateClearButton();
   persistDraftSoon();
 });
 
@@ -196,8 +212,42 @@ btnUseSelection.addEventListener('click', async () => {
   contextEl.value = existing ? `${existing}\n\n${text}` : text;
   contextEl.scrollTop = contextEl.scrollHeight;
   updateWriteButton();
+  updateClearButton();
   persistDraft();
   showStatus(contextStatus, '✓ Added your selection', 'success');
+});
+
+// ── Style guide ─────────────────────────────────────────────
+
+function renderGuide() {
+  const guide = state.guide.trim();
+  guideRow.classList.toggle('empty', !guide);
+  // Collapse to one line (minus list markers) for the preview; the
+  // editor shows it in full.
+  guidePreview.textContent = guide
+    ? guide.split('\n').map((l) => l.replace(/^\s*(?:[-*•]|\d+[.)])\s+/, '').trim()).filter(Boolean).join(' · ')
+    : 'Add rules every draft should follow: tone, length, sign-off, spelling…';
+}
+
+function openGuideForm() {
+  guideInput.value = state.guide;
+  guideRow.hidden = true;
+  guideForm.hidden = false;
+  guideInput.focus();
+}
+
+function closeGuideForm() {
+  guideForm.hidden = true;
+  guideRow.hidden = false;
+}
+
+guideRow.addEventListener('click', openGuideForm);
+$('#btn-guide-cancel').addEventListener('click', closeGuideForm);
+$('#btn-guide-save').addEventListener('click', () => {
+  state.guide = guideInput.value.trim();
+  chrome.storage.local.set({ [GUIDE_STORAGE]: state.guide });
+  closeGuideForm();
+  renderGuide();
 });
 
 // ── Styles ──────────────────────────────────────────────────
@@ -338,6 +388,7 @@ function renderOutput() {
   }
   btnCopy.disabled = !!state.stream || !blocks.length;
   renderLinkWarning(state.stream ? [] : blocks);
+  updateClearButton();
 }
 
 function urlVariants(href) {
@@ -386,13 +437,39 @@ function updateWriteButton() {
   btnWrite.disabled = !contextEl.value.trim();
 }
 
-async function loadSavedLinks() {
-  const rules = new LinkRules();
-  await rules.load();
-  return [...rules.rules.entries()].map(([trigger, rule]) => ({
+// Loaded fresh for each write/copy so edits made in the popup since the
+// panel opened are picked up.
+async function loadCorpus() {
+  const corpus = new Corpus();
+  await corpus.load();
+  return corpus;
+}
+
+function savedLinks(corpus) {
+  return [...corpus.linkRules.rules.entries()].map(([trigger, rule]) => ({
     label: rule.label || trigger,
     url: rule.url,
   }));
+}
+
+function savedUrlSet(links) {
+  return new Set(links.map((l) => (safeHref(l.url) || l.url).replace(/\/$/, '')));
+}
+
+function topPhrases(corpus) {
+  const ranked = [...corpus.phrases.entries()]
+    .map(([phrase, data]) => ({ phrase, score: corpus._computeScore(phrase, data) }))
+    .sort((a, b) => b.score - a.score);
+  const picked = [];
+  let chars = 0;
+  for (const { phrase } of ranked) {
+    if (picked.length >= MAX_PHRASES) break;
+    // Skip (rather than stop at) one long phrase so shorter ones still fit.
+    if (chars + phrase.length > MAX_PHRASE_CHARS) continue;
+    picked.push(phrase);
+    chars += phrase.length;
+  }
+  return picked;
 }
 
 function describeError(err) {
@@ -431,16 +508,17 @@ async function write() {
   }
 
   clearStatus(writeStatus);
-  const links = await loadSavedLinks();
+  const corpus = await loadCorpus();
+  const links = savedLinks(corpus);
+  const phrases = topPhrases(corpus);
   const style = state.styles.find((s) => s.id === state.styleId) || null;
   const client = new Anthropic({ apiKey: state.apiKey, dangerouslyAllowBrowser: true });
 
   state.draft = '';
-  state.draftSources = {
-    context,
-    savedUrls: new Set(links.map((l) => (safeHref(l.url) || l.url).replace(/\/$/, ''))),
-  };
-  const stream = client.beta.messages.stream(buildRequest({ context, style, links }));
+  state.draftSources = { context, savedUrls: savedUrlSet(links) };
+  const stream = client.beta.messages.stream(
+    buildRequest({ context, style, guide: state.guide, links, phrases })
+  );
   state.stream = stream;
   updateWriteButton();
   renderOutput();
@@ -487,13 +565,10 @@ btnCopy.addEventListener('click', async () => {
   const blocks = parseDraft(state.draft);
   if (!blocks.length) return;
   try {
-    const { lingofrog_config: cfg } = await chrome.storage.local.get('lingofrog_config');
-    let mapHref = (href) => href;
-    if (!cfg || cfg.applyUtmOnCopy !== false) {
-      const utm = new UtmRules();
-      await utm.load();
-      mapHref = (href) => utm.applyTo(href);
-    }
+    const corpus = await loadCorpus();
+    const mapHref = corpus.config.applyUtmOnCopy !== false
+      ? (href) => corpus.utmRules.applyTo(href)
+      : (href) => href;
     const html = toClipboardHtml(blocks, mapHref);
     const text = toPlainText(blocks, mapHref);
     await navigator.clipboard.write([
@@ -508,11 +583,51 @@ btnCopy.addEventListener('click', async () => {
   }
 });
 
+// ── Clear ───────────────────────────────────────────────────
+
+let undoClear = null;
+
+// Disabled mid-stream: Stop is the way out of a draft in progress.
+function updateClearButton() {
+  btnClear.disabled = !!state.stream || (!contextEl.value.trim() && !state.draft);
+}
+
+btnClear.addEventListener('click', () => {
+  const snapshot = { context: contextEl.value, draft: state.draft, draftSources: state.draftSources };
+  contextEl.value = '';
+  state.draft = '';
+  state.draftSources = null;
+  updateWriteButton();
+  renderOutput();
+  persistDraft();
+
+  // One-click undo, since this throws away typed context.
+  undoClear = snapshot;
+  showStatus(writeStatus, 'Cleared.', 'info', 8000);
+  const undo = document.createElement('button');
+  undo.className = 'status-action';
+  undo.textContent = 'Undo';
+  undo.addEventListener('click', () => {
+    if (!undoClear) return;
+    contextEl.value = undoClear.context;
+    state.draft = undoClear.draft;
+    state.draftSources = undoClear.draftSources;
+    undoClear = null;
+    clearStatus(writeStatus);
+    updateWriteButton();
+    renderOutput();
+    persistDraft();
+  });
+  writeStatus.appendChild(undo);
+  contextEl.focus();
+});
+
 // ── Init ────────────────────────────────────────────────────
 
 async function init() {
-  const local = await chrome.storage.local.get([KEY_STORAGE, STYLES_STORAGE, STYLE_ID_STORAGE]);
+  const local = await chrome.storage.local.get([KEY_STORAGE, STYLES_STORAGE, STYLE_ID_STORAGE, GUIDE_STORAGE]);
   state.apiKey = local[KEY_STORAGE] || '';
+  state.guide = local[GUIDE_STORAGE] || '';
   // Seed the starter styles only on first run — an empty array means
   // the user deleted them all, which we respect.
   state.styles = Array.isArray(local[STYLES_STORAGE]) ? local[STYLES_STORAGE] : DEFAULT_STYLES.map((s) => ({ ...s }));
@@ -528,17 +643,15 @@ async function init() {
       state.draft = draft.output || '';
       // The link check needs to know what the restored draft came from.
       if (state.draft) {
-        const links = await loadSavedLinks();
-        state.draftSources = {
-          context: draft.context || '',
-          savedUrls: new Set(links.map((l) => (safeHref(l.url) || l.url).replace(/\/$/, ''))),
-        };
+        const corpus = await loadCorpus();
+        state.draftSources = { context: draft.context || '', savedUrls: savedUrlSet(savedLinks(corpus)) };
       }
     }
   } catch (e) {
     // Session storage unavailable; start blank.
   }
 
+  renderGuide();
   renderStyles();
   renderOutput();
   updateWriteButton();
