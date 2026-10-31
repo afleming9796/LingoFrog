@@ -379,7 +379,7 @@ function renderOutput() {
   outputEl.textContent = '';
   outputEl.classList.toggle('streaming', !!state.stream);
   if (blocks.length) {
-    outputEl.appendChild(renderDraft(blocks, document));
+    outputEl.appendChild(renderDraft(blocks, document, tagUrl));
   } else if (!state.stream) {
     const placeholder = document.createElement('p');
     placeholder.className = 'placeholder';
@@ -445,6 +445,13 @@ async function loadCorpus() {
   return corpus;
 }
 
+// Links in a draft always carry the user's UTM rules, in the preview
+// and on copy. Unlike the Links tab, this doesn't follow the "Include
+// UTM parameters when copying links" setting; Scribe may get its own
+// toggle later. Refreshed with every corpus load and on rule edits.
+let utmRules = null;
+const tagUrl = (href) => (utmRules ? utmRules.applyTo(href) : href);
+
 function savedLinks(corpus) {
   return [...corpus.linkRules.rules.entries()].map(([trigger, rule]) => ({
     label: rule.label || trigger,
@@ -509,6 +516,7 @@ async function write() {
 
   clearStatus(writeStatus);
   const corpus = await loadCorpus();
+  utmRules = corpus.utmRules;
   const links = savedLinks(corpus);
   const phrases = topPhrases(corpus);
   const style = state.styles.find((s) => s.id === state.styleId) || null;
@@ -559,18 +567,14 @@ contextEl.addEventListener('keydown', (e) => {
 // ── Copy ────────────────────────────────────────────────────
 
 // Copies rich text (Gmail keeps the bold, italics, lists, and links)
-// plus a plain-text fallback. Honors the "Include UTM parameters when
-// copying links" setting from the popup, same as the Links tab.
+// plus a plain-text fallback, with UTM rules applied (see tagUrl).
 btnCopy.addEventListener('click', async () => {
   const blocks = parseDraft(state.draft);
   if (!blocks.length) return;
   try {
-    const corpus = await loadCorpus();
-    const mapHref = corpus.config.applyUtmOnCopy !== false
-      ? (href) => corpus.utmRules.applyTo(href)
-      : (href) => href;
-    const html = toClipboardHtml(blocks, mapHref);
-    const text = toPlainText(blocks, mapHref);
+    utmRules = (await loadCorpus()).utmRules;
+    const html = toClipboardHtml(blocks, tagUrl);
+    const text = toPlainText(blocks, tagUrl);
     await navigator.clipboard.write([
       new ClipboardItem({
         'text/html': new Blob([html], { type: 'text/html' }),
@@ -641,14 +645,16 @@ async function init() {
     if (draft) {
       contextEl.value = draft.context || '';
       state.draft = draft.output || '';
-      // The link check needs to know what the restored draft came from.
-      if (state.draft) {
-        const corpus = await loadCorpus();
-        state.draftSources = { context: draft.context || '', savedUrls: savedUrlSet(savedLinks(corpus)) };
-      }
     }
   } catch (e) {
     // Session storage unavailable; start blank.
+  }
+
+  const corpus = await loadCorpus();
+  utmRules = corpus.utmRules;
+  // The link check needs to know what a restored draft came from.
+  if (state.draft) {
+    state.draftSources = { context: contextEl.value, savedUrls: savedUrlSet(savedLinks(corpus)) };
   }
 
   renderGuide();
@@ -658,5 +664,15 @@ async function init() {
   if (!state.apiKey) openKeyCard();
   else contextEl.focus();
 }
+
+// UTM rules edited in the popup while the panel is open: re-tag the
+// draft's links right away.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local' || !changes.lingofrog_utm_rules) return;
+  loadCorpus().then((corpus) => {
+    utmRules = corpus.utmRules;
+    if (!state.stream) renderOutput();
+  });
+});
 
 init();

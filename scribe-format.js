@@ -61,7 +61,9 @@ function parseInline(source) {
       tokens.push({ type: 'em', children: parseInline(m[4] ?? m[5]) });
     } else {
       const href = safeHref(m[6]);
-      tokens.push(href ? { type: 'link', text: m[6], href } : { type: 'text', text: m[6] });
+      // `bare`: the visible text is the URL itself, so it should track
+      // any rewrite of the href (UTM tags) rather than stay as written.
+      tokens.push(href ? { type: 'link', text: m[6], href, bare: true } : { type: 'text', text: m[6] });
     }
     last = m.index + m[0].length;
   }
@@ -114,44 +116,56 @@ export function collectLinks(blocks) {
   return hrefs;
 }
 
+// ── Output ─────────────────────────────────────────────────
+//
+// Every renderer takes mapHref, which rewrites link targets on the way
+// out (Scribe uses it to apply UTM rules). Tokens keep the href the
+// model wrote, so the link check still sees the original URL.
+
+function linkParts(t, mapHref) {
+  const href = mapHref(t.href);
+  return { href, text: t.bare ? href : t.text };
+}
+
 // ── Output: DOM preview ────────────────────────────────────
 
-function appendInline(parent, tokens, doc) {
+function appendInline(parent, tokens, doc, mapHref) {
   for (const t of tokens) {
     if (t.type === 'text') {
       parent.appendChild(doc.createTextNode(t.text));
     } else if (t.type === 'link') {
+      const { href, text } = linkParts(t, mapHref);
       const a = doc.createElement('a');
-      a.href = t.href;
-      a.textContent = t.text;
-      a.title = t.href;
+      a.href = href;
+      a.textContent = text;
+      a.title = href;
       // Without a target, clicking would navigate the side panel itself.
       a.target = '_blank';
       a.rel = 'noopener noreferrer';
       parent.appendChild(a);
     } else {
       const el = doc.createElement(t.type);
-      appendInline(el, t.children, doc);
+      appendInline(el, t.children, doc, mapHref);
       parent.appendChild(el);
     }
   }
 }
 
-export function renderDraft(blocks, doc) {
+export function renderDraft(blocks, doc, mapHref = (h) => h) {
   const frag = doc.createDocumentFragment();
   for (const b of blocks) {
     if (b.type === 'p') {
       const p = doc.createElement('p');
       b.lines.forEach((line, i) => {
         if (i) p.appendChild(doc.createElement('br'));
-        appendInline(p, line, doc);
+        appendInline(p, line, doc, mapHref);
       });
       frag.appendChild(p);
     } else {
       const list = doc.createElement(b.type);
       for (const item of b.items) {
         const li = doc.createElement('li');
-        appendInline(li, item, doc);
+        appendInline(li, item, doc, mapHref);
         list.appendChild(li);
       }
       frag.appendChild(list);
@@ -161,9 +175,6 @@ export function renderDraft(blocks, doc) {
 }
 
 // ── Output: clipboard ──────────────────────────────────────
-//
-// mapHref lets the caller rewrite link targets at copy time (Scribe
-// uses it for UTM-on-copy).
 
 const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 function escapeHtml(s) {
@@ -173,7 +184,10 @@ function escapeHtml(s) {
 function inlineHtml(tokens, mapHref) {
   return tokens.map((t) => {
     if (t.type === 'text') return escapeHtml(t.text);
-    if (t.type === 'link') return `<a href="${escapeHtml(mapHref(t.href))}">${escapeHtml(t.text)}</a>`;
+    if (t.type === 'link') {
+      const { href, text } = linkParts(t, mapHref);
+      return `<a href="${escapeHtml(href)}">${escapeHtml(text)}</a>`;
+    }
     return `<${t.type}>${inlineHtml(t.children, mapHref)}</${t.type}>`;
   }).join('');
 }
@@ -194,8 +208,8 @@ function inlineText(tokens, mapHref) {
   return tokens.map((t) => {
     if (t.type === 'text') return t.text;
     if (t.type === 'link') {
-      const href = mapHref(t.href);
-      return t.text === t.href || t.text === href ? href : `${t.text} (${href})`;
+      const { href, text } = linkParts(t, mapHref);
+      return text === href ? href : `${text} (${href})`;
     }
     return inlineText(t.children, mapHref);
   }).join('');
