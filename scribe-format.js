@@ -76,27 +76,38 @@ function parseInline(source) {
   return tokens;
 }
 
-// Blocks are { type: 'p', lines: [tokens] } or { type: 'ul'|'ol', items: [tokens] }.
-// A blank line ends the current block; consecutive non-list lines
-// stay in one paragraph separated by line breaks.
+// Blocks are { type: 'p', lines: [tokens], gap } or
+// { type: 'ul'|'ol', items: [tokens], gap }. A blank line ends the
+// current block, and `gap` marks a block that comes after one: an empty
+// line in the email. Consecutive non-list lines stay in one paragraph
+// separated by line breaks, and a list can sit right under a line (or
+// above one) with no gap, as in Gmail.
 export function parseDraft(text) {
   const blocks = [];
   let current = null;
+  let blank = false;
+  const start = (block) => {
+    block.gap = blank && blocks.length > 0;
+    blank = false;
+    blocks.push(block);
+    return block;
+  };
   for (const raw of String(text || '').replace(/\r\n?/g, '\n').split('\n')) {
     const line = raw.trimEnd();
     if (!line.trim()) {
       current = null;
+      blank = true;
       continue;
     }
     let m;
     if ((m = line.match(/^\s*[-*•]\s+(.*)$/))) {
-      if (!current || current.type !== 'ul') blocks.push((current = { type: 'ul', items: [] }));
+      if (!current || current.type !== 'ul') current = start({ type: 'ul', items: [] });
       current.items.push(parseInline(m[1]));
     } else if ((m = line.match(/^\s*\d{1,3}[.)]\s+(.*)$/))) {
-      if (!current || current.type !== 'ol') blocks.push((current = { type: 'ol', items: [] }));
+      if (!current || current.type !== 'ol') current = start({ type: 'ol', items: [] });
       current.items.push(parseInline(m[1]));
     } else {
-      if (!current || current.type !== 'p') blocks.push((current = { type: 'p', lines: [] }));
+      if (!current || current.type !== 'p') current = start({ type: 'p', lines: [] });
       // Headings aren't part of the format; keep the words, drop the #s.
       current.lines.push(parseInline(line.replace(/^\s*#{1,6}\s+/, '')));
     }
@@ -169,6 +180,9 @@ function appendInline(parent, tokens, doc, mapHref) {
 export function renderDraft(blocks, doc, mapHref = (h) => h) {
   const frag = doc.createDocumentFragment();
   for (const b of blocks) {
+    // The gap is a real empty line, like Enter twice makes, so it edits
+    // like one.
+    if (b.gap) frag.appendChild(doc.createElement('p')).appendChild(doc.createElement('br'));
     if (b.type === 'p') {
       const p = doc.createElement('p');
       b.lines.forEach((line, i) => {
@@ -215,17 +229,22 @@ function inlineHtml(tokens, mapHref) {
 }
 
 // Mirrors Gmail's own compose markup — one <div> per line and an empty
-// <div><br></div> between paragraphs — so a paste looks like typing.
+// <div><br></div> for each gap — so a paste looks like typing. Lists get
+// no margins of their own, so they're single-spaced unless there's a gap.
 export function toClipboardHtml(blocks, mapHref = (h) => h) {
   const div = (inner) => `<div style="${GMAIL_TEXT_STYLE}">${inner}</div>`;
   return blocks.map((b) => {
+    const gap = b.gap ? div('<br>') : '';
     if (b.type === 'p') {
-      return b.lines.map((line) => div(inlineHtml(line, mapHref) || '<br>')).join('');
+      return gap + b.lines.map((line) => div(inlineHtml(line, mapHref) || '<br>')).join('');
     }
     const items = b.items.map((item) => `<li>${inlineHtml(item, mapHref)}</li>`).join('');
-    return `<${b.type} style="${GMAIL_TEXT_STYLE}">${items}</${b.type}>`;
-  }).join(div('<br>'));
+    return `${gap}<${b.type} style="${GMAIL_TEXT_STYLE};margin-top:0;margin-bottom:0">${items}</${b.type}>`;
+  }).join('');
 }
+
+// Blocks joined by a line break, or a blank line where there's a gap.
+const joinBlocks = (blocks, text) => blocks.map((b, i) => (i ? (b.gap ? '\n\n' : '\n') : '') + text(b)).join('');
 
 function inlineText(tokens, mapHref) {
   return tokens.map((t) => {
@@ -239,12 +258,12 @@ function inlineText(tokens, mapHref) {
 }
 
 export function toPlainText(blocks, mapHref = (h) => h) {
-  return blocks.map((b) => {
+  return joinBlocks(blocks, (b) => {
     if (b.type === 'p') return b.lines.map((line) => inlineText(line, mapHref)).join('\n');
     return b.items
       .map((item, i) => (b.type === 'ol' ? `${i + 1}. ` : '• ') + inlineText(item, mapHref))
       .join('\n');
-  }).join('\n\n');
+  });
 }
 
 // ── Markdown round trip (for the editable draft) ───────────
@@ -259,12 +278,12 @@ function inlineMarkdown(tokens) {
 }
 
 export function toMarkdown(blocks) {
-  return blocks.map((b) => {
+  return joinBlocks(blocks, (b) => {
     if (b.type === 'p') return b.lines.map(inlineMarkdown).join('\n');
     return b.items
       .map((item, i) => (b.type === 'ol' ? `${i + 1}. ` : '- ') + inlineMarkdown(item))
       .join('\n');
-  }).join('\n\n');
+  });
 }
 
 // One canonical spelling of a draft, so "has the user edited it?" is a
@@ -303,16 +322,21 @@ function nodeMarkdown(node) {
   return inner;
 }
 
-// Reads the contenteditable draft back into Markdown. Block elements
-// (Chrome makes a new <p> or <div> on Enter) become paragraphs; <br>
-// (Shift+Enter) is a line break within one.
+// Reads the contenteditable draft back into Markdown, line by line as it
+// shows on screen: a <br> or a block edge ends a line, an empty line
+// (Enter twice, or an empty <p>) is a blank line, which is what puts a
+// gap in the email, and list items become "- " / "1. " lines.
 export function domToMarkdown(root) {
-  const blocks = [];
+  const lines = [];
   let pending = [];
   const flush = () => {
-    const md = pending.map(nodeMarkdown).join('').replace(/[ \t]+\n/g, '\n').trim();
-    if (md) blocks.push(md);
+    const md = pending.map(nodeMarkdown).join('');
     pending = [];
+    // Only whitespace between blocks: nothing on screen.
+    if (!md.trim() && !md.includes('\n')) return;
+    // A <br> at the very end of a block doesn't show a line of its own
+    // (Chrome leaves one there to hold the line open).
+    lines.push(...md.replace(/\n$/, '').split('\n').map((line) => line.trim()));
   };
   const walk = (parent) => {
     for (const node of parent.childNodes) {
@@ -322,12 +346,10 @@ export function domToMarkdown(root) {
       }
       flush();
       if (node.tagName === 'UL' || node.tagName === 'OL') {
-        const items = [...node.children]
+        [...node.children]
           .map((li) => nodeMarkdown(li).replace(/\s*\n\s*/g, ' ').trim())
-          .filter(Boolean);
-        if (items.length) {
-          blocks.push(items.map((t, i) => (node.tagName === 'OL' ? `${i + 1}. ` : '- ') + t).join('\n'));
-        }
+          .filter(Boolean)
+          .forEach((t, i) => lines.push((node.tagName === 'OL' ? `${i + 1}. ` : '- ') + t));
       } else {
         walk(node);
         flush();
@@ -336,5 +358,5 @@ export function domToMarkdown(root) {
   };
   walk(root);
   flush();
-  return blocks.join('\n\n');
+  return lines.join('\n');
 }

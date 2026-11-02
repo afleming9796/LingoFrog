@@ -254,12 +254,10 @@
       overflow-wrap: anywhere;
       user-select: text;
     }
-    /* One empty line between paragraphs, as typing two Enters makes and
-       as the copy has in Gmail. */
-    .output p + p, .output p + ul, .output p + ol, .output ul + p, .output ol + p,
-    .output ul + ul, .output ol + ol, .output ul + ol, .output ol + ul { margin-top: 1.55em; }
+    /* No margins between blocks or bullets: as in Gmail, the space
+       between paragraphs (or around a list) is an empty line in the
+       draft. */
     .output ul, .output ol { padding-left: 1.4em; }
-    .output li + li { margin-top: 0.2em; }
     .output a { color: #2f6fb3; }
     .output.is-empty::before {
       content: attr(data-placeholder);
