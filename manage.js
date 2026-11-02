@@ -334,12 +334,12 @@ function showStatus(el, message, type, duration) {
 
 // ── Tab Switching ──────────────────────────────────────────
 //
-// The panel reopens on the tab it was last on (Scribe the first time).
+// The panel reopens on the tab it was last on (Links the first time).
 // Scribe is a module of its own, so it hears about switches through a
 // 'lingofrog-tab' event on document, to put the cursor back in the
 // draft.
 
-const TABS = ['scribe', 'links', 'corpus', 'settings'];
+const TABS = ['links', 'corpus', 'scribe', 'settings'];
 const LAST_TAB_KEY = 'lingofrog_panel_tab';
 
 function lastTab() {
@@ -349,7 +349,7 @@ function lastTab() {
   } catch (e) {
     // Storage blocked; fall through to the default.
   }
-  return 'scribe';
+  return 'links';
 }
 
 function showTab(name) {

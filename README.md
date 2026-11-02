@@ -31,7 +31,7 @@ Like a best friend, LingoFrog finishes your sentences and inserts relevant hyper
 
 ## Scribe
 
-Scribe is an email editor that can also draft emails with Claude. It's the first tab in the side panel.
+Scribe is an email editor that can also draft emails with Claude. It's the **Scribe** tab in the side panel, after Links and Phrases.
 
 Write your email in the draft box, and it works like a Gmail reply:
 
