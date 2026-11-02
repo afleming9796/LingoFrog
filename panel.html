@@ -3,9 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>LingoFrog Scribe</title>
+  <title>LingoFrog</title>
   <!-- The ⌘L link picker and save chip reuse Gmail's look. -->
   <link rel="stylesheet" href="lingofrog.css">
+  <!-- Links, Phrases, and Settings tabs. -->
+  <link rel="stylesheet" href="manage.css">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     [hidden] { display: none !important; }
@@ -20,18 +22,39 @@
       font-size: 13px;
     }
 
-    .header {
+    /* Tab bar. Chrome's side panel header already shows the name and
+       icon, so the tabs are the panel's top row. */
+    .tabs {
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 10px 14px;
+      gap: 2px;
+      padding: 8px 12px;
       border-bottom: 1px solid #e2e2e2;
       flex-shrink: 0;
     }
-    .brand { display: flex; align-items: center; gap: 8px; }
-    .brand img { width: 24px; height: 24px; display: block; }
-    .brand h1 { font-size: 16px; font-weight: 700; letter-spacing: -0.2px; }
-    .brand h1 span { color: #4d7a2e; }
+    .tab {
+      padding: 7px 10px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #7a7a7a;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      border-radius: 7px;
+      transition: all 0.15s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .tab:hover { color: #1a1a1a; background: #ececec; }
+    .tab.active { color: #4d7a2e; background: #e7f0dc; }
+    .tab:focus-visible { outline: 2px solid #6da34d; outline-offset: 1px; }
+    .tab-icon { padding: 7px; margin-left: auto; }
+    .tab-icon svg { width: 18px; height: 18px; display: block; }
+
+    /* One view per tab (manage.js switches them), each scrolling on its own. */
+    .tab-content { display: none; flex: 1; min-height: 0; overflow-y: auto; }
+    .tab-content.active { display: block; }
 
     .icon-btn {
       background: none; border: none; cursor: pointer;
@@ -43,26 +66,25 @@
     .icon-btn:focus-visible { outline: 2px solid #6da34d; outline-offset: 1px; }
     .icon-btn svg { width: 16px; height: 16px; display: block; }
     .icon-btn:disabled { opacity: 0.4; cursor: not-allowed; background: none; }
-    #btn-key { margin-left: auto; }
     #btn-key.active { color: #4d7a2e; background: #e7f0dc; }
 
+    /* The Scribe tab. */
     .content {
-      flex: 1;
-      overflow-y: auto;
       padding: 12px 16px 16px;
-      display: flex;
       flex-direction: column;
       gap: 14px;
     }
+    .content.active { display: flex; }
 
-    /* "Write with AI" switch. Off, everything marked .ai-only goes away
-       and the draft fills the panel. */
+    /* "Write with AI" switch, with the API key button beside it while
+       it's on. Off, everything marked .ai-only goes away and the draft
+       fills the panel. */
     .ai-switch {
-      display: flex; align-items: center; gap: 10px;
+      display: flex; align-items: center; gap: 6px;
       background: #ffffff; border: 1px solid #e2e2e2; border-radius: 10px;
-      padding: 9px 12px; cursor: pointer;
+      padding-right: 12px;
     }
-    .ai-switch-text { flex: 1; min-width: 0; }
+    .ai-switch-text { flex: 1; min-width: 0; padding: 9px 6px 9px 12px; cursor: pointer; }
     .ai-switch-title { display: block; font-size: 12px; font-weight: 600; }
     .ai-switch-hint { display: block; font-size: 11px; color: #7a7a7a; }
     #ai-toggle {
@@ -342,25 +364,28 @@
 </head>
 <body>
 
-  <div class="header">
-    <div class="brand">
-      <img src="icons/icon48.png" alt="">
-      <h1>LingoFrog <span>Scribe</span></h1>
-    </div>
-    <button class="icon-btn ai-only" id="btn-key" title="Anthropic API key" aria-label="Anthropic API key">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>
+  <nav class="tabs">
+    <button class="tab active" data-tab="scribe">Scribe</button>
+    <button class="tab" data-tab="links">Links</button>
+    <button class="tab" data-tab="corpus">Phrases</button>
+    <button class="tab tab-icon" data-tab="settings" title="Settings" aria-label="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     </button>
-  </div>
+  </nav>
 
-  <div class="content">
+  <!-- Scribe tab (scribe.js) -->
+  <div class="content tab-content active" id="tab-scribe">
 
-    <label class="ai-switch">
-      <span class="ai-switch-text">
+    <div class="ai-switch">
+      <label class="ai-switch-text" for="ai-toggle">
         <span class="ai-switch-title">Write with AI</span>
         <span class="ai-switch-hint" id="ai-hint"></span>
-      </span>
+      </label>
+      <button class="icon-btn ai-only" id="btn-key" title="Anthropic API key" aria-label="Anthropic API key">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>
+      </button>
       <input type="checkbox" id="ai-toggle" role="switch">
-    </label>
+    </div>
 
     <!-- API key — shown when AI is first turned on, or from the key button. -->
     <section class="card ai-only" id="key-card" hidden>
@@ -488,6 +513,221 @@
 
   </div>
 
+  <!-- Links, Phrases, and Settings tabs, with their sub-pages (manage.js) -->
+
+  <!-- Import View — reached from Settings "Import from backup".
+       Keeps the top-line header; Settings tab stays active so the
+       tab bar itself is the way back (no dedicated Back button). -->
+  <div class="tab-content manage" id="tab-import">
+    <div class="import-controls">
+      <div class="import-type-toggle">
+        <button class="import-type-btn active" data-type="links">Links</button>
+        <button class="import-type-btn" data-type="phrases">Phrases</button>
+      </div>
+      <div class="import-type-overflow-container">
+        <button class="import-type-btn-overflow" id="import-type-overflow" title="More types">⋯</button>
+        <div class="import-type-overflow-menu" id="import-type-overflow-menu">
+          <div class="import-type-overflow-item" data-type="utms">UTM Parameters</div>
+          <div class="import-type-overflow-item" data-type="bops">Bops</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="import-hint" id="import-hint">
+      One phrase per line. Casing is preserved on insertion.<br>
+      e.g. <code>Thanks for the quick turnaround</code><br>
+      <br>
+      Tip: when you highlight text in Gmail, press <code>⌘ + Shift + P</code> to save it directly or press <code>⌘ + L</code> to insert a link. Search existing links or paste a new one.
+    </div>
+
+    <textarea id="paste-area" placeholder="Add your phrases here, one per line...&#10;&#10;Thanks for the quick turnaround&#10;Please see the attached document&#10;These pretzels are making me thirsty&#10;&#10;Then start typing in Gmail to see the magic"></textarea>
+
+    <button class="btn btn-primary" id="btn-import">Import Phrases</button>
+    <div class="status" id="import-status"></div>
+  </div>
+
+  <!-- Links Tab -->
+  <div class="tab-content manage" id="tab-links">
+    <div class="tab-toolbar">
+      <input type="text" id="link-rule-search" placeholder="Search links..." style="flex: 1;">
+      <button class="btn-add-circle" id="btn-add-link" title="Add link" aria-label="Add link">+</button>
+      <div class="row-overflow-container" id="link-overflow-container">
+        <button class="row-overflow-btn" id="links-overflow" title="More">⋯</button>
+        <div class="row-overflow-menu" id="links-overflow-menu">
+          <div class="row-overflow-item" data-action="utm">UTM rules</div>
+          <div class="row-overflow-item" data-action="copy">Copy all to clipboard</div>
+          <div class="row-overflow-item" data-action="import">Bulk import</div>
+          <div class="row-overflow-item danger" data-action="delete">Delete all links</div>
+        </div>
+      </div>
+    </div>
+    <div class="list-scroll" id="link-list-scroll">
+      <ul class="link-rule-list" id="link-rule-list"></ul>
+    </div>
+    <div class="status" id="link-rule-status"></div>
+  </div>
+
+  <!-- Corpus Tab -->
+  <div class="tab-content manage" id="tab-corpus">
+    <div class="tab-toolbar">
+      <input type="text" id="phrase-search" placeholder="Search phrases..." style="flex: 1;">
+      <button class="btn-add-circle" id="btn-add-phrase" title="Add phrase" aria-label="Add phrase">+</button>
+      <div class="row-overflow-container" id="phrase-overflow-container">
+        <button class="row-overflow-btn" id="phrases-overflow" title="More">⋯</button>
+        <div class="row-overflow-menu" id="phrases-overflow-menu">
+          <div class="row-overflow-item" data-action="copy">Copy all to clipboard</div>
+          <div class="row-overflow-item" data-action="import">Bulk import</div>
+          <div class="row-overflow-item danger" data-action="delete">Delete all phrases</div>
+        </div>
+      </div>
+    </div>
+    <div class="list-scroll" id="phrase-list-scroll">
+      <ul class="phrase-list" id="phrase-list"></ul>
+    </div>
+    <div class="status" id="corpus-status"></div>
+  </div>
+
+  <!-- UTM View — reached from Links tab's ellipsis menu → UTM rules.
+       Keeps the top-line header; the Links tab stays visually active
+       so the tab bar itself doubles as the way back. -->
+  <div class="tab-content manage" id="tab-utm">
+    <div class="utm-page-header">
+      <h2 class="utm-page-title">UTM Rules</h2>
+      <button class="btn-add-circle" id="btn-add-utm-root" title="Add base url" aria-label="Add base url">+</button>
+    </div>
+    <ul class="utm-list" id="utm-list"></ul>
+    <div class="status" id="utm-status"></div>
+  </div>
+
+  <!-- Phrase Form View — full-page add/edit for a single phrase.
+       Reached from the Phrases tab's ＋ button (add) or by clicking
+       a phrase in the list (edit). Phrases tab stays highlighted
+       so the tab bar is the way back. -->
+  <div class="tab-content manage" id="tab-phrase-form">
+    <div class="form-page-header">
+      <h2 class="form-page-title" id="phrase-form-title">New phrase</h2>
+      <div class="form-page-actions">
+        <button class="btn-form-cancel" id="btn-phrase-form-cancel">Cancel</button>
+        <button class="btn-save-circle" id="btn-phrase-form-save" title="Save" aria-label="Save" disabled>✓</button>
+      </div>
+    </div>
+
+    <label class="form-label" for="phrase-form-input">Phrase</label>
+    <textarea id="phrase-form-input" class="form-field-large phrase-form-textarea" placeholder="Type your phrase here…" spellcheck="true" rows="3"></textarea>
+
+    <div class="form-section-header">
+      <label class="form-label" for="phrase-form-bops-search">Bops</label>
+      <span class="form-section-counter" id="phrase-form-bops-counter" hidden></span>
+    </div>
+    <div class="phrase-form-bops-box" id="phrase-form-bops-box">
+      <input type="text" id="phrase-form-bops-search" class="phrase-form-bops-search" placeholder="Search phrases to add a bop…" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="phrase-form-bops-dropdown" id="phrase-form-bops-dropdown" hidden></div>
+    <div class="form-helper">Do you often use one phrase after another? Add the follow-up phrase as a Bop to see it auto suggested</div>
+
+    <button class="btn btn-danger phrase-form-delete" id="btn-phrase-form-delete" hidden>Delete phrase</button>
+    <div class="status" id="phrase-form-status"></div>
+  </div>
+
+  <!-- Link Form View — full-page add/edit for a single link rule.
+       Reached from the Links tab's ＋ button (add) or by clicking a
+       trigger in the list (edit). Links tab stays highlighted so the
+       tab bar is the way back. -->
+  <div class="tab-content manage" id="tab-link-form">
+    <div class="form-page-header">
+      <h2 class="form-page-title" id="link-form-title">New link</h2>
+      <div class="form-page-actions">
+        <button class="btn-form-cancel" id="btn-link-form-cancel">Cancel</button>
+        <button class="btn-save-circle" id="btn-link-form-save" title="Save" aria-label="Save" disabled>✓</button>
+      </div>
+    </div>
+
+    <label class="form-label" for="link-form-trigger">Trigger</label>
+    <input type="text" id="link-form-trigger" class="form-field-large" placeholder="e.g. ribbit" autocomplete="off" spellcheck="false">
+
+    <label class="form-label" for="link-form-url">URL</label>
+    <textarea id="link-form-url" class="form-field-large link-form-url-textarea" placeholder="e.g. example.com/ribbit" autocomplete="off" spellcheck="false" rows="2"></textarea>
+
+    <button class="btn btn-danger phrase-form-delete" id="btn-link-form-delete" hidden>Delete link</button>
+    <div class="status" id="link-form-status"></div>
+  </div>
+
+  <!-- Settings Tab -->
+  <div class="tab-content manage" id="tab-settings">
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">LingoFrog enabled</div>
+        <div class="setting-desc">Master on/off switch for the extension</div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="set-enabled" checked>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+    <div class="setting-row" id="row-autocomplete">
+      <div>
+        <div class="setting-label">Auto-complete suggestions</div>
+        <div class="setting-desc">Show phrase completions as you type</div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="set-autocomplete" checked>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+    <div class="setting-row" id="row-autolink">
+      <div>
+        <div class="setting-label">Auto-link hyperlinks</div>
+        <div class="setting-desc">Prompt to linkify trigger phrases</div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="set-autolink" checked>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+    <div class="setting-row" id="row-save-rule-chip">
+      <div>
+        <div class="setting-label">Nudge to save links</div>
+        <div class="setting-desc">After you insert a one-off URL via ⌘L, receive a nudge to save highlighted text as a link rule</div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="set-save-rule-chip" checked>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+    <div class="setting-row" id="row-apply-utm-on-copy">
+      <div>
+        <div class="setting-label">Include UTM parameters when copying links</div>
+        <div class="setting-desc">Apply matching UTM rules to a URL before copying it to the clipboard.</div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="set-apply-utm-on-copy" checked>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">Trigger after</div>
+        <div class="setting-desc">Characters typed before suggestions appear</div>
+      </div>
+      <input type="number" class="setting-input" id="set-trigger" min="3" max="20" value="8">
+    </div>
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">Max suggestions</div>
+        <div class="setting-desc">Number of completions shown</div>
+      </div>
+      <input type="number" class="setting-input" id="set-max" min="1" max="10" value="5">
+    </div>
+
+    <div style="margin-top: 20px; padding-top: 14px; border-top: 1px solid #e2e2e2;">
+      <div class="setting-label">Backup &amp; restore</div>
+      <div class="setting-desc">Copy phrases, link rules, and UTM parameters to the clipboard for saving, or paste a backup to import.</div>
+      <button class="btn btn-primary" id="btn-export-all">Copy All to Clipboard</button>
+      <button class="btn btn-secondary" id="btn-import-all">Import from backup</button>
+      <div class="status" id="backup-status"></div>
+    </div>
+  </div>
+
   <dialog class="link-dialog" id="link-dialog" aria-labelledby="link-dialog-title">
     <div class="dialog-head">
       <span class="dialog-title" id="link-dialog-title">Edit link</span>
@@ -513,6 +753,7 @@
   </dialog>
 
   <script src="trie.js"></script>
+  <script src="manage.js"></script>
   <script type="module" src="scribe.js"></script>
 </body>
 </html>

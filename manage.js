@@ -1,5 +1,7 @@
 /**
- * popup.js — LingoFrog popup logic.
+ * manage.js — the side panel's Links, Phrases, and Settings tabs (once
+ * the toolbar popup), and the tab bar that switches between them and
+ * Scribe (scribe.js).
  */
 
 const corpus = new Corpus();
@@ -10,14 +12,14 @@ const btnImport = $('#btn-import');
 const importStatus = $('#import-status');
 const importHint = $('#import-hint');
 const phraseList = $('#phrase-list');
-const linkStatus = $('#link-status');
+const linkStatus = $('#link-rule-status');
 const linkRuleList = $('#link-rule-list');
 const phraseSearch = $('#phrase-search');
 const corpusStatus = $('#corpus-status');
 const btnExportAll = $('#btn-export-all');
 const btnImportAll = $('#btn-import-all');
 const backupStatus = $('#backup-status');
-const linkSearch = $('#link-search');
+const linkSearch = $('#link-rule-search');
 const utmList = $('#utm-list');
 const utmStatus = $('#utm-status');
 const btnAddUtmRoot = $('#btn-add-utm-root');
@@ -35,68 +37,52 @@ const HOST_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0
 // ── Initialize ─────────────────────────────────────────────
 
 async function init() {
+  // Before the first await, so the panel never paints the wrong tab.
+  showTab(lastTab());
+  focusActiveTabSearch();
   await corpus.load();
   updateStats();
   updatePhraseList();
   updateLinkRuleList();
   updateUtmList();
   loadSettings();
-  await applyOpenTabTarget();
-  focusActiveTabSearch();
-}
-
-// Alt+P lands in background.js, which stashes a target tab id in
-// session storage before opening the popup. Read and clear that flag
-// here so the popup lands on the Phrases tab. Alt+L uses Chrome's
-// native _execute_action command — no flag, popup opens on its HTML
-// default (Links) — so there's nothing extra to do for that case.
-async function applyOpenTabTarget() {
-  if (!chrome.storage || !chrome.storage.session) return;
   try {
-    const { lingofrog_open_tab: target } = await chrome.storage.session.get('lingofrog_open_tab');
-    if (!target) return;
-    await chrome.storage.session.remove('lingofrog_open_tab');
-    const tabBtn = document.querySelector(`.tab[data-tab="${target}"]`);
-    if (tabBtn) tabBtn.click();
+    const { [OPEN_TAB_KEY]: request } = await chrome.storage.session.get(OPEN_TAB_KEY);
+    await applyOpenRequest(request);
   } catch (e) {
     // session storage may be unavailable in some contexts; harmless.
   }
 }
 
-// While the popup is open, Alt+P still fires the background command
-// listener (Chrome doesn't route it to the popup's own keydown).
-// background.js forwards it here as { type: 'lingofrog_shortcut',
-// target: 'corpus' }. If the tab bar already shows Phrases as active,
-// treat the second press as toggle-off and close the popup; otherwise
-// switch to Phrases. Sub-views (phrase form, import) leave the parent
-// tab visually active, so this "match .tab.active" check does the
-// right thing there too. Responding { ok: true } tells background
-// not to fall through to openPopup().
-if (chrome.runtime && chrome.runtime.onMessage) {
-  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    if (!msg || msg.type !== 'lingofrog_shortcut') return;
-    const activeTab = document.querySelector('.tab.active');
-    const current = activeTab ? activeTab.dataset.tab : null;
-    if (current === msg.target) {
-      sendResponse({ ok: true });
-      window.close();
-    } else {
-      const tabBtn = document.querySelector(`.tab[data-tab="${msg.target}"]`);
-      if (tabBtn) tabBtn.click();
-      focusActiveTabSearch();
-      sendResponse({ ok: true });
-    }
-    return false;
-  });
+// Alt+P lands in background.js, which opens the panel and leaves a
+// { tab, windowId, at } request in session storage: read here when the
+// panel opens, or heard through onChanged (below) when it's already
+// open. Only the panel in the window the shortcut was pressed in takes
+// it. Alt+L is Chrome's own _execute_action, which just toggles the
+// panel, so there's nothing to do for that one.
+const OPEN_TAB_KEY = 'lingofrog_open_tab';
+let panelWindowId = null;
+const panelWindowReady = chrome.windows
+  ? chrome.windows.getCurrent().then((win) => { panelWindowId = win.id; }).catch(() => {})
+  : Promise.resolve();
+
+async function applyOpenRequest(request) {
+  await panelWindowReady;
+  if (!request || (panelWindowId !== null && request.windowId !== panelWindowId)) return;
+  chrome.storage.session.remove(OPEN_TAB_KEY).catch(() => {});
+  // Left over from a shortcut whose panel never opened.
+  if (Date.now() - request.at > 10000 || !TABS.includes(request.tab)) return;
+  showTab(request.tab);
+  focusActiveTabSearch();
 }
 
-// On popup open, drop the cursor in the current tab's search input so
-// users can start typing (or hit the open shortcut → type) without an
-// extra click. Only Links and Phrases have a search; others no-op.
+// On opening Links or Phrases, drop the cursor in its search input so
+// users can start typing without an extra click. Other tabs no-op
+// (Scribe puts the cursor in the draft itself).
 function focusActiveTabSearch() {
   const active = document.querySelector('.tab-content.active');
   if (!active) return;
-  const search = active.querySelector('#link-search, #phrase-search');
+  const search = active.querySelector('#link-rule-search, #phrase-search');
   if (search) search.focus();
 }
 
@@ -137,7 +123,7 @@ function updatePhraseList() {
     // Copy button (was the frequency badge). Copies the raw phrase
     // — not the possibly-ellipsized display text — so users get the
     // full string on the clipboard even when the row was truncated
-    // to fit the popup width.
+    // to fit the panel width.
     const copyBtn = document.createElement('button');
     copyBtn.type = 'button';
     copyBtn.className = 'phrase-copy-btn';
@@ -205,7 +191,7 @@ function updateLinkRuleList() {
 
 // Returns true when the URL is safe to render as a clickable <a>.
 // Allow http/https/mailto/tel; reject anything else so an admin
-// click in the popup can't fire a dangerous scheme.
+// click in the panel can't fire a dangerous scheme.
 function isSafeNavigableUrl(url) {
   try {
     const parsed = new URL(url);
@@ -337,8 +323,8 @@ function updateToggleStates() {
 function showStatus(el, message, type, duration) {
   el.textContent = message;
   el.className = 'status ' + type;
-  // Scroll into view in case the status sits below the popup's viewport,
-  // which can happen once the body hits Chrome's max popup height.
+  // Scroll into view in case the status sits below the fold of a long
+  // view (Settings, the import form).
   el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   // Errors persist longer than success messages so users have time to
   // read what went wrong before it disappears.
@@ -347,34 +333,41 @@ function showStatus(el, message, type, duration) {
 }
 
 // ── Tab Switching ──────────────────────────────────────────
+//
+// The panel reopens on the tab it was last on (Scribe the first time).
+// Scribe is a module of its own, so it hears about switches through a
+// 'lingofrog-tab' event on document, to put the cursor back in the
+// draft.
+
+const TABS = ['scribe', 'links', 'corpus', 'settings'];
+const LAST_TAB_KEY = 'lingofrog_panel_tab';
+
+function lastTab() {
+  try {
+    const saved = localStorage.getItem(LAST_TAB_KEY);
+    if (TABS.includes(saved)) return saved;
+  } catch (e) {
+    // Storage blocked; fall through to the default.
+  }
+  return 'scribe';
+}
+
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.tab-content').forEach((c) => c.classList.toggle('active', c.id === 'tab-' + name));
+  try {
+    localStorage.setItem(LAST_TAB_KEY, name);
+  } catch (e) {
+    // Not remembered; harmless.
+  }
+  document.dispatchEvent(new CustomEvent('lingofrog-tab', { detail: name }));
+}
 
 document.querySelectorAll('.tab[data-tab]').forEach((tab) => {
   tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
-    tab.classList.add('active');
-    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    showTab(tab.dataset.tab);
+    focusActiveTabSearch();
   });
-});
-
-// Scribe isn't a popup tab: it opens in Chrome's side panel, which
-// (unlike the popup) stays open while the user reads and selects text
-// in Gmail. sidePanel.open() must run synchronously inside the click's
-// user gesture, so the window id is looked up ahead of time.
-let currentWindowId = null;
-if (chrome.windows) {
-  chrome.windows.getCurrent().then((win) => { currentWindowId = win.id; }).catch(() => {});
-}
-document.getElementById('btn-open-scribe').addEventListener('click', () => {
-  // Report failures in whichever view is showing.
-  const status = document.querySelector('.tab-content.active .status') || linkStatus;
-  if (!chrome.sidePanel || currentWindowId === null) {
-    showStatus(status, 'Scribe needs a newer version of Chrome (116+).', 'error');
-    return;
-  }
-  chrome.sidePanel.open({ windowId: currentWindowId })
-    .then(() => window.close())
-    .catch((e) => showStatus(status, 'Couldn\'t open Scribe: ' + e.message, 'error'));
 });
 
 // ── Import view ───────────────────────────────────────────
@@ -593,8 +586,8 @@ linkSearch.addEventListener('input', updateLinkRuleList);
 
 // ── Settings: Auto-persist on change ───────────────────────
 
-// Auto-persist on change. Each control writes the full config; the
-// popup is single-context so there is no risk of partial-state drift.
+// Auto-persist on change. Each control writes the full config; only
+// this tab writes it, so there is no risk of partial-state drift.
 // The content-script storage listener picks the new config up in
 // open Gmail tabs. No "Save Settings" button: the toggle staying
 // in position (or number staying in the field) is the confirmation.
@@ -1453,6 +1446,35 @@ for (const el of [linkFormTrigger, linkFormUrl]) {
     }
   });
 }
+
+// ── Changes from elsewhere ────────────────────────────────
+//
+// Unlike the popup, the panel stays open while phrases and links change
+// under it: saved from Gmail (⌘⇧P, ⌘L), used by autocomplete, or saved
+// from Scribe's draft. Reload and redraw what changed. The UTM list
+// isn't redrawn while a row is open, so unsaved values aren't wiped.
+
+chrome.storage.onChanged.addListener(async (changes, area) => {
+  if (area === 'session') {
+    const request = changes[OPEN_TAB_KEY];
+    if (request && request.newValue) applyOpenRequest(request.newValue);
+    return;
+  }
+  if (area !== 'local') return;
+  const {
+    lingofrog_phrases: phrases,
+    lingofrog_link_rules: links,
+    lingofrog_utm_rules: utms,
+    lingofrog_config: config,
+  } = changes;
+  if (!phrases && !links && !utms && !config) return;
+  await corpus.load();
+  updateStats();
+  if (phrases) updatePhraseList();
+  if (links) updateLinkRuleList();
+  if (utms && utmExpandedHost === null && !utmDraftRoot) updateUtmList();
+  if (config) loadSettings();
+});
 
 // ── Start ──────────────────────────────────────────────────
 

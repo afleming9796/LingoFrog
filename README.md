@@ -13,7 +13,7 @@ Like a best friend, LingoFrog finishes your sentences and inserts relevant hyper
 
 ## Setup
 
-1. Add your favorite phrases and links via the import tab or by highlighting them in Gmail and selecting cmd + shift + p.
+1. Click the LingoFrog icon (or press Option/Alt + L) to open the side panel. Add your favorite phrases and links on its **Phrases** and **Links** tabs, or by highlighting them in Gmail and selecting cmd + shift + p.
 2. Start typing in Gmail and suggestions will appear. You might need to refresh your screen
 3. Use Cmd+L to insert hyperlinks based on matches. If you highlight a phrase, CMD+L will open a drop down of links to insert. You can also insert ad-hoc links via highlight + cmd + L and save those ad-hoc links for future use. 
 4. You should occasionally export your phrases and links to a Google doc or local txt file as a backup. (Bulk import is easy). 
@@ -27,10 +27,11 @@ Like a best friend, LingoFrog finishes your sentences and inserts relevant hyper
 - **Cmd+L** accepts hyperlink suggestions
 - **Highlight + Cmd + P** to add new phrases
 - **Highlight + CMD + L** brings up dropdown of your links to insert and let's you insert ad-hoc links. 
+- **Option/Alt + L** opens or closes the LingoFrog side panel, and **Option/Alt + P** opens it on the Phrases tab
 
-## Scribe (side panel)
+## Scribe
 
-Scribe is an email editor in Chrome's side panel that can also draft emails with Claude. Click the extension icon → **Scribe** to open it.
+Scribe is an email editor that can also draft emails with Claude. It's the first tab in the side panel.
 
 Write your email in the draft box, and it works like a Gmail reply:
 
@@ -43,7 +44,7 @@ Write your email in the draft box, and it works like a Gmail reply:
 
 Turn on **Write with AI** at the top of the panel to have Claude write the draft. With it off, the panel is just the editor and nothing is sent anywhere. It starts off on a new install, and on if you'd already added an API key.
 
-1. Add your Anthropic API key (key icon in the panel). Create one at [console.anthropic.com](https://console.anthropic.com/settings/keys). It's stored only on this device, and you pay Anthropic directly for usage.
+1. Add your Anthropic API key (key icon next to the switch). Create one at [console.anthropic.com](https://console.anthropic.com/settings/keys). It's stored only on this device, and you pay Anthropic directly for usage.
 2. Fill in **Context**: paste notes or an email thread, or highlight text in Gmail and click **Use Gmail selection**.
 3. Pick one of your **Styles** (post-call follow-up, intro email, quick reply, or your own). Rules that should apply to every draft (tone, length, sign-off) go in the **General style** above them.
 4. Click **Write** (or press Cmd/Ctrl + Enter in the context box). The draft streams in with formatting and links. **Clear context and draft** at the bottom starts over (with an undo).
@@ -53,7 +54,7 @@ Scribe reuses your most-used saved phrases where they fit and matches their voic
 
 ## Settings
 
-Click the extension icon → **Settings** tab:
+In the side panel, click the gear for **Settings**:
 
 - **Trigger after**: how many characters before suggestions appear (default: 8)
 - **Max suggestions**: number of completions shown (default: 5)

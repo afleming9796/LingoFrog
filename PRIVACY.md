@@ -4,16 +4,17 @@ _Last updated: 2026-11-02_
 
 LingoFrog is a Chrome extension that provides autocomplete and link
 suggestions inside Gmail's compose, drawn from phrases the user has
-imported or saved. Its Scribe side panel is an email editor with the
-same suggestions, and can optionally draft emails with Anthropic's
-Claude API, using an API key the user provides.
+imported or saved. Its side panel manages those phrases and links, and
+its Scribe tab is an email editor with the same suggestions that can
+optionally draft emails with Anthropic's Claude API, using an API key
+the user provides.
 
 ## What LingoFrog stores
 
 All data LingoFrog uses lives locally on your device via Chrome's
 `chrome.storage` API. This includes:
 
-- Your phrase corpus (text snippets imported via the popup or saved
+- Your phrase corpus (text snippets added in the side panel or saved
   via the ⌘+Shift+P shortcut).
 - Link rules (trigger phrase → URL pairs).
 - UTM parameter rules.
@@ -25,6 +26,8 @@ All data LingoFrog uses lives locally on your device via Chrome's
 - Scribe's current context and draft, kept in `chrome.storage.session`
   so they survive closing the side panel; Chrome clears it when the
   browser restarts.
+- Which side panel tab you had open last (kept in the panel's own
+  local storage rather than `chrome.storage`).
 
 While you are typing in Gmail's compose or in Scribe's draft,
 LingoFrog reads your in-progress text to match it against your local

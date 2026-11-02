@@ -1,12 +1,11 @@
 /**
- * scribe.js — the Scribe side panel.
+ * scribe.js — the side panel's Scribe tab (manage.js runs the others).
  *
  * Context + style → Claude → a formatted draft the user copies into
  * Gmail. With "Write with AI" off, the draft is just an editor: the
  * user writes it themselves, with phrase autocomplete and saved links
- * as in Gmail. Lives in Chrome's side panel rather than the popup
- * because the popup closes the moment you click back into the page,
- * which would throw away the context mid-edit.
+ * as in Gmail. The side panel, unlike a popup, stays open while you
+ * click back into the page, so the context survives mid-edit.
  *
  * Storage:
  *   local   lingofrog_scribe_ai           "Write with AI" on/off
@@ -1350,8 +1349,8 @@ function updateWriteButton() {
   btnWrite.disabled = !contextEl.value.trim();
 }
 
-// Loaded fresh for each write/copy so edits made in the popup since the
-// panel opened are picked up.
+// Loaded fresh for each write/copy so it never works from a stale copy
+// of the links or phrases.
 async function loadCorpus() {
   const corpus = new Corpus();
   await corpus.load();
@@ -1728,14 +1727,46 @@ async function init() {
   renderStyles();
   renderOutput();
   updateWriteButton();
-  if (!state.ai) focusDraft();
-  else if (!state.apiKey) openKeyCard();
-  else contextEl.focus();
+  // The panel may have opened on another tab.
+  if (contentEl.classList.contains('active')) focusScribe();
 }
 
-// Phrases, links, or settings changed in the popup (or by autocomplete
-// recording a use): refresh the live corpus. For UTM rules, also re-tag
-// the draft's links right away.
+// Where the cursor starts: the draft with AI off, otherwise the key
+// card (no key yet) or the context.
+function focusScribe() {
+  if (!state.ai) {
+    focusDraft();
+  } else if (!state.apiKey) {
+    if (keyCard.hidden) openKeyCard();
+    else keyInput.focus();
+  } else {
+    contextEl.focus();
+  }
+}
+
+// Coming back from another tab (manage.js) puts the cursor back where
+// it was, the draft's caret included.
+let lastFocus = null;
+let draftCaret = null;
+contentEl.addEventListener('focusin', (e) => { lastFocus = e.target; });
+document.addEventListener('selectionchange', () => {
+  const range = draftRange();
+  if (range) draftCaret = range.cloneRange();
+});
+document.addEventListener('lingofrog-tab', (e) => {
+  if (e.detail !== 'scribe') return;
+  if (lastFocus === outputEl && draftCaret && outputEl.contains(draftCaret.startContainer)) {
+    restoreDraftSelection(draftCaret);
+  } else if (lastFocus && lastFocus !== outputEl && lastFocus.isConnected && lastFocus.offsetParent) {
+    lastFocus.focus({ preventScroll: true });
+  } else {
+    focusScribe();
+  }
+});
+
+// Phrases, links, or settings changed in another tab or in Gmail (or
+// autocomplete recorded a use): refresh the live corpus. For UTM rules,
+// also re-tag the draft's links right away.
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local' || !CORPUS_KEYS.some((k) => changes[k])) return;
   loadCorpus().then((corpus) => {

@@ -1,44 +1,25 @@
 /**
  * background.js — LingoFrog service worker.
  *
- * Alt+L is handled natively by Chrome via the manifest's
- * `_execute_action` command (opens or toggles the popup, no listener
- * needed) which keeps the common case out of the extension's
- * permission surface.
+ * LingoFrog lives in Chrome's side panel (panel.html); there's no
+ * popup. The toolbar icon toggles the panel, and so does Alt+L, which
+ * is the manifest's `_execute_action` command: Chrome runs it as an
+ * icon click, so it needs no listener here.
  *
- * Alt+P lives here so it can behave like a toggle too:
- *   popup closed          → open on the Phrases tab
- *   popup open, any tab   → hand off to the popup; the popup closes
- *                           itself if it's already on Phrases,
- *                           otherwise switches there
- *
- * "Is the popup open?" is answered by trying chrome.runtime.sendMessage
- * — if popup.js is loaded it responds, otherwise sendMessage rejects
- * with "no receiving end" and we fall back to openPopup().
+ * Alt+P opens the panel on the Phrases tab. sidePanel.open() only works
+ * inside the shortcut's user gesture, so it's called first, before
+ * anything async. The tab to show goes through session storage, where
+ * manage.js picks it up whether the panel was already open or is just
+ * opening.
  */
 
-chrome.commands.onCommand.addListener(async (command) => {
-  if (command !== 'open_phrases') return;
+chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
 
-  // Hand the shortcut to the popup first. Response { ok: true } means
-  // the popup handled it (switched tab or closed). Rejection means the
-  // popup isn't open — fall through to openPopup with the target flag.
-  try {
-    const response = await chrome.runtime.sendMessage({
-      type: 'lingofrog_shortcut',
-      target: 'corpus',
-    });
-    if (response && response.ok) return;
-  } catch (e) {
-    // Popup wasn't open — expected on the "opens the popup" path.
-  }
-
-  try {
-    await chrome.storage.session.set({ lingofrog_open_tab: 'corpus' });
-    await chrome.action.openPopup();
-  } catch (e) {
-    // openPopup() can reject if no window is available to host the
-    // popup (e.g. no focused browser window). Nothing else to do —
-    // the shortcut just no-ops in that case.
-  }
+chrome.commands.onCommand.addListener((command, tab) => {
+  if (command !== 'open_phrases' || !tab) return;
+  // A no-op if the panel is already open.
+  chrome.sidePanel.open({ windowId: tab.windowId }).catch(() => {});
+  chrome.storage.session.set({
+    lingofrog_open_tab: { tab: 'corpus', windowId: tab.windowId, at: Date.now() },
+  });
 });

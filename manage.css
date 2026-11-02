@@ -1,0 +1,529 @@
+/*
+ * manage.css: the Links, Phrases, and Settings tabs of the side panel
+ * (manage.js), moved over from the old toolbar popup. Everything is
+ * scoped to .manage so these rules and the Scribe tab's (inline in
+ * panel.html) don't restyle each other's inputs, buttons, and status
+ * lines.
+ */
+
+.manage.tab-content { padding: 12px 16px 16px; }
+#tab-links.active, #tab-corpus.active { display: flex; flex-direction: column; }
+#tab-links > :not(.list-scroll), #tab-corpus > :not(.list-scroll) { flex-shrink: 0; }
+
+.manage textarea {
+  width: 100%;
+  min-height: 140px;
+  background: #ffffff;
+  border: 1px solid #dcdcdc;
+  border-radius: 8px;
+  color: #1a1a1a;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  padding: 10px;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.manage textarea:focus { border-color: #6da34d; }
+.manage textarea::placeholder { color: #b5b5b5; }
+
+.manage input[type="text"], .manage input[type="url"] {
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid #dcdcdc;
+  border-radius: 8px;
+  color: #1a1a1a;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  padding: 8px 10px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.manage input[type="text"]:focus, .manage input[type="url"]:focus { border-color: #6da34d; }
+.manage input[type="text"]::placeholder, .manage input[type="url"]::placeholder { color: #b5b5b5; }
+
+.manage .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  gap: 6px;
+}
+.manage .btn-primary { background: #6da34d; color: #ffffff; width: 100%; margin-top: 8px; }
+.manage .btn-primary:hover { background: #5b8c3e; }
+.manage .btn-secondary { background: transparent; color: #4d7a2e; border: 1px solid #c8dfa8; width: 100%; margin-top: 6px; }
+.manage .btn-secondary:hover { background: #eaf5db; border-color: #a8ce7e; }
+.manage .btn-danger { background: transparent; color: #b04848; border: 1px solid #dcdcdc; width: 100%; margin-top: 8px; }
+.manage .btn-danger:hover { background: #fbe7e7; border-color: #e7b8b8; }
+.manage .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Row that holds the primary toggle bar + the small overflow
+   circle button to its right. */
+.manage .import-controls { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+.manage .import-type-toggle { display: flex; gap: 2px; flex: 1; background: #ececec; border-radius: 8px; padding: 3px; }
+.manage .import-type-btn {
+  flex: 1; padding: 6px 0; text-align: center; font-size: 11px; font-weight: 600;
+  color: #7a7a7a; background: transparent; border: none; cursor: pointer;
+  border-radius: 6px; transition: all 0.15s;
+}
+.manage .import-type-btn:hover { color: #1a1a1a; }
+.manage .import-type-btn.active { color: #4d7a2e; background: #ffffff; }
+
+/* Small circular overflow button, sits outside the toggle bar.
+   Opens a menu with less-common import types (Bops, UTMs). */
+.manage .import-type-overflow-container { position: relative; flex-shrink: 0; }
+.manage .import-type-btn-overflow {
+  width: 26px; height: 26px; padding: 0;
+  border-radius: 50%;
+  background: #ececec; color: #7a7a7a;
+  font-size: 14px; line-height: 1;
+  border: none; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.manage .import-type-btn-overflow:hover { background: #dcdcdc; color: #1a1a1a; }
+.manage .import-type-btn-overflow.active { background: #e7f0dc; color: #4d7a2e; }
+.manage .import-type-overflow-menu {
+  position: absolute; top: calc(100% + 4px); right: 0;
+  background: #ffffff; border: 1px solid #dcdcdc; border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  min-width: 140px; z-index: 20;
+  display: none;
+}
+.manage .import-type-overflow-menu.open { display: block; }
+.manage .import-type-overflow-item {
+  padding: 6px 10px; font-size: 11px; color: #1a1a1a; cursor: pointer;
+}
+.manage .import-type-overflow-item:hover { background: #e7f0dc; color: #4d7a2e; }
+
+/* Search bar + ellipsis-menu toolbar shared by Phrases and Links.
+   Reuses the import-type-overflow visual for the small circle
+   button; the menu variant below has generic row items instead of
+   type toggles. */
+.manage .tab-toolbar { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.manage .row-overflow-container { position: relative; flex-shrink: 0; }
+.manage .row-overflow-btn {
+  width: 26px; height: 26px; padding: 0;
+  border-radius: 50%;
+  background: #ececec; color: #7a7a7a;
+  font-size: 14px; line-height: 1;
+  border: none; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.manage .row-overflow-btn:hover { background: #dcdcdc; color: #1a1a1a; }
+.manage .row-overflow-btn.active { background: #e7f0dc; color: #4d7a2e; }
+
+/* Same circle footprint as row-overflow-btn but with a chunkier
+   glyph, a soft shadow, and a small press animation — reads as a
+   primary action without swapping the neutral color palette. */
+.manage .btn-add-circle {
+  width: 26px; height: 26px; padding: 0;
+  border-radius: 50%;
+  background: #ececec; color: #7a7a7a;
+  font-size: 18px; font-weight: 500; line-height: 1;
+  border: none; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+.manage .btn-add-circle:hover { background: #dcdcdc; color: #1a1a1a; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12); }
+.manage .btn-add-circle:active { transform: translateY(1px); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+
+/* Save/cancel circles that replace the ＋ / ⋯ pair while an
+   inline add form is open. Save goes green when the form is
+   valid; disabled otherwise. */
+.manage .btn-save-circle, .manage .btn-cancel-circle {
+  width: 26px; height: 26px; padding: 0;
+  border-radius: 50%;
+  font-size: 13px; font-weight: 700; line-height: 1;
+  border: none; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.manage .btn-save-circle {
+  background: #6da34d; color: #ffffff;
+  box-shadow: 0 1px 3px rgba(109, 163, 77, 0.35);
+}
+.manage .btn-save-circle:hover:not(:disabled) { background: #5b8c3e; box-shadow: 0 2px 6px rgba(109, 163, 77, 0.45); }
+.manage .btn-save-circle:active:not(:disabled) { transform: translateY(1px); }
+.manage .btn-save-circle:disabled { background: #ececec; color: #b5b5b5; cursor: not-allowed; box-shadow: none; }
+.manage .btn-cancel-circle { background: #ececec; color: #7a7a7a; font-size: 15px; }
+.manage .btn-cancel-circle:hover { background: #fbe7e7; color: #b04848; }
+
+.manage .row-overflow-menu {
+  /* Pulled left of the ellipsis button so the menu doesn't sit
+     above (and hide) the trash-icon column of the rows below. */
+  position: absolute; top: calc(100% + 4px); right: 32px;
+  background: #ffffff; border: 1px solid #dcdcdc; border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  min-width: 160px; z-index: 20;
+  display: none;
+}
+.manage .row-overflow-menu.open { display: block; }
+.manage .row-overflow-item {
+  padding: 7px 12px; font-size: 11px; color: #1a1a1a; cursor: pointer;
+  transition: background 0.1s;
+}
+.manage .row-overflow-item:hover { background: #e7f0dc; color: #4d7a2e; }
+.manage .row-overflow-item.danger { color: #b04848; }
+.manage .row-overflow-item.danger:hover { background: #fbe7e7; color: #b04848; }
+
+/* Shared header row for full-page forms (phrase and link edit).
+   Both reach here from the ＋ button on their tab or by clicking
+   a row in the list. */
+.manage .form-page-header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 14px;
+}
+.manage .form-page-title { font-size: 14px; font-weight: 700; color: #1a1a1a; }
+.manage .form-page-actions { display: flex; align-items: center; gap: 8px; }
+.manage .btn-form-cancel {
+  background: transparent; border: none;
+  color: #7a7a7a; font-size: 12px; font-weight: 600;
+  cursor: pointer; padding: 4px 10px; border-radius: 6px;
+  transition: all 0.15s;
+}
+.manage .btn-form-cancel:hover { color: #1a1a1a; background: #ececec; }
+
+.manage .form-label {
+  display: block;
+  font-size: 10px; font-weight: 600; color: #7a7a7a;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+.manage .form-field-large {
+  width: 100%;
+  padding: 10px 12px; font-size: 13px;
+  background: #ffffff; border: 1px solid #dcdcdc; border-radius: 8px;
+  color: #1a1a1a; outline: none;
+  transition: border-color 0.15s;
+  margin-bottom: 16px;
+}
+.manage .form-field-large:focus { border-color: #6da34d; }
+/* Textarea variant of .form-field-large — overrides the global
+   .textarea rule (monospace, 140px min-height) to keep the panel's
+   sans-serif look at a compact 3-row size. */
+.manage .phrase-form-textarea {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  min-height: 0;
+  max-width: 100%;
+  resize: vertical;
+  overflow-wrap: anywhere;
+}
+/* URL textarea in the Link edit form: shares the phrase-form
+   sizing but breaks anywhere so long URLs wrap and auto-grow
+   instead of scrolling horizontally. The 2.8em min-height keeps
+   the box a comfortable 2 rows even when the URL is short — the
+   JS auto-grow only extends it beyond that. */
+.manage .link-form-url-textarea {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  min-height: calc(2.8em + 22px);
+  resize: vertical;
+  word-break: break-all;
+}
+.manage .form-section-header { display: flex; align-items: baseline; justify-content: space-between; }
+.manage .form-section-counter { font-size: 10px; color: #7a7a7a; }
+.manage .form-helper { font-size: 11px; color: #7a7a7a; line-height: 1.4; margin-top: 8px; margin-bottom: 8px; }
+
+.manage .phrase-form-bops-box {
+  min-height: 38px;
+  padding: 6px 8px;
+  background: #ffffff; border: 1px solid #dcdcdc; border-radius: 8px;
+  display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+  transition: border-color 0.15s;
+}
+.manage .phrase-form-bops-box:focus-within { border-color: #6da34d; }
+.manage .phrase-form-bops-search {
+  flex: 1; min-width: 120px;
+  border: none; outline: none;
+  background: transparent;
+  font-size: 12px; padding: 2px 4px;
+  color: #1a1a1a;
+}
+.manage .phrase-form-bops-search::placeholder { color: #b5b5b5; }
+.manage .phrase-form-bops-dropdown {
+  background: #ffffff; border: 1px solid #dcdcdc; border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  margin-top: 4px; max-height: 200px; overflow-y: auto;
+}
+.manage .phrase-form-bops-item {
+  padding: 7px 10px; font-size: 12px; color: #1a1a1a; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.manage .phrase-form-bops-item:hover { background: #e7f0dc; color: #4d7a2e; }
+.manage .phrase-form-bops-empty {
+  padding: 7px 10px; font-size: 11px; color: #7a7a7a; font-style: italic;
+}
+.manage .phrase-form-delete { margin-top: 20px; }
+
+/* UTM page (its own view, opened from Links overflow menu — the
+   top-line header stays visible; Links tab stays highlighted so
+   users know they're on a sub-page of Links). */
+.manage .utm-page-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+.manage .utm-page-title { font-size: 14px; font-weight: 700; color: #1a1a1a; }
+.manage .utm-page-desc { font-size: 11px; color: #7a7a7a; margin-bottom: 12px; line-height: 1.4; }
+.manage .utm-page-desc code { color: #4d7a2e; background: #e7f0dc; padding: 1px 4px; border-radius: 3px; }
+
+.manage .status { font-size: 11px; padding: 8px 12px; border-radius: 8px; margin-top: 8px; display: none; }
+.manage .status.success { display: block; background: #eaf5db; color: #4d7a2e; border: 1px solid #c8dfa8; }
+.manage .status.error { display: block; background: #fbe7e7; color: #b04848; border: 1px solid #f3c8c8; }
+
+.manage .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 0; border-bottom: 1px solid #e2e2e2; }
+.manage .setting-row:last-child { border-bottom: none; }
+.manage .setting-label { font-size: 12px; color: #1a1a1a; }
+.manage .setting-desc { font-size: 10px; color: #7a7a7a; margin-top: 2px; }
+
+.manage .setting-input {
+  width: 60px;
+  background: #ffffff;
+  border: 1px solid #dcdcdc;
+  border-radius: 6px;
+  color: #1a1a1a;
+  font-size: 12px;
+  padding: 4px 8px;
+  text-align: center;
+  outline: none;
+}
+.manage .setting-input:focus { border-color: #6da34d; }
+
+.manage .phrase-list { list-style: none; margin-top: 8px; }
+/* The Links and Phrases lists fill the panel's height and scroll on
+   their own, so the search bar and status line stay in view. */
+.manage .list-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+/* padding-right leaves room for the trailing focus ring on
+   .phrase-copy-btn / .link-rule-action (their outlines sit ~3px
+   outside the button box) so it isn't clipped by .list-scroll's
+   overflow rectangle. */
+.manage .list-scroll .phrase-list, .manage .list-scroll .link-rule-list { margin-top: 0; padding-right: 4px; }
+.manage .list-scroll .btn-danger { margin-top: 16px; }
+.manage .phrase-item { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 11px; border-bottom: 1px solid #ececec; }
+/* Copy icon on the left of each phrase row (replaces the old
+   .phrase-freq badge). Mirrors .link-rule-action so both tabs
+   share the same visual language for row-level icon actions. */
+.manage .phrase-copy-btn {
+  background: none; border: none; padding: 2px; cursor: pointer;
+  color: #7a7a7a; border-radius: 4px;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0; opacity: 0.55; transition: opacity 0.15s, color 0.15s, background 0.15s;
+}
+.manage .phrase-copy-btn:hover { opacity: 1; color: #4d7a2e; background: #e7f0dc; }
+.manage .phrase-copy-btn:focus-visible { opacity: 1; outline: 2px solid #6da34d; outline-offset: 1px; }
+.manage .phrase-copy-btn svg { width: 14px; height: 14px; display: block; }
+/* .phrase-text is a <button> so Tab traverses the phrase list;
+   reset the browser's default button chrome so it still reads as
+   inline text, and give it a visible focus ring for keyboard use. */
+.manage .phrase-text {
+  color: #3a3a3a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  flex: 1; cursor: pointer;
+  background: none; border: none; padding: 0; margin: 0;
+  font: inherit; text-align: left;
+  border-radius: 4px;
+}
+.manage .phrase-text:hover { color: #6da34d; }
+.manage .phrase-text:focus-visible { outline: 2px solid #6da34d; outline-offset: 1px; color: #4d7a2e; }
+.manage .phrase-edit-input {
+  flex: 1;
+  min-width: 0;
+  background: #ffffff;
+  border: 1px solid #6da34d;
+  border-radius: 6px;
+  color: #1a1a1a;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  padding: 2px 6px;
+  outline: none;
+}
+.manage .phrase-edit-row { display: flex; align-items: flex-start; gap: 8px; padding: 3px 0; }
+.manage .phrase-edit-bops-row { padding-left: 0; }
+.manage .phrase-edit-follows-label { color: #7a7a7a; font-size: 10px; flex-shrink: 0; padding-top: 5px; }
+.manage .phrase-bop-badge {
+  background: #e7f0dc; color: #4d7a2e;
+  border-radius: 4px; padding: 0 5px;
+  font-size: 9px; font-weight: 600;
+  flex-shrink: 0; letter-spacing: 0.3px;
+}
+.manage .phrase-edit-bops-box {
+  flex: 1; min-width: 0;
+  display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+  background: #ffffff;
+  border: 1px solid #6da34d;
+  border-radius: 8px;
+  padding: 6px 8px;
+  position: relative;
+}
+.manage .phrase-edit-bop-chip {
+  display: inline-flex; align-items: center; gap: 2px;
+  background: #e7f0dc; color: #4d7a2e;
+  border-radius: 4px;
+  font-size: 10px; font-weight: 500;
+  padding: 1px 2px 1px 6px;
+}
+.manage .phrase-edit-bop-chip-text { line-height: 1.4; }
+.manage .phrase-edit-bop-chip-x {
+  background: none; border: none; cursor: pointer;
+  color: #4d7a2e; font-size: 13px; line-height: 1;
+  padding: 0 3px; opacity: 0.6; transition: opacity 0.15s;
+}
+.manage .phrase-edit-bop-chip-x:hover { opacity: 1; }
+/* input.xxx selector bumps specificity to (0,1,1) so it beats
+   the generic input[type="text"] rule in non-focus states too —
+   otherwise the inner search input shows a grey border when not
+   focused (a "double outline"). */
+.manage input.phrase-edit-bops-search,
+.manage input.phrase-edit-bops-search:focus,
+.manage input.phrase-edit-bops-search:focus-visible {
+  flex: 1; min-width: 80px;
+  border: none; outline: none; box-shadow: none;
+  background: transparent;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px; padding: 0 2px;
+  color: #1a1a1a;
+}
+.manage input.phrase-edit-bops-search::placeholder { color: #b5b5b5; }
+.manage .phrase-edit-bops-dropdown-row { padding: 4px 0 0; }
+.manage .phrase-edit-bops-dropdown {
+  background: #ffffff; border: 1px solid #dcdcdc; border-radius: 6px;
+  max-height: 160px; overflow-y: auto;
+}
+.manage .phrase-edit-bops-item {
+  padding: 5px 8px; font-size: 11px; color: #1a1a1a; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.manage .phrase-edit-bops-item:hover { background: #e7f0dc; color: #4d7a2e; }
+.manage .phrase-edit-bops-empty { padding: 6px 8px; font-size: 10px; color: #a0a0a0; text-align: center; }
+
+.manage .link-rule-list { list-style: none; margin-top: 8px; }
+.manage .utm-jump-link {
+  display: inline-block;
+  font-size: 10px;
+  color: #4d7a2e;
+  text-decoration: none;
+  margin-left: 8px;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+.manage .utm-jump-link:hover { background: #e7f0dc; text-decoration: underline; }
+.manage .link-rule-item { display: flex; align-items: center; gap: 6px; padding: 6px 0; font-size: 11px; border-bottom: 1px solid #ececec; }
+.manage .link-rule-trigger {
+  color: #4d7a2e; font-weight: 600; flex-shrink: 0;
+  max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  background: none; border: none; padding: 0; font-size: 11px; font-family: inherit;
+  text-align: left; cursor: pointer;
+}
+.manage .link-rule-trigger:hover { text-decoration: underline; }
+.manage .link-rule-arrow { color: #b5b5b5; flex-shrink: 0; }
+.manage .link-rule-url { color: #7a7a7a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; font-size: 10px; }
+/* Icon-only row actions (open URL, copy URL). Kept compact so the
+   row stays legible in a narrow side panel. */
+.manage .link-rule-action {
+  background: none; border: none; padding: 2px; cursor: pointer;
+  color: #7a7a7a; border-radius: 4px;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0; opacity: 0.55; transition: opacity 0.15s, color 0.15s, background 0.15s;
+  text-decoration: none;
+}
+.manage .link-rule-action:hover { opacity: 1; color: #4d7a2e; background: #e7f0dc; }
+.manage .link-rule-action[aria-disabled="true"] { opacity: 0.25; cursor: not-allowed; }
+.manage .link-rule-action[aria-disabled="true"]:hover { color: #7a7a7a; background: none; }
+.manage .link-rule-action svg { width: 14px; height: 14px; display: block; }
+.manage .link-empty { color: #a0a0a0; font-size: 11px; padding: 12px 0; text-align: center; }
+
+.manage .import-hint {
+  background: #ffffff;
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  font-size: 10px;
+  color: #7a7a7a;
+  line-height: 1.5;
+}
+.manage .import-hint code { color: #4d7a2e; background: #e7f0dc; padding: 1px 4px; border-radius: 3px; }
+
+.manage .toggle-switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+.manage .toggle-switch input { opacity: 0; width: 0; height: 0; }
+.manage .toggle-slider {
+  position: absolute; inset: 0; cursor: pointer;
+  background: #cccccc; border-radius: 22px; transition: background 0.2s;
+}
+.manage .toggle-slider::before {
+  content: ''; position: absolute; left: 3px; top: 3px;
+  width: 16px; height: 16px; background: #ffffff;
+  border-radius: 50%; transition: transform 0.2s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+.manage .toggle-switch input:checked + .toggle-slider { background: #6da34d; }
+.manage .toggle-switch input:checked + .toggle-slider::before { transform: translateX(18px); }
+
+.manage .setting-row.disabled .setting-label,
+.manage .setting-row.disabled .setting-desc { opacity: 0.4; }
+
+/* UTM Parameters section */
+.manage .utm-section { margin-top: 18px; padding-top: 14px; border-top: 1px solid #e2e2e2; }
+.manage .utm-section-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.manage .utm-section-title { font-size: 12px; font-weight: 600; color: #1a1a1a; }
+.manage .utm-section-actions { display: flex; gap: 6px; align-items: center; }
+.manage .utm-section-desc { font-size: 10px; color: #7a7a7a; margin-top: 4px; line-height: 1.4; }
+.manage .utm-section-desc code { color: #4d7a2e; background: #e7f0dc; padding: 1px 4px; border-radius: 3px; }
+.manage .btn-link {
+  background: none; border: none; color: #4d7a2e; cursor: pointer;
+  font-size: 11px; font-weight: 600; padding: 2px 4px; border-radius: 4px;
+}
+.manage .btn-link:hover { background: #e7f0dc; }
+.manage .btn-link:disabled { color: #a0a0a0; cursor: not-allowed; background: none; }
+
+.manage .utm-list { list-style: none; margin-top: 8px; }
+.manage .utm-empty { color: #a0a0a0; font-size: 11px; padding: 10px 0; text-align: center; }
+
+.manage .utm-item { border: 1px solid #e2e2e2; border-radius: 8px; background: #ffffff; margin-bottom: 6px; overflow: hidden; }
+.manage .utm-item-header {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 10px; cursor: pointer; user-select: none;
+}
+.manage .utm-item-header:hover { background: #f7f7f7; }
+.manage .utm-item.expanded .utm-item-header { background: #f3f3f3; border-bottom: 1px solid #e2e2e2; cursor: default; }
+.manage .utm-item-caret { color: #a0a0a0; font-size: 10px; flex-shrink: 0; transition: transform 0.15s; }
+.manage .utm-item.expanded .utm-item-caret { transform: rotate(90deg); }
+.manage .utm-item-host { font-size: 12px; color: #1a1a1a; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.manage .utm-item-count { font-size: 10px; color: #7a7a7a; flex-shrink: 0; }
+.manage .utm-item-delete {
+  background: none; border: none; color: #b04848; cursor: pointer;
+  font-size: 14px; padding: 0 4px; flex-shrink: 0; opacity: 0.5; transition: opacity 0.15s;
+}
+.manage .utm-item-delete:hover { opacity: 1; }
+.manage .utm-item-host-input {
+  flex: 1; background: #ffffff; border: 1px solid #6da34d;
+  border-radius: 6px; color: #1a1a1a; font-size: 12px; padding: 4px 8px;
+  font-family: 'SF Mono', 'Fira Code', monospace; outline: none;
+}
+
+.manage .utm-item-body { padding: 8px 10px 10px; display: none; }
+.manage .utm-item.expanded .utm-item-body { display: block; }
+.manage .utm-param-row { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; }
+.manage .utm-param-key, .manage .utm-param-value {
+  flex: 1; min-width: 0; background: #ffffff; border: 1px solid #dcdcdc;
+  border-radius: 6px; padding: 4px 8px; font-size: 11px;
+  font-family: 'SF Mono', 'Fira Code', monospace; color: #1a1a1a; outline: none;
+}
+.manage .utm-param-key:focus, .manage .utm-param-value:focus { border-color: #6da34d; }
+.manage .utm-param-eq { color: #a0a0a0; font-size: 11px; flex-shrink: 0; }
+.manage .utm-param-remove {
+  background: none; border: none; color: #b04848; cursor: pointer;
+  font-size: 12px; padding: 0 4px; flex-shrink: 0; opacity: 0.5;
+}
+.manage .utm-param-remove:hover { opacity: 1; }
+
+.manage .utm-item-actions { display: flex; gap: 6px; margin-top: 6px; align-items: center; justify-content: space-between; }
+.manage .utm-item-actions .btn-primary { width: auto; margin-top: 0; padding: 5px 12px; font-size: 11px; }
+
