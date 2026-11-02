@@ -17,7 +17,7 @@ All data LingoFrog uses lives locally on your device via Chrome's
 - Link rules (trigger phrase → URL pairs).
 - UTM parameter rules.
 - Extension settings.
-- Scribe styles and style guide, and your Anthropic API key if you
+- Scribe's general style and styles, and your Anthropic API key if you
   add one. The key
   is stored only in `chrome.storage.local` on this device and is
   never synced or included in exports.
@@ -44,17 +44,17 @@ API (`api.anthropic.com`), authenticated with your API key. The
 request contains:
 
 - the text in the Context box,
-- your general style guide and the style you selected (its name and
+- your general style and the style you selected (its name and
   instructions),
 - your saved links (trigger phrase and URL), so the draft can
   include relevant ones, and
 - your most-used saved phrases (up to 200), so the draft can reuse
   them and match your voice.
 
-If you edit a draft and click **Suggest a style update from my
-edits**, Scribe sends one more request to the same API containing the
-draft as Claude wrote it, your edited version, the style that wrote it,
-and your general style guide, so Claude can propose a guideline. The
+If you edit a draft and click **Suggest a rule from my edits**,
+Scribe sends one more request to the same API containing the draft as
+Claude wrote it, your edited version, the style that wrote it, and
+your general style, so Claude can propose a rule. The
 suggestion is shown to you and only saved if you choose to add it.
 
 Nothing is sent before you click one of those buttons, nothing is sent

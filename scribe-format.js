@@ -190,12 +190,19 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
 }
 
+// Gmail's default compose text (font "Sans Serif", size "Normal") and
+// link color. Unstyled HTML takes on whatever font the paste path
+// supplies (Chrome's clipboard sanitizer fills in its own defaults, such
+// as Times at 16px), so every block spells out Gmail's instead.
+const GMAIL_TEXT_STYLE = 'font-family:Arial,Helvetica,sans-serif;font-size:small;color:#222222';
+const GMAIL_LINK_STYLE = 'color:#1155cc';
+
 function inlineHtml(tokens, mapHref) {
   return tokens.map((t) => {
     if (t.type === 'text') return escapeHtml(t.text);
     if (t.type === 'link') {
       const { href, text } = linkParts(t, mapHref);
-      return `<a href="${escapeHtml(href)}">${escapeHtml(text)}</a>`;
+      return `<a href="${escapeHtml(href)}" style="${GMAIL_LINK_STYLE}">${escapeHtml(text)}</a>`;
     }
     return `<${t.type}>${inlineHtml(t.children, mapHref)}</${t.type}>`;
   }).join('');
@@ -204,13 +211,14 @@ function inlineHtml(tokens, mapHref) {
 // Mirrors Gmail's own compose markup — one <div> per line and an empty
 // <div><br></div> between paragraphs — so a paste looks like typing.
 export function toClipboardHtml(blocks, mapHref = (h) => h) {
+  const div = (inner) => `<div style="${GMAIL_TEXT_STYLE}">${inner}</div>`;
   return blocks.map((b) => {
     if (b.type === 'p') {
-      return b.lines.map((line) => `<div>${inlineHtml(line, mapHref) || '<br>'}</div>`).join('');
+      return b.lines.map((line) => div(inlineHtml(line, mapHref) || '<br>')).join('');
     }
     const items = b.items.map((item) => `<li>${inlineHtml(item, mapHref)}</li>`).join('');
-    return `<${b.type}>${items}</${b.type}>`;
-  }).join('<div><br></div>');
+    return `<${b.type} style="${GMAIL_TEXT_STYLE}">${items}</${b.type}>`;
+  }).join(div('<br>'));
 }
 
 function inlineText(tokens, mapHref) {

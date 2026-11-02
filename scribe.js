@@ -10,7 +10,7 @@
  *   local   lingofrog_anthropic_api_key   the user's own key (never synced)
  *   local   lingofrog_scribe_styles       [{ id, name, instructions }]
  *   local   lingofrog_scribe_style_id     selected style id
- *   local   lingofrog_scribe_guide        general style guide (string)
+ *   local   lingofrog_scribe_guide        general style (string)
  *   session lingofrog_scribe_draft        { context, output, generated,
  *                                           styleId } — survives closing
  *                                           the panel, not a restart
@@ -114,7 +114,7 @@ const state = {
   draftSources: null,
   stream: null,
   suggesting: false,
-  // Style id a pending suggestion is for (null = the style guide).
+  // Style id a pending suggestion is for (null = the general style).
   suggestionStyleId: null,
 };
 
@@ -243,7 +243,7 @@ btnUseSelection.addEventListener('click', async () => {
   showStatus(contextStatus, '✓ Added your selection', 'success');
 });
 
-// ── Style guide ─────────────────────────────────────────────
+// ── General style ───────────────────────────────────────────
 
 function renderGuide() {
   const guide = state.guide.trim();
@@ -658,17 +658,17 @@ btnCopy.addEventListener('click', async () => {
   }
 });
 
-// ── Suggest a style update ──────────────────────────────────
+// ── Suggest a rule ──────────────────────────────────────────
 //
 // Compares the draft as Claude wrote it with the user's edited version
-// and proposes one guideline for the style that wrote it (or the style
-// guide if none did). Nothing is saved until the user clicks Add, and
+// and proposes one rule for the style that wrote it (or the general
+// style if none did). Nothing is saved until the user clicks Add, and
 // they can edit the wording first.
 
 function updateSuggestButton() {
   draftActions.hidden = !state.generated || !!state.stream;
   btnSuggest.disabled = !isEdited() || state.suggesting;
-  btnSuggest.textContent = state.suggesting ? 'Comparing your edits…' : 'Suggest a style update from my edits';
+  btnSuggest.textContent = state.suggesting ? 'Comparing your edits…' : 'Suggest a rule from my edits';
   btnSuggest.title = isEdited() ? '' : 'Edit the draft first; Scribe suggests a rule based on your changes.';
 }
 
@@ -686,20 +686,24 @@ function appendRule(existing, rule) {
   return `${text}\n${bullet}${rule}`;
 }
 
+// Each Add button names where the rule goes. The rule was written for
+// the style that drafted the email, so that one is the main button and
+// the general style is the alternative (or the only option, when the
+// draft had no style).
 function showSuggestion(result, style) {
-  const guideline = (result.guideline || '').trim();
+  const rule = (result.guideline || '').trim();
   state.suggestionStyleId = style ? style.id : null;
-  suggestTitle.textContent = !guideline
-    ? 'No guideline to suggest'
-    : style ? `Suggested for "${style.name}"` : 'Suggested for your style guide';
+  suggestTitle.textContent = rule ? 'Suggested rule' : 'No rule to suggest';
   suggestWhy.textContent = result.explanation || '';
-  suggestText.hidden = !guideline;
-  suggestText.value = guideline;
-  btnSuggestStyle.hidden = !guideline || !style;
-  btnSuggestStyle.textContent = 'Add to style';
-  btnSuggestStyle.title = style ? `Add to "${style.name}"` : '';
-  btnSuggestGuide.hidden = !guideline;
-  $('#btn-suggest-dismiss').textContent = guideline ? 'Dismiss' : 'OK';
+  suggestText.hidden = !rule;
+  suggestText.value = rule;
+  btnSuggestStyle.hidden = !rule || !style;
+  btnSuggestStyle.textContent = style ? `Add to "${style.name}"` : '';
+  btnSuggestStyle.title = style ? `Only for drafts written with the "${style.name}" style` : '';
+  btnSuggestGuide.hidden = !rule;
+  btnSuggestGuide.classList.toggle('btn-primary', !style);
+  btnSuggestGuide.classList.toggle('btn-secondary', !!style);
+  $('#btn-suggest-dismiss').textContent = rule ? 'Dismiss' : 'OK';
   suggestCard.hidden = false;
   suggestCard.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
@@ -711,7 +715,7 @@ btnSuggest.addEventListener('click', async () => {
     return;
   }
   // The style may have been deleted since it wrote the draft; then the
-  // suggestion is for the style guide.
+  // suggestion is for the general style.
   const style = state.styles.find((s) => s.id === state.draftStyleId) || null;
   state.suggesting = true;
   updateSuggestButton();
@@ -722,7 +726,7 @@ btnSuggest.addEventListener('click', async () => {
       style, guide: state.guide, original: state.generated, edited: state.draft,
     }));
     if (message.stop_reason === 'refusal') {
-      showStatus(writeStatus, 'Claude declined to suggest a guideline for these edits.', 'error');
+      showStatus(writeStatus, 'Claude declined to suggest a rule for these edits.', 'error');
       return;
     }
     const text = message.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
@@ -750,7 +754,7 @@ btnSuggestStyle.addEventListener('click', () => {
   const style = state.styles.find((s) => s.id === state.suggestionStyleId);
   if (!rule) return;
   if (!style) {
-    showStatus(writeStatus, 'That style no longer exists. Add the guideline to your style guide instead.', 'error');
+    showStatus(writeStatus, 'That style no longer exists. Add the rule to your general style instead.', 'error');
     return;
   }
   style.instructions = appendRule(style.instructions, rule);
@@ -767,7 +771,7 @@ btnSuggestGuide.addEventListener('click', () => {
   chrome.storage.local.set({ [GUIDE_STORAGE]: state.guide });
   renderGuide();
   hideSuggestion();
-  showStatus(writeStatus, '✓ Added to your style guide', 'success');
+  showStatus(writeStatus, '✓ Added to your general style', 'success');
 });
 
 // ── Clear ───────────────────────────────────────────────────

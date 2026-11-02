@@ -156,7 +156,7 @@
     #style-form { margin-top: 6px; display: flex; flex-direction: column; gap: 6px; }
     #style-instructions { min-height: 90px; }
 
-    /* General style guide: one collapsed row that expands to an editor. */
+    /* General style: one collapsed row that expands to an editor. */
     .guide-row {
       width: 100%;
       display: flex; align-items: center; gap: 8px;
@@ -209,6 +209,8 @@
     .suggest-card .suggest-why { font-size: 11px; color: #5a5a5a; line-height: 1.5; margin-bottom: 8px; }
     #suggest-text { min-height: 60px; }
     .suggest-card .btn-row { flex-wrap: wrap; }
+    /* The style button carries the style's name, which can be long. */
+    .suggest-card .btn { max-width: 100%; text-align: center; overflow-wrap: anywhere; }
     .output.streaming::after {
       content: '';
       display: inline-block;
@@ -260,10 +262,10 @@
         Scribe writes drafts with Claude using your own Anthropic API key
         (create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">console.anthropic.com</a>).
         The key is stored only on this device. When you click Write, your
-        context, style guide and chosen style, saved links, and top phrases
-        are sent to Anthropic's API. Asking for a style suggestion also
-        sends the original and edited draft. Nothing is sent before you
-        click.
+        context, general style and chosen style, saved links, and top
+        phrases are sent to Anthropic's API. Asking for a suggested rule
+        also sends the original and edited draft. Nothing is sent before
+        you click.
       </p>
       <div class="key-current" id="key-current" hidden></div>
       <input type="password" id="api-key-input" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
@@ -286,10 +288,10 @@
 
     <section>
       <div class="section-head">
-        <span class="section-label">Style guide</span>
+        <span class="section-label">General style</span>
         <span class="section-hint">Applies to every style</span>
       </div>
-      <button class="guide-row" id="guide-row" title="Edit your general style guide">
+      <button class="guide-row" id="guide-row" title="Edit your general style">
         <span class="style-text">
           <span class="style-desc" id="guide-preview"></span>
         </span>
@@ -299,14 +301,14 @@
         <textarea id="guide-input" placeholder="Rules for every draft, for example:&#10;- Use American English&#10;- No exclamation marks&#10;- Keep it under 150 words unless the style says otherwise&#10;- Sign off with &quot;Best,&quot;"></textarea>
         <div class="btn-row" style="margin-top: 0;">
           <button class="btn btn-quiet" id="btn-guide-cancel">Cancel</button>
-          <button class="btn btn-primary" id="btn-guide-save">Save guide</button>
+          <button class="btn btn-primary" id="btn-guide-save">Save general style</button>
         </div>
       </div>
     </section>
 
     <section>
       <div class="section-head">
-        <span class="section-label" id="style-label">Style</span>
+        <span class="section-label" id="style-label">Styles</span>
         <button class="link-btn" id="btn-add-style">+ Add style</button>
       </div>
       <ul class="style-list" id="style-list" role="radiogroup" aria-labelledby="style-label"></ul>
@@ -332,15 +334,15 @@
       </div>
       <div class="output" id="output" aria-live="polite" aria-label="Draft" spellcheck="true"></div>
       <div class="draft-actions" id="draft-actions" hidden>
-        <button class="link-btn" id="btn-suggest" disabled>Suggest a style update from my edits</button>
+        <button class="link-btn" id="btn-suggest" disabled>Suggest a rule from my edits</button>
       </div>
       <div class="card suggest-card" id="suggest-card" hidden>
-        <div class="section-head"><span class="section-label" id="suggest-title">Suggested guideline</span></div>
+        <div class="section-head"><span class="section-label" id="suggest-title">Suggested rule</span></div>
         <p class="suggest-why" id="suggest-why"></p>
-        <textarea id="suggest-text" placeholder="Guideline to add…"></textarea>
+        <textarea id="suggest-text" placeholder="Rule to add…"></textarea>
         <div class="btn-row">
           <button class="btn btn-quiet" id="btn-suggest-dismiss">Dismiss</button>
-          <button class="btn btn-secondary" id="btn-suggest-guide">Add to style guide</button>
+          <button class="btn btn-secondary" id="btn-suggest-guide" title="Applies to every style">Add to general style</button>
           <button class="btn btn-primary" id="btn-suggest-style">Add to style</button>
         </div>
       </div>
