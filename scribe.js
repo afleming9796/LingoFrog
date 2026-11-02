@@ -510,8 +510,9 @@ function updateDraftHint() {
 document.execCommand('defaultParagraphSeparator', false, 'p');
 
 outputEl.addEventListener('input', (e) => {
-  if (state.stream || outputEl.contentEditable !== 'true') return;
+  if (state.stream || outputEl.contentEditable !== 'true' || startingList) return;
   removeGhost();
+  if (!e.isComposing) startListFromMarker(e);
   state.draft = canonicalDraft(domToMarkdown(outputEl));
   btnCopy.disabled = !state.draft;
   renderLinkWarning(parseDraft(state.draft));
@@ -556,6 +557,39 @@ function listItemAtCaretStart() {
   return before.toString() ? null : li;
 }
 
+// Like Docs: "* " or "- " typed on an empty line makes it a bullet and
+// "1. " a numbered item, which is what the copy would make of those
+// lines anyway. The marker is swapped for the list in one edit, so a
+// single undo brings the characters back. (Chrome's own list commands
+// would nest the list inside the paragraph.)
+let startingList = false;
+function startListFromMarker(e) {
+  if (e.inputType !== 'insertText' || e.data !== ' ') return;
+  const range = draftRange();
+  const node = range && range.startContainer;
+  if (!range || !range.collapsed || node.nodeType !== 3 || closestInDraft(node, 'li')) return;
+  const block = caretBlock(range);
+  const before = document.createRange();
+  before.setStart(block, 0);
+  before.setEnd(node, range.startOffset);
+  const after = document.createRange();
+  after.setStart(node, range.startOffset);
+  after.setEnd(block, block.childNodes.length);
+  const marker = rangeText(before).split('\n').pop();
+  const tag = /^[*-] $/.test(marker) ? 'ul' : /^1[.)] $/.test(marker) ? 'ol' : null;
+  if (!tag || range.startOffset < marker.length || rangeText(after).split('\n')[0].trim()) return;
+  const typed = document.createRange();
+  typed.setStart(node, range.startOffset - marker.length);
+  typed.setEnd(node, range.startOffset);
+  startingList = true;
+  try {
+    restoreDraftSelection(typed);
+    document.execCommand('insertHTML', false, `<${tag}><li><br></li></${tag}>`);
+  } finally {
+    startingList = false;
+  }
+}
+
 outputEl.addEventListener('keydown', (e) => {
   if (e.isComposing) return;
   if (phraseSuggestions.length && handlePhraseKey(e)) return;
@@ -567,10 +601,23 @@ outputEl.addEventListener('keydown', (e) => {
     else openLinkSearch();
     return;
   }
+  const plain = !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey;
+  // Like Gmail, Enter starts a new line rather than a new paragraph; an
+  // empty line is what separates paragraphs, in the draft and in the
+  // copy. In a list, Enter still adds a bullet (or ends the list from an
+  // empty one).
+  if (e.key === 'Enter' && plain) {
+    const range = draftRange();
+    if (range && !closestInDraft(range.startContainer, 'li')) {
+      e.preventDefault();
+      document.execCommand('insertLineBreak');
+    }
+    return;
+  }
   // Like Gmail: Backspace at the start of a bullet turns it back into a
   // plain line, where Chrome would merge it into the bullet above. (Enter
   // on an empty bullet already ends the list.)
-  if (e.key === 'Backspace' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+  if (e.key === 'Backspace' && plain) {
     const li = listItemAtCaretStart();
     if (!li) return;
     e.preventDefault();
@@ -1744,11 +1791,15 @@ function focusScribe() {
   }
 }
 
-// Coming back from another tab (manage.js) puts the cursor back where
-// it was, the draft's caret included.
+// Coming back from another tab, or reopening the panel (manage.js),
+// puts the cursor back in the box you were typing in, the draft's caret
+// included.
+const TEXT_BOXES = 'textarea, input[type="text"], input[type="password"]';
 let lastFocus = null;
 let draftCaret = null;
-contentEl.addEventListener('focusin', (e) => { lastFocus = e.target; });
+contentEl.addEventListener('focusin', (e) => {
+  if (e.target === outputEl || e.target.matches(TEXT_BOXES)) lastFocus = e.target;
+});
 document.addEventListener('selectionchange', () => {
   const range = draftRange();
   if (range) draftCaret = range.cloneRange();

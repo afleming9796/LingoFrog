@@ -86,6 +86,20 @@ function focusActiveTabSearch() {
   if (search) search.focus();
 }
 
+// The panel can be closed and opened again without reloading, so init
+// doesn't run again. Do the same as a fresh open each time it's shown:
+// the cursor goes in the tab's search (Scribe puts it back in the
+// draft), so typing and Tab work right away.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  const tab = document.querySelector('.tab.active');
+  if (tab && tab.dataset.tab === 'scribe') {
+    document.dispatchEvent(new CustomEvent('lingofrog-tab', { detail: 'scribe' }));
+  } else {
+    focusActiveTabSearch();
+  }
+});
+
 function updateStats() {
   const stats = corpus.getStats();
   phraseSearch.placeholder = searchPlaceholder(stats.totalPhrases, 'phrase');

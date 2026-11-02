@@ -35,8 +35,9 @@ Scribe is an email editor that can also draft emails with Claude. It's the **Scr
 
 Write your email in the draft box, and it works like a Gmail reply:
 
+- **Enter** starts a new line, as in Gmail; leave an empty line between paragraphs. Start a line with `* ` or `- ` for a bulleted list, or `1. ` for a numbered one.
 - Your saved phrases autocomplete as you type: **Tab** accepts, **↑/↓** cycle, **Esc** closes. A phrase that contains one of your saved links goes in already linked, and its follow-up phrases come up next.
-- **Cmd/Ctrl + K** (or the link button) adds or changes a link, and clicking into a link shows Go to link / Change / Remove. Enter on an empty bullet or Backspace at the start of one ends the list.
+- **Cmd/Ctrl + K** (or the link button) adds or changes a link, and clicking into a link shows Go to link / Change / Remove. In a list, Enter on an empty bullet or Backspace at the start of one ends it.
 - **Cmd/Ctrl + L** opens the same link search as in a Gmail reply: highlight text, then pick one of your saved links or type a URL (a one-off URL offers to save the text and URL as a link rule). With nothing highlighted, the link's name goes in at the cursor.
 - **Copy** puts the draft on your clipboard as rich text, and it pastes into Gmail in Gmail's default font (Sans Serif, Normal size). **Clear draft** at the bottom starts over (with an undo).
 
