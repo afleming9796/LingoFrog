@@ -40,6 +40,7 @@
     .icon-btn:hover { color: #1a1a1a; background: #ececec; }
     .icon-btn:focus-visible { outline: 2px solid #6da34d; outline-offset: 1px; }
     .icon-btn svg { width: 16px; height: 16px; display: block; }
+    .icon-btn:disabled { opacity: 0.4; cursor: not-allowed; background: none; }
     #btn-key { margin-left: auto; }
     #btn-key.active { color: #4d7a2e; background: #e7f0dc; }
 
@@ -181,7 +182,10 @@
     }
 
     /* Draft */
-    .draft-section { display: flex; flex-direction: column; }
+    .draft-section { display: flex; flex-direction: column; position: relative; }
+    .head-actions { display: flex; align-items: center; gap: 2px; }
+    #btn-link { padding: 3px; }
+    #btn-link svg { width: 14px; height: 14px; }
     .output {
       background: #ffffff;
       border: 1px solid #e2e2e2;
@@ -221,6 +225,41 @@
       animation: blink 1s steps(2, start) infinite;
     }
     @keyframes blink { to { visibility: hidden; } }
+
+    /* Links while editing, modeled on Gmail's: a bubble under the link
+       the caret is in, and an "Edit link" dialog. */
+    .link-bubble {
+      position: absolute; z-index: 5;
+      display: flex; align-items: center; gap: 6px;
+      max-width: 100%;
+      background: #ffffff; border: 1px solid #dcdcdc; border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      padding: 4px 8px; font-size: 11px; white-space: nowrap;
+    }
+    .link-bubble .bubble-go { color: #5a5a5a; }
+    .link-bubble a {
+      color: #2f6fb3; min-width: 0;
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    .link-bubble .bubble-sep { color: #c4c4c4; }
+    .link-bubble .link-btn { padding: 2px 4px; flex-shrink: 0; }
+
+    .link-dialog {
+      margin: auto;
+      width: min(340px, calc(100vw - 32px));
+      background: #ffffff; color: #1a1a1a;
+      border: 1px solid #e2e2e2; border-radius: 10px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+      padding: 14px;
+    }
+    .link-dialog::backdrop { background: rgba(0, 0, 0, 0.25); }
+    .dialog-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+    .dialog-title { font-size: 14px; font-weight: 700; }
+    .field-label { display: block; font-size: 11px; font-weight: 600; color: #5a5a5a; margin: 10px 0 4px; }
+    .link-kinds { display: flex; gap: 14px; font-size: 12px; }
+    .link-kinds label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+    .link-kinds input { accent-color: #6da34d; margin: 0; }
+    #btn-link-test { margin-top: 4px; padding-left: 0; }
 
     .link-warning {
       margin-top: 8px;
@@ -330,9 +369,22 @@
           <span class="section-label">Draft</span>
           <span class="section-hint" id="draft-hint"></span>
         </span>
-        <button class="link-btn" id="btn-copy" disabled>Copy</button>
+        <span class="head-actions">
+          <button class="icon-btn" id="btn-link" title="Insert link" aria-label="Insert link" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          </button>
+          <button class="link-btn" id="btn-copy" disabled>Copy</button>
+        </span>
       </div>
       <div class="output" id="output" aria-live="polite" aria-label="Draft" spellcheck="true"></div>
+      <div class="link-bubble" id="link-bubble" hidden>
+        <span class="bubble-go">Go to link:</span>
+        <a id="bubble-url" target="_blank" rel="noopener noreferrer"></a>
+        <span class="bubble-sep">|</span>
+        <button class="link-btn" id="btn-bubble-change">Change</button>
+        <span class="bubble-sep">|</span>
+        <button class="link-btn" id="btn-bubble-remove">Remove</button>
+      </div>
       <div class="draft-actions" id="draft-actions" hidden>
         <button class="link-btn" id="btn-suggest" disabled>Suggest a rule from my edits</button>
       </div>
@@ -355,6 +407,30 @@
     </div>
 
   </div>
+
+  <dialog class="link-dialog" id="link-dialog" aria-labelledby="link-dialog-title">
+    <div class="dialog-head">
+      <span class="dialog-title" id="link-dialog-title">Edit link</span>
+      <button class="icon-btn" id="btn-link-close" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+    <label class="field-label" for="link-text">Text to display</label>
+    <input type="text" id="link-text" autocomplete="off">
+    <div class="field-label" id="link-kind-label">Link to</div>
+    <div class="link-kinds" role="radiogroup" aria-labelledby="link-kind-label">
+      <label><input type="radio" name="link-kind" value="web" checked> Web address</label>
+      <label><input type="radio" name="link-kind" value="email"> Email address</label>
+    </div>
+    <label class="field-label" for="link-url" id="link-url-label">To what URL should this link go?</label>
+    <input type="text" id="link-url" autocomplete="off" spellcheck="false">
+    <button class="link-btn" id="btn-link-test">Test this link</button>
+    <div class="status" id="link-status"></div>
+    <div class="btn-row">
+      <button class="btn btn-quiet" id="btn-link-cancel">Cancel</button>
+      <button class="btn btn-primary" id="btn-link-ok">OK</button>
+    </div>
+  </dialog>
 
   <script src="trie.js"></script>
   <script type="module" src="scribe.js"></script>

@@ -134,24 +134,30 @@ function linkParts(t, mapHref) {
 
 // ── Output: DOM preview ────────────────────────────────────
 
+// t: a link token ({ text, href, bare }). Also used for links the user
+// adds while editing, so they read back the same way.
+export function linkElement(t, doc, mapHref = (h) => h) {
+  const { href, text } = linkParts(t, mapHref);
+  const a = doc.createElement('a');
+  a.href = href;
+  a.textContent = text;
+  a.title = href;
+  // The untagged URL, so reading an edited draft back doesn't bake
+  // UTM tags into the text.
+  a.dataset.href = t.href;
+  if (t.bare) a.dataset.bare = '1';
+  // Without a target, clicking would navigate the side panel itself.
+  a.target = '_blank';
+  a.rel = 'noopener noreferrer';
+  return a;
+}
+
 function appendInline(parent, tokens, doc, mapHref) {
   for (const t of tokens) {
     if (t.type === 'text') {
       parent.appendChild(doc.createTextNode(t.text));
     } else if (t.type === 'link') {
-      const { href, text } = linkParts(t, mapHref);
-      const a = doc.createElement('a');
-      a.href = href;
-      a.textContent = text;
-      a.title = href;
-      // The untagged URL, so reading an edited draft back doesn't bake
-      // UTM tags into the text.
-      a.dataset.href = t.href;
-      if (t.bare) a.dataset.bare = '1';
-      // Without a target, clicking would navigate the side panel itself.
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      parent.appendChild(a);
+      parent.appendChild(linkElement(t, doc, mapHref));
     } else {
       const el = doc.createElement(t.type);
       appendInline(el, t.children, doc, mapHref);
@@ -276,7 +282,9 @@ function wrapMarks(inner, mark) {
 }
 
 function nodeMarkdown(node) {
-  if (node.nodeType === 3) return node.nodeValue.replace(/\s*\n\s*/g, ' ');
+  // Chrome's editor pads spaces with &nbsp; as you type and insert;
+  // they're plain spaces as far as the email is concerned.
+  if (node.nodeType === 3) return node.nodeValue.replace(/ /g, ' ').replace(/\s*\n\s*/g, ' ');
   if (node.nodeType !== 1) return '';
   const tag = node.tagName;
   if (tag === 'BR') return '\n';

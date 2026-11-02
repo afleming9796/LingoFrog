@@ -12,8 +12,8 @@
  *   local   lingofrog_scribe_style_id     selected style id
  *   local   lingofrog_scribe_guide        general style (string)
  *   session lingofrog_scribe_draft        { context, output, generated,
- *                                           styleId } — survives closing
- *                                           the panel, not a restart
+ *                                           styleId, userLinks } — survives
+ *                                           closing the panel, not a restart
  *
  * Corpus (saved links, phrases, UTM rules, config) comes from trie.js,
  * loaded as a classic script ahead of this module.
@@ -23,7 +23,7 @@ import Anthropic from './vendor/anthropic-sdk.js';
 import { buildRequest, buildSuggestionRequest } from './scribe-prompt.js';
 import {
   parseDraft, renderDraft, collectLinks, safeHref, toClipboardHtml, toPlainText,
-  canonicalDraft, domToMarkdown,
+  canonicalDraft, domToMarkdown, linkElement,
 } from './scribe-format.js';
 
 const KEY_STORAGE = 'lingofrog_anthropic_api_key';
@@ -97,6 +97,16 @@ const suggestWhy = $('#suggest-why');
 const suggestText = $('#suggest-text');
 const btnSuggestStyle = $('#btn-suggest-style');
 const btnSuggestGuide = $('#btn-suggest-guide');
+const draftSection = $('.draft-section');
+const btnLink = $('#btn-link');
+const linkBubble = $('#link-bubble');
+const bubbleUrl = $('#bubble-url');
+const linkDialog = $('#link-dialog');
+const linkTextInput = $('#link-text');
+const linkUrlInput = $('#link-url');
+const linkUrlLabel = $('#link-url-label');
+const linkStatus = $('#link-status');
+const btnLinkTest = $('#btn-link-test');
 
 const state = {
   apiKey: '',
@@ -110,7 +120,8 @@ const state = {
   generated: '',
   // Style that wrote the current draft (null = none), for suggestions.
   draftStyleId: null,
-  // What the current draft was written from, for the link check.
+  // What the current draft was written from, for the link check:
+  // { context, savedUrls, userUrls } (userUrls: links the user added).
   draftSources: null,
   stream: null,
   suggesting: false,
@@ -199,6 +210,7 @@ function persistDraft() {
       output: state.draft,
       generated: state.generated,
       styleId: state.draftStyleId,
+      userLinks: state.draftSources ? [...state.draftSources.userUrls] : [],
     },
   }).catch(() => {});
 }
@@ -396,7 +408,9 @@ function scheduleRender() {
   renderQueued = true;
   requestAnimationFrame(() => {
     renderQueued = false;
-    renderOutput();
+    // Once the stream ends, write() has already rendered the final
+    // draft; a late frame would reset the caret of someone editing it.
+    if (state.stream) renderOutput();
   });
 }
 
@@ -416,6 +430,8 @@ function renderOutput() {
     outputEl.appendChild(placeholder);
   }
   btnCopy.disabled = !!state.stream || !blocks.length;
+  btnLink.disabled = outputEl.contentEditable !== 'true';
+  linkBubble.hidden = true;
   renderLinkWarning(state.stream ? [] : blocks);
   updateDraftHint();
   updateSuggestButton();
@@ -454,6 +470,230 @@ outputEl.addEventListener('paste', (e) => {
 });
 outputEl.addEventListener('drop', (e) => e.preventDefault());
 
+// The current selection, if it's inside the draft.
+function draftRange() {
+  const sel = getSelection();
+  if (!sel.rangeCount) return null;
+  const range = sel.getRangeAt(0);
+  return outputEl.contains(range.commonAncestorContainer) ? range : null;
+}
+
+function closestInDraft(node, selector) {
+  const el = node && (node.nodeType === 1 ? node : node.parentElement);
+  const match = el && el.closest(selector);
+  return match && outputEl.contains(match) ? match : null;
+}
+
+// The list item whose very start the caret is at, if any.
+function listItemAtCaretStart() {
+  const range = draftRange();
+  if (!range || !range.collapsed) return null;
+  const li = closestInDraft(range.startContainer, 'li');
+  if (!li) return null;
+  const before = document.createRange();
+  before.setStart(li, 0);
+  before.setEnd(range.startContainer, range.startOffset);
+  return before.toString() ? null : li;
+}
+
+outputEl.addEventListener('keydown', (e) => {
+  if (e.isComposing) return;
+  if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    openLinkDialog();
+    return;
+  }
+  // Like Gmail: Backspace at the start of a bullet turns it back into a
+  // plain line, where Chrome would merge it into the bullet above. (Enter
+  // on an empty bullet already ends the list.)
+  if (e.key === 'Backspace' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    const li = listItemAtCaretStart();
+    if (!li) return;
+    e.preventDefault();
+    document.execCommand(li.parentElement.tagName === 'OL' ? 'insertOrderedList' : 'insertUnorderedList');
+    // Chrome leaves the freed line loose in the editor; make it a
+    // paragraph like its neighbors so the spacing matches the copy.
+    document.execCommand('formatBlock', false, 'p');
+  }
+});
+
+// ── Links in the draft ──────────────────────────────────────
+//
+// Modeled on Gmail: Cmd/Ctrl+K or the link button opens an "Edit link"
+// dialog, and with the caret in a link a bubble offers Go to link /
+// Change / Remove. Added links go through safeHref, are read back like
+// any other link, and get UTM rules on copy. They're left out of the
+// link check, since the user put them there.
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const isMac = /Mac/i.test(navigator.platform);
+btnLink.title = `Insert link (${isMac ? '⌘K' : 'Ctrl+K'})`;
+
+// What the open dialog applies to: { range, anchor } (anchor: the link
+// being changed, or null for a new one).
+let linkTarget = null;
+let bubbleAnchor = null;
+
+function linkKind() {
+  return linkDialog.querySelector('input[name="link-kind"]:checked').value;
+}
+
+function setLinkKind(kind) {
+  linkDialog.querySelector(`input[name="link-kind"][value="${kind}"]`).checked = true;
+  linkUrlLabel.textContent = kind === 'email' ? 'To what email address should this link?' : 'To what URL should this link go?';
+  btnLinkTest.hidden = kind === 'email';
+}
+
+// Like Gmail, "example.com" means a web address; an email address
+// typed into the web field becomes a mailto: link.
+function webHref(raw) {
+  if (!raw || /\s/.test(raw)) return null;
+  if (EMAIL_RE.test(raw)) return safeHref('mailto:' + raw);
+  const href = safeHref(/^[a-z][a-z\d+.-]*:\/\//i.test(raw) || /^mailto:/i.test(raw) ? raw : 'https://' + raw);
+  // Chrome's URL parser takes almost anything as a host, so insist on
+  // something that looks like a domain.
+  return href && (href.startsWith('mailto:') || new URL(href).hostname.includes('.')) ? href : null;
+}
+
+function emailHref(raw) {
+  const address = raw.replace(/^mailto:/i, '');
+  return EMAIL_RE.test(address) ? safeHref('mailto:' + address) : null;
+}
+
+function openLinkDialog(anchor = null) {
+  if (outputEl.contentEditable !== 'true') return;
+  let range = draftRange();
+  if (!range) {
+    // Nothing selected in the draft: add the link at the end.
+    range = document.createRange();
+    range.selectNodeContents(outputEl.lastElementChild || outputEl);
+    range.collapse(false);
+  }
+  anchor = anchor || closestInDraft(range.startContainer, 'a');
+  if (anchor) {
+    range = document.createRange();
+    range.selectNode(anchor);
+  }
+  linkTarget = { range: range.cloneRange(), anchor };
+
+  const href = anchor ? anchor.dataset.href || anchor.getAttribute('href') : '';
+  const text = anchor
+    ? (anchor.dataset.bare && anchor.textContent === anchor.getAttribute('href') ? href : anchor.textContent)
+    : range.toString().replace(/\s+/g, ' ').trim();
+  const email = href ? href.startsWith('mailto:') : EMAIL_RE.test(text);
+  setLinkKind(email ? 'email' : 'web');
+  linkTextInput.value = text;
+  // A selection that is itself an address prefills the address field.
+  const looksLikeAddress = email || (/^\S+\.\S+$/.test(text) && !!webHref(text));
+  linkUrlInput.value = href ? href.replace(/^mailto:/, '') : looksLikeAddress ? text : '';
+  clearStatus(linkStatus);
+  linkBubble.hidden = true;
+  linkDialog.showModal();
+  (text ? linkUrlInput : linkTextInput).focus();
+}
+
+// Puts the caret (or the saved selection) back in the draft.
+function restoreDraftSelection(range) {
+  outputEl.focus();
+  const sel = getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+function closeLinkDialog() {
+  if (linkDialog.open) linkDialog.close();
+  if (linkTarget) restoreDraftSelection(linkTarget.range);
+  linkTarget = null;
+}
+
+function applyLink() {
+  const raw = linkUrlInput.value.trim();
+  const kind = linkKind();
+  const href = kind === 'email' ? emailHref(raw) : webHref(raw);
+  if (!href) {
+    showStatus(linkStatus, kind === 'email'
+      ? 'Enter an email address, like name@example.com.'
+      : 'Enter a web address, like https://example.com.', 'error');
+    linkUrlInput.focus();
+    return;
+  }
+  const shown = linkTextInput.value.replace(/\s+/g, ' ').trim() || (kind === 'email' ? href.slice(7) : href);
+  const a = linkElement({ type: 'link', text: shown, href, bare: shown === href }, document, tagUrl);
+  // Recorded before the edit, whose input event re-runs the link check.
+  if (state.draftSources) state.draftSources.userUrls.add(href);
+  const { range } = linkTarget;
+  linkDialog.close();
+  linkTarget = null;
+  restoreDraftSelection(range);
+  // execCommand keeps this on the editor's undo stack.
+  document.execCommand('insertHTML', false, a.outerHTML);
+}
+
+function removeLink(anchor) {
+  const range = document.createRange();
+  range.selectNodeContents(anchor);
+  restoreDraftSelection(range);
+  document.execCommand('unlink');
+  getSelection().collapseToEnd();
+}
+
+linkDialog.addEventListener('cancel', (e) => {
+  e.preventDefault();
+  closeLinkDialog();
+});
+linkDialog.addEventListener('change', (e) => {
+  if (e.target.name === 'link-kind') {
+    setLinkKind(e.target.value);
+    linkUrlInput.focus();
+  }
+});
+for (const input of [linkTextInput, linkUrlInput]) {
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.isComposing) {
+      e.preventDefault();
+      applyLink();
+    }
+  });
+}
+$('#btn-link-ok').addEventListener('click', applyLink);
+$('#btn-link-cancel').addEventListener('click', closeLinkDialog);
+$('#btn-link-close').addEventListener('click', closeLinkDialog);
+btnLinkTest.addEventListener('click', () => {
+  const href = webHref(linkUrlInput.value.trim());
+  if (href) window.open(tagUrl(href), '_blank', 'noopener');
+  else showStatus(linkStatus, 'Enter a web address to test.', 'error');
+});
+
+// Keep the draft's selection when clicking the link button or bubble.
+for (const el of [btnLink, linkBubble]) el.addEventListener('mousedown', (e) => e.preventDefault());
+btnLink.addEventListener('click', () => openLinkDialog());
+
+function updateLinkBubble() {
+  const range = document.activeElement === outputEl && outputEl.contentEditable === 'true' ? draftRange() : null;
+  const anchor = range && closestInDraft(range.startContainer, 'a');
+  bubbleAnchor = anchor;
+  if (!anchor) {
+    linkBubble.hidden = true;
+    return;
+  }
+  const href = anchor.dataset.href || anchor.getAttribute('href');
+  bubbleUrl.href = tagUrl(href);
+  bubbleUrl.textContent = href.replace(/^mailto:/, '');
+  bubbleUrl.title = tagUrl(href);
+  linkBubble.hidden = false;
+  // Just under the link, kept inside the draft section.
+  const box = draftSection.getBoundingClientRect();
+  const rect = anchor.getClientRects()[0] || anchor.getBoundingClientRect();
+  const left = Math.min(rect.left - box.left, box.width - linkBubble.offsetWidth);
+  linkBubble.style.top = `${rect.bottom - box.top + 4}px`;
+  linkBubble.style.left = `${Math.max(0, left)}px`;
+}
+
+document.addEventListener('selectionchange', updateLinkBubble);
+outputEl.addEventListener('blur', () => { linkBubble.hidden = true; });
+$('#btn-bubble-change').addEventListener('click', () => bubbleAnchor && openLinkDialog(bubbleAnchor));
+$('#btn-bubble-remove').addEventListener('click', () => bubbleAnchor && removeLink(bubbleAnchor));
+
 function urlVariants(href) {
   return [href, href.replace(/\/$/, ''), href.replace(/^mailto:/, '')];
 }
@@ -462,11 +702,13 @@ function urlVariants(href) {
 // that also appears in the context isn't automatically safe — a hostile
 // email can carry its own URL plus "link to this" — so those are listed
 // too, just labeled with where they came from. Links found nowhere were
-// made up by the model.
+// made up by the model. Links the user added themselves are skipped.
 function renderLinkWarning(blocks) {
   const sources = state.draftSources;
   const unsaved = sources
-    ? [...new Set(collectLinks(blocks))].filter((href) => !sources.savedUrls.has(href.replace(/\/$/, '')))
+    ? [...new Set(collectLinks(blocks))].filter(
+        (href) => !sources.savedUrls.has(href.replace(/\/$/, '')) && !sources.userUrls.has(href)
+      )
     : [];
   linkWarning.textContent = '';
   linkWarning.hidden = !unsaved.length;
@@ -590,7 +832,7 @@ async function write() {
   state.draft = '';
   state.generated = '';
   state.draftStyleId = style ? style.id : null;
-  state.draftSources = { context, savedUrls: savedUrlSet(links) };
+  state.draftSources = { context, savedUrls: savedUrlSet(links), userUrls: new Set() };
   const stream = client.beta.messages.stream(
     buildRequest({ context, style, guide: state.guide, links, phrases })
   );
@@ -838,6 +1080,7 @@ async function init() {
     : (state.styles[0] && state.styles[0].id) || null;
   if (!Array.isArray(local[STYLES_STORAGE])) saveStyles();
 
+  let userLinks = [];
   try {
     const { [DRAFT_STORAGE]: draft } = await chrome.storage.session.get(DRAFT_STORAGE);
     if (draft) {
@@ -845,6 +1088,7 @@ async function init() {
       state.draft = canonicalDraft(draft.output || '');
       state.generated = draft.generated != null ? draft.generated : state.draft;
       state.draftStyleId = draft.styleId || null;
+      userLinks = draft.userLinks || [];
     }
   } catch (e) {
     // Session storage unavailable; start blank.
@@ -854,7 +1098,11 @@ async function init() {
   utmRules = corpus.utmRules;
   // The link check needs to know what a restored draft came from.
   if (state.draft) {
-    state.draftSources = { context: contextEl.value, savedUrls: savedUrlSet(savedLinks(corpus)) };
+    state.draftSources = {
+      context: contextEl.value,
+      savedUrls: savedUrlSet(savedLinks(corpus)),
+      userUrls: new Set(userLinks),
+    };
   }
 
   renderGuide();
@@ -873,7 +1121,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
     utmRules = corpus.utmRules;
     // Skip while the user is typing in the draft: a re-render would
     // reset their caret. Copy re-reads the rules anyway.
-    if (!state.stream && document.activeElement !== outputEl) renderOutput();
+    if (!state.stream && document.activeElement !== outputEl && !linkDialog.open) renderOutput();
   });
 });
 
