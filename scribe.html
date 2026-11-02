@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>LingoFrog Scribe</title>
+  <!-- The ⌘L link picker and save chip reuse Gmail's look. -->
+  <link rel="stylesheet" href="lingofrog.css">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     [hidden] { display: none !important; }
@@ -261,6 +263,19 @@
     .link-kinds input { accent-color: #6da34d; margin: 0; }
     #btn-link-test { margin-top: 4px; padding-left: 0; }
 
+    /* ⌘L: the saved-link picker and "save as a link rule?" chip from
+       Gmail (lingofrog.css), placed in the draft section rather than
+       fixed over the page, and sized for the panel. */
+    .link-search, .save-chip { position: absolute; z-index: 6; }
+    .link-search { display: block; width: min(320px, 100%); }
+    .link-search .lingofrog-ls-input {
+      width: calc(100% - 24px); padding: 6px 8px;
+      background: #f5f5f5; border-radius: 6px; font-family: inherit;
+    }
+    .link-search .lingofrog-ls-input:focus { background: #ffffff; }
+    .save-chip { display: flex; max-width: 100%; white-space: normal; }
+    .save-chip .lingofrog-src-label { min-width: 0; overflow-wrap: anywhere; }
+
     .link-warning {
       margin-top: 8px;
       font-size: 11px;
@@ -384,6 +399,17 @@
         <button class="link-btn" id="btn-bubble-change">Change</button>
         <span class="bubble-sep">|</span>
         <button class="link-btn" id="btn-bubble-remove">Remove</button>
+      </div>
+      <div class="lingofrog-link-search link-search" id="link-search" hidden>
+        <div class="lingofrog-ls-header">🔗 Insert Link</div>
+        <input class="lingofrog-ls-input" type="text" id="link-search-input" placeholder="Search links…" autocomplete="off" spellcheck="false" aria-label="Search your saved links or type a URL">
+        <div class="lingofrog-ls-list" id="link-search-list" role="listbox"></div>
+        <div class="lingofrog-ls-hint" id="link-search-hint"></div>
+      </div>
+      <div class="lingofrog-save-rule-chip save-chip" id="save-chip" hidden>
+        <span class="lingofrog-src-label" id="save-chip-label"></span>
+        <button class="lingofrog-src-btn" id="btn-save-chip" tabindex="-1">Save</button>
+        <button class="lingofrog-src-dismiss" id="btn-save-chip-dismiss" title="Dismiss" aria-label="Dismiss" tabindex="-1">×</button>
       </div>
       <div class="draft-actions" id="draft-actions" hidden>
         <button class="link-btn" id="btn-suggest" disabled>Suggest a rule from my edits</button>

@@ -107,6 +107,11 @@ const linkUrlInput = $('#link-url');
 const linkUrlLabel = $('#link-url-label');
 const linkStatus = $('#link-status');
 const btnLinkTest = $('#btn-link-test');
+const linkSearch = $('#link-search');
+const linkSearchInput = $('#link-search-input');
+const linkSearchList = $('#link-search-list');
+const saveChip = $('#save-chip');
+const saveChipLabel = $('#save-chip-label');
 
 const state = {
   apiKey: '',
@@ -432,6 +437,8 @@ function renderOutput() {
   btnCopy.disabled = !!state.stream || !blocks.length;
   btnLink.disabled = outputEl.contentEditable !== 'true';
   linkBubble.hidden = true;
+  closeLinkSearch(false);
+  hideSaveChip();
   renderLinkWarning(state.stream ? [] : blocks);
   updateDraftHint();
   updateSuggestButton();
@@ -498,9 +505,12 @@ function listItemAtCaretStart() {
 
 outputEl.addEventListener('keydown', (e) => {
   if (e.isComposing) return;
-  if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k') {
+  if (!saveChip.hidden && trackSaveChipKey(e)) return;
+  const shortcut = (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey ? e.key.toLowerCase() : '';
+  if (shortcut === 'k' || shortcut === 'l') {
     e.preventDefault();
-    openLinkDialog();
+    if (shortcut === 'k') openLinkDialog();
+    else openLinkSearch();
     return;
   }
   // Like Gmail: Backspace at the start of a bullet turns it back into a
@@ -527,7 +537,8 @@ outputEl.addEventListener('keydown', (e) => {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const isMac = /Mac/i.test(navigator.platform);
-btnLink.title = `Insert link (${isMac ? '⌘K' : 'Ctrl+K'})`;
+const MOD = isMac ? '⌘' : 'Ctrl+';
+btnLink.title = `Insert link (${MOD}K). ${MOD}L searches your saved links.`;
 
 // What the open dialog applies to: { range, anchor } (anchor: the link
 // being changed, or null for a new one).
@@ -618,15 +629,32 @@ function applyLink() {
     return;
   }
   const shown = linkTextInput.value.replace(/\s+/g, ' ').trim() || (kind === 'email' ? href.slice(7) : href);
-  const a = linkElement({ type: 'link', text: shown, href, bare: shown === href }, document, tagUrl);
-  // Recorded before the edit, whose input event re-runs the link check.
-  if (state.draftSources) state.draftSources.userUrls.add(href);
   const { range } = linkTarget;
   linkDialog.close();
   linkTarget = null;
+  insertLink(range, shown, href);
+}
+
+// Replaces `range` in the draft with a link and returns the new <a>.
+function insertLink(range, text, href) {
+  const a = linkElement({ type: 'link', text, href, bare: text === href }, document, tagUrl);
+  a.dataset.inserted = '1';
+  // Recorded before the edit, whose input event re-runs the link check.
+  if (state.draftSources) state.draftSources.userUrls.add(href);
   restoreDraftSelection(range);
   // execCommand keeps this on the editor's undo stack.
   document.execCommand('insertHTML', false, a.outerHTML);
+  const inserted = outputEl.querySelector('a[data-inserted]');
+  if (inserted) delete inserted.dataset.inserted;
+  return inserted;
+}
+
+// Puts a popup just under `rect`, kept inside the draft section.
+function placeUnder(el, rect, gap) {
+  const box = draftSection.getBoundingClientRect();
+  const left = Math.min(rect.left - box.left, box.width - el.offsetWidth);
+  el.style.top = `${rect.bottom - box.top + gap}px`;
+  el.style.left = `${Math.max(0, left)}px`;
 }
 
 function removeLink(anchor) {
@@ -668,8 +696,10 @@ btnLinkTest.addEventListener('click', () => {
 for (const el of [btnLink, linkBubble]) el.addEventListener('mousedown', (e) => e.preventDefault());
 btnLink.addEventListener('click', () => openLinkDialog());
 
+// Stays out of the way while the save chip sits under a new link.
 function updateLinkBubble() {
-  const range = document.activeElement === outputEl && outputEl.contentEditable === 'true' ? draftRange() : null;
+  const editing = document.activeElement === outputEl && outputEl.contentEditable === 'true';
+  const range = editing && saveChip.hidden ? draftRange() : null;
   const anchor = range && closestInDraft(range.startContainer, 'a');
   bubbleAnchor = anchor;
   if (!anchor) {
@@ -681,18 +711,250 @@ function updateLinkBubble() {
   bubbleUrl.textContent = href.replace(/^mailto:/, '');
   bubbleUrl.title = tagUrl(href);
   linkBubble.hidden = false;
-  // Just under the link, kept inside the draft section.
-  const box = draftSection.getBoundingClientRect();
-  const rect = anchor.getClientRects()[0] || anchor.getBoundingClientRect();
-  const left = Math.min(rect.left - box.left, box.width - linkBubble.offsetWidth);
-  linkBubble.style.top = `${rect.bottom - box.top + 4}px`;
-  linkBubble.style.left = `${Math.max(0, left)}px`;
+  placeUnder(linkBubble, anchor.getClientRects()[0] || anchor.getBoundingClientRect(), 4);
 }
 
 document.addEventListener('selectionchange', updateLinkBubble);
 outputEl.addEventListener('blur', () => { linkBubble.hidden = true; });
 $('#btn-bubble-change').addEventListener('click', () => bubbleAnchor && openLinkDialog(bubbleAnchor));
 $('#btn-bubble-remove').addEventListener('click', () => bubbleAnchor && removeLink(bubbleAnchor));
+
+// ── Saved links (Cmd/Ctrl+L) ────────────────────────────────
+//
+// The same picker as Cmd+L in a Gmail reply: search your saved links or
+// type an address, then Enter (or Cmd+L again) to link the selection.
+// With nothing selected, the link's name (or the address) is inserted at
+// the caret. After a one-off address, a chip offers to save the selected
+// text and address as a link rule, as it does in Gmail.
+
+// The open picker: { range, text, corpus, rules } (rules: saved links
+// whose URL is usable, with its href).
+let picker = null;
+let pickResults = [];
+let pickIndex = 0;
+// The chip on screen: { trigger, label, href, keys }.
+let pendingSave = null;
+
+$('#link-search-hint').textContent = `↑↓ navigate · Enter or ${MOD}L insert · Esc close`;
+
+async function openLinkSearch() {
+  if (outputEl.contentEditable !== 'true') return;
+  let range = draftRange();
+  if (!range) return;
+  const anchor = closestInDraft(range.startContainer, 'a');
+  if (anchor) {
+    range = document.createRange();
+    range.selectNode(anchor);
+  }
+  hideSaveChip();
+  // A bare link's text is its address, which isn't worth keeping.
+  const text = anchor && anchor.dataset.bare ? '' : range.toString().replace(/\s+/g, ' ').trim();
+  const target = { range: range.cloneRange(), text };
+  picker = target;
+  const corpus = await loadCorpus();
+  if (picker !== target) return; // closed or reopened while loading
+  utmRules = corpus.utmRules;
+  target.corpus = corpus;
+  target.rules = corpus.linkRules.getAll()
+    .map((r) => ({ ...r, href: webHref(r.url.trim()) }))
+    .filter((r) => r.href);
+
+  linkBubble.hidden = true;
+  linkSearch.hidden = false;
+  linkSearchInput.value = '';
+  renderLinkSearch('');
+  placeUnder(linkSearch, rangeRect(target.range), 6);
+  linkSearchInput.focus();
+  linkSearch.scrollIntoView({ block: 'nearest' });
+}
+
+// A collapsed range can measure 0×0 (an empty line); fall back to its line.
+function rangeRect(range) {
+  const rect = range.getBoundingClientRect();
+  if (rect.width || rect.height) return rect;
+  const node = range.startContainer;
+  return (node.nodeType === 1 ? node : node.parentElement).getBoundingClientRect();
+}
+
+function closeLinkSearch(restore = true) {
+  const target = picker;
+  picker = null;
+  linkSearch.hidden = true;
+  if (restore && target) restoreDraftSelection(target.range);
+}
+
+function renderLinkSearch(filter) {
+  const query = filter.trim();
+  const lower = query.toLowerCase();
+  const rules = picker.rules;
+  const matches = lower
+    ? rules.filter((r) => r.trigger.includes(lower) || r.url.toLowerCase().includes(lower))
+    : rules;
+  const typed = webHref(query);
+  pickResults = [
+    ...(typed ? [{ kind: 'url', href: typed }] : []),
+    ...matches.map((r) => ({ kind: 'rule', ...r })),
+  ];
+  pickIndex = 0;
+  linkSearchList.textContent = '';
+
+  if (!pickResults.length) {
+    const empty = document.createElement('div');
+    empty.className = 'lingofrog-ls-empty';
+    empty.textContent = query ? 'No matching links' : 'No saved links yet. Type a URL to insert one.';
+    linkSearchList.appendChild(empty);
+    return;
+  }
+
+  pickResults.forEach((r, i) => {
+    const item = document.createElement('div');
+    item.className = 'lingofrog-ls-item' + (r.kind === 'url' ? ' lingofrog-ls-url-insert' : '');
+    item.setAttribute('role', 'option');
+    item.title = r.href;
+    const name = document.createElement('span');
+    name.className = 'lingofrog-ls-trigger';
+    item.appendChild(name);
+    if (r.kind === 'url') {
+      const email = r.href.startsWith('mailto:');
+      const label = document.createElement('span');
+      label.className = 'lingofrog-ls-url-insert-label';
+      label.textContent = email ? '✉️ Insert email: ' : '🔗 Insert URL: ';
+      name.append(label, r.href.replace(/^https?:\/\/|^mailto:/, ''));
+    } else {
+      name.textContent = r.trigger;
+      const host = document.createElement('span');
+      host.className = 'lingofrog-ls-url';
+      host.textContent = r.href.replace(/^https?:\/\/|^mailto:/, '').split('/')[0];
+      item.appendChild(host);
+    }
+    // mousedown, so the search box keeps focus until the link goes in.
+    item.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      pickIndex = i;
+      acceptLinkSearch();
+    });
+    linkSearchList.appendChild(item);
+  });
+  updatePickSelection();
+}
+
+function updatePickSelection() {
+  linkSearchList.querySelectorAll('.lingofrog-ls-item').forEach((item, i) => {
+    item.classList.toggle('lingofrog-ls-selected', i === pickIndex);
+    item.setAttribute('aria-selected', String(i === pickIndex));
+    if (i === pickIndex) item.scrollIntoView({ block: 'nearest' });
+  });
+}
+
+function acceptLinkSearch() {
+  const chosen = pickResults[pickIndex];
+  if (!picker || !chosen) {
+    closeLinkSearch();
+    return;
+  }
+  const { range, text, corpus } = picker;
+  closeLinkSearch(false);
+  const shown = text || (chosen.kind === 'rule' ? chosen.label || chosen.trigger : chosen.href.replace(/^mailto:/, ''));
+  const a = insertLink(range, shown, chosen.href);
+  if (chosen.kind === 'url' && a) maybeShowSaveChip(text, chosen.href, a, corpus);
+}
+
+linkSearchInput.addEventListener('input', () => renderLinkSearch(linkSearchInput.value));
+linkSearchInput.addEventListener('keydown', (e) => {
+  if (e.isComposing) return;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (!pickResults.length) return;
+    pickIndex = (pickIndex + (e.key === 'ArrowDown' ? 1 : -1) + pickResults.length) % pickResults.length;
+    updatePickSelection();
+  } else if (e.key === 'Enter' || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'l')) {
+    e.preventDefault();
+    acceptLinkSearch();
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    closeLinkSearch();
+  }
+});
+
+// Like Gmail's chip: only for a one-off address, only when the selection
+// is short enough to be a useful trigger, and not if that rule already
+// exists with this address. Stores the address without UTM tags, so the
+// rules are applied fresh each time the link is used.
+function maybeShowSaveChip(text, href, anchor, corpus) {
+  if (corpus.config.showSaveRuleChip === false) return;
+  const trigger = text.toLowerCase().trim();
+  if (!trigger || trigger.length > 80) return;
+  const existing = corpus.linkRules.rules.get(trigger);
+  if (existing && webHref(existing.url.trim()) === href) return;
+
+  pendingSave = { trigger, label: text, href, keys: 0 };
+  const shortHref = href.replace(/^https?:\/\/|^mailto:/, '');
+  const strong = document.createElement('strong');
+  strong.textContent = trigger;
+  const next = document.createElement('span');
+  next.className = 'lingofrog-src-new';
+  next.textContent = shortHref;
+  saveChipLabel.textContent = '';
+  if (existing) {
+    const old = document.createElement('span');
+    old.className = 'lingofrog-src-old';
+    old.textContent = existing.url.replace(/^https?:\/\/|^mailto:/, '').split('/')[0];
+    saveChipLabel.append('Replace ', strong, ' → ', old, ' with ', next, '?');
+  } else {
+    saveChipLabel.append('Save ', strong, ' → ', next, ' as a link rule?');
+  }
+  $('#btn-save-chip').textContent = existing ? 'Replace' : 'Save';
+  linkBubble.hidden = true;
+  saveChip.hidden = false;
+  placeUnder(saveChip, anchor.getClientRects()[0] || anchor.getBoundingClientRect(), 6);
+}
+
+function hideSaveChip() {
+  if (saveChip.hidden) return;
+  saveChip.hidden = true;
+  pendingSave = null;
+  updateLinkBubble();
+}
+
+// While the chip is up: Esc dismisses it, and it goes away on its own
+// after five keystrokes of typing, as in Gmail. True if the key was used.
+function trackSaveChipKey(e) {
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    hideSaveChip();
+    return true;
+  }
+  if (e.key.length === 1 || e.key === 'Backspace' || e.key === 'Delete' || e.key === 'Enter') {
+    if (++pendingSave.keys >= 5) hideSaveChip();
+  }
+  return false;
+}
+
+// Reloads first, so saving never writes back a stale copy of the rules.
+async function acceptSaveChip() {
+  if (!pendingSave) return;
+  const { trigger, label, href } = pendingSave;
+  hideSaveChip();
+  const corpus = await loadCorpus();
+  const replaced = corpus.linkRules.rules.has(trigger);
+  corpus.linkRules.addRule(trigger, href, label);
+  await corpus.linkRules.save();
+  showStatus(writeStatus, replaced ? '✓ Link replaced' : '✓ Link saved', 'success');
+}
+
+for (const [id, action] of [['#btn-save-chip', acceptSaveChip], ['#btn-save-chip-dismiss', hideSaveChip]]) {
+  $(id).addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    action();
+  });
+}
+
+// A click anywhere else closes the picker or chip, as in Gmail. Capture,
+// so this runs before a picker item's handler opens the chip.
+document.addEventListener('mousedown', (e) => {
+  if (!linkSearch.hidden && !linkSearch.contains(e.target)) closeLinkSearch(false);
+  if (!saveChip.hidden && !saveChip.contains(e.target)) hideSaveChip();
+}, true);
 
 function urlVariants(href) {
   return [href, href.replace(/\/$/, ''), href.replace(/^mailto:/, '')];
@@ -1121,7 +1383,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
     utmRules = corpus.utmRules;
     // Skip while the user is typing in the draft: a re-render would
     // reset their caret. Copy re-reads the rules anyway.
-    if (!state.stream && document.activeElement !== outputEl && !linkDialog.open) renderOutput();
+    if (!state.stream && document.activeElement !== outputEl && !linkDialog.open && !picker) renderOutput();
   });
 });
 
