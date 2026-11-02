@@ -2,11 +2,14 @@
  * scribe.js — the Scribe side panel.
  *
  * Context + style → Claude → a formatted draft the user copies into
- * Gmail. Lives in Chrome's side panel rather than the popup because
- * the popup closes the moment you click back into the page, which
- * would throw away the context mid-edit.
+ * Gmail. With "Write with AI" off, the draft is just an editor: the
+ * user writes it themselves, with phrase autocomplete and saved links
+ * as in Gmail. Lives in Chrome's side panel rather than the popup
+ * because the popup closes the moment you click back into the page,
+ * which would throw away the context mid-edit.
  *
  * Storage:
+ *   local   lingofrog_scribe_ai           "Write with AI" on/off
  *   local   lingofrog_anthropic_api_key   the user's own key (never synced)
  *   local   lingofrog_scribe_styles       [{ id, name, instructions }]
  *   local   lingofrog_scribe_style_id     selected style id
@@ -31,6 +34,10 @@ const STYLES_STORAGE = 'lingofrog_scribe_styles';
 const STYLE_ID_STORAGE = 'lingofrog_scribe_style_id';
 const DRAFT_STORAGE = 'lingofrog_scribe_draft';
 const GUIDE_STORAGE = 'lingofrog_scribe_guide';
+const AI_STORAGE = 'lingofrog_scribe_ai';
+
+// Storage keys behind the panel's live corpus (autocomplete, links).
+const CORPUS_KEYS = ['lingofrog_phrases', 'lingofrog_link_rules', 'lingofrog_utm_rules', 'lingofrog_config'];
 
 // Phrases ride along in every request, so cap them: the highest-scoring
 // ones (same frequency × recency score autocomplete uses) until either
@@ -57,6 +64,10 @@ const DEFAULT_STYLES = [
 ];
 
 const $ = (sel) => document.querySelector(sel);
+
+const contentEl = $('.content');
+const aiToggle = $('#ai-toggle');
+const aiHint = $('#ai-hint');
 
 const keyCard = $('#key-card');
 const keyCurrent = $('#key-current');
@@ -112,8 +123,10 @@ const linkSearchInput = $('#link-search-input');
 const linkSearchList = $('#link-search-list');
 const saveChip = $('#save-chip');
 const saveChipLabel = $('#save-chip-label');
+const phraseBox = $('#phrase-box');
 
 const state = {
+  ai: false, // "Write with AI"
   apiKey: '',
   styles: [],
   styleId: null,
@@ -199,6 +212,34 @@ btnKeyRemove.addEventListener('click', async () => {
   await chrome.storage.local.remove(KEY_STORAGE);
   openKeyCard();
   updateWriteButton();
+});
+
+// ── Write with AI ───────────────────────────────────────────
+//
+// Off, the panel is a plain editor: the key, context, styles, Write and
+// rule suggestions are hidden (and nothing is sent anywhere), and the
+// draft fills the panel. The context stays put for when AI is back on.
+
+function applyAiMode() {
+  document.body.classList.toggle('ai-off', !state.ai);
+  aiToggle.checked = state.ai;
+  aiHint.textContent = state.ai
+    ? 'Claude drafts from your context and style.'
+    : 'Write it yourself, with your saved phrases and links.';
+  outputEl.dataset.placeholder = state.ai
+    ? 'Your draft will appear here. You can also type your own.'
+    : 'Start typing your email…';
+  btnClear.textContent = state.ai ? 'Clear context and draft' : 'Clear draft';
+  updateClearButton();
+}
+
+aiToggle.addEventListener('change', () => {
+  state.ai = aiToggle.checked;
+  chrome.storage.local.set({ [AI_STORAGE]: state.ai });
+  applyAiMode();
+  if (!state.ai) focusDraft();
+  else if (!state.apiKey) openKeyCard();
+  else contextEl.focus();
 });
 
 // ── Context ─────────────────────────────────────────────────
@@ -423,19 +464,21 @@ function scheduleRender() {
 // keystrokes (that would reset the caret); see the input handler below.
 function renderOutput() {
   const blocks = parseDraft(state.draft);
+  hidePhrases();
   outputEl.textContent = '';
   outputEl.classList.toggle('streaming', !!state.stream);
-  outputEl.contentEditable = String(!state.stream && blocks.length > 0);
+  // Editable unless a draft is streaming in, so an empty one can be
+  // written from scratch.
+  outputEl.contentEditable = String(!state.stream);
   if (blocks.length) {
     outputEl.appendChild(renderDraft(blocks, document, tagUrl));
   } else if (!state.stream) {
-    const placeholder = document.createElement('p');
-    placeholder.className = 'placeholder';
-    placeholder.textContent = 'Your draft will appear here.';
-    outputEl.appendChild(placeholder);
+    // Typing starts in a paragraph, like the ones Enter makes.
+    outputEl.appendChild(document.createElement('p')).appendChild(document.createElement('br'));
   }
+  updateEmptyState();
   btnCopy.disabled = !!state.stream || !blocks.length;
-  btnLink.disabled = outputEl.contentEditable !== 'true';
+  btnLink.disabled = !!state.stream;
   linkBubble.hidden = true;
   closeLinkSearch(false);
   hideSaveChip();
@@ -445,30 +488,41 @@ function renderOutput() {
   updateClearButton();
 }
 
+// Shows the placeholder (applyAiMode sets its text) over an empty draft.
+function updateEmptyState() {
+  outputEl.classList.toggle('is-empty', !state.stream && !outputEl.textContent && !outputEl.querySelector('li'));
+}
+
 function updateDraftHint() {
   const edited = isEdited();
   draftHint.classList.toggle('edited', edited);
-  draftHint.textContent = state.stream ? '' : edited ? 'Edited' : state.draft ? 'Click to edit' : '';
+  draftHint.textContent = state.stream ? '' : edited ? 'Edited' : state.generated ? 'Click to edit' : '';
 }
 
 // ── Editing ─────────────────────────────────────────────────
 //
-// The draft is contenteditable once written. Each edit is read back to
-// Markdown and canonicalized, and copy/link-check work from that, so
-// the editor's DOM never reaches the clipboard directly. Paste and drop
-// are forced to plain text so nothing (images included) can be pasted
-// in with markup.
+// The draft is contenteditable except while Claude is writing it. Each
+// edit is read back to Markdown and canonicalized, and copy/link-check
+// work from that, so the editor's DOM never reaches the clipboard
+// directly. Paste and drop are forced to plain text so nothing (images
+// included) can be pasted in with markup.
 
-outputEl.addEventListener('input', () => {
+// Enter makes a <p>, matching the paragraphs a written draft has.
+document.execCommand('defaultParagraphSeparator', false, 'p');
+
+outputEl.addEventListener('input', (e) => {
   if (state.stream || outputEl.contentEditable !== 'true') return;
+  removeGhost();
   state.draft = canonicalDraft(domToMarkdown(outputEl));
   btnCopy.disabled = !state.draft;
   renderLinkWarning(parseDraft(state.draft));
+  updateEmptyState();
   updateDraftHint();
   updateSuggestButton();
   updateClearButton();
   updateWriteButton();
   persistDraftSoon();
+  if (!acceptingPhrase && !e.isComposing) updatePhrases();
 });
 
 outputEl.addEventListener('paste', (e) => {
@@ -505,6 +559,7 @@ function listItemAtCaretStart() {
 
 outputEl.addEventListener('keydown', (e) => {
   if (e.isComposing) return;
+  if (phraseSuggestions.length && handlePhraseKey(e)) return;
   if (!saveChip.hidden && trackSaveChipKey(e)) return;
   const shortcut = (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey ? e.key.toLowerCase() : '';
   if (shortcut === 'k' || shortcut === 'l') {
@@ -573,6 +628,7 @@ function emailHref(raw) {
 
 function openLinkDialog(anchor = null) {
   if (outputEl.contentEditable !== 'true') return;
+  hidePhrases();
   let range = draftRange();
   if (!range) {
     // Nothing selected in the draft: add the link at the end.
@@ -610,6 +666,15 @@ function restoreDraftSelection(range) {
   const sel = getSelection();
   sel.removeAllRanges();
   sel.addRange(range);
+}
+
+// Caret at the end of the draft (at the start of an empty one).
+function focusDraft() {
+  if (outputEl.contentEditable !== 'true') return;
+  const range = document.createRange();
+  range.selectNodeContents(outputEl.lastElementChild || outputEl);
+  range.collapse(!state.draft);
+  restoreDraftSelection(range);
 }
 
 function closeLinkDialog() {
@@ -656,6 +721,17 @@ function placeUnder(el, rect, gap) {
   const left = Math.min(rect.left - box.left, box.width - el.offsetWidth);
   el.style.top = `${rect.bottom - box.top + gap}px`;
   el.style.left = `${Math.max(0, left)}px`;
+}
+
+// Like placeUnder, but flips above `rect` when there's no room below it
+// in the panel.
+function placeNear(el, rect, gap) {
+  placeUnder(el, rect, gap);
+  const view = contentEl.getBoundingClientRect();
+  const height = el.offsetHeight;
+  if (rect.bottom + gap + height > view.bottom && rect.top - gap - height >= view.top) {
+    el.style.top = `${rect.top - draftSection.getBoundingClientRect().top - gap - height}px`;
+  }
 }
 
 function removeLink(anchor) {
@@ -715,8 +791,15 @@ function updateLinkBubble() {
   placeUnder(linkBubble, anchor.getClientRects()[0] || anchor.getBoundingClientRect(), 4);
 }
 
-document.addEventListener('selectionchange', updateLinkBubble);
-outputEl.addEventListener('blur', () => { linkBubble.hidden = true; });
+document.addEventListener('selectionchange', () => {
+  updateLinkBubble();
+  // The caret moved away (a click, an arrow key, a selection).
+  if (phraseSuggestions.length && !caretAtSuggestion()) hidePhrases();
+});
+outputEl.addEventListener('blur', () => {
+  linkBubble.hidden = true;
+  hidePhrases();
+});
 $('#btn-bubble-change').addEventListener('click', () => bubbleAnchor && openLinkDialog(bubbleAnchor));
 $('#btn-bubble-remove').addEventListener('click', () => bubbleAnchor && removeLink(bubbleAnchor));
 
@@ -740,6 +823,7 @@ $('#link-search-hint').textContent = `↑↓ navigate · Enter or ${MOD}L insert
 
 async function openLinkSearch() {
   if (outputEl.contentEditable !== 'true') return;
+  hidePhrases();
   let range = draftRange();
   if (!range) return;
   const anchor = closestInDraft(range.startContainer, 'a');
@@ -950,12 +1034,270 @@ for (const [id, action] of [['#btn-save-chip', acceptSaveChip], ['#btn-save-chip
   });
 }
 
-// A click anywhere else closes the picker or chip, as in Gmail. Capture,
-// so this runs before a picker item's handler opens the chip.
+// A click anywhere else closes the picker, chip, or phrase suggestions,
+// as in Gmail. Capture, so this runs before a picker item's handler
+// opens the chip.
 document.addEventListener('mousedown', (e) => {
   if (!linkSearch.hidden && !linkSearch.contains(e.target)) closeLinkSearch(false);
   if (!saveChip.hidden && !saveChip.contains(e.target)) hideSaveChip();
+  if (!phraseBox.hidden && !phraseBox.contains(e.target)) hidePhrases();
 }, true);
+
+// ── Phrase autocomplete ─────────────────────────────────────
+//
+// The suggestions from a Gmail reply: once the sentence you're typing
+// is long enough (Settings → Trigger after), saved phrases that start
+// with it drop down under the caret, the top one shown as ghost text.
+// Tab accepts, ↑↓ cycle, Esc closes, and typing on refreshes them. An
+// accepted phrase gets your link rules, and its follow-up phrases are
+// offered next. Works from liveCorpus, kept current by the storage
+// listener at the bottom.
+
+let liveCorpus = null;
+let phraseSuggestions = []; // [{ completion, full }]
+let phraseIndex = 0;
+// The part of the phrase already typed when the suggestions were made.
+let phraseTyped = '';
+// While a phrase goes in, its own input events don't re-suggest.
+let acceptingPhrase = false;
+
+const PHRASE_MAX_SHOWN = 60;
+
+function removeGhost() {
+  outputEl.querySelectorAll('.lingofrog-ghost').forEach((g) => g.remove());
+}
+
+// The rest of the phrase, in grey after the caret. Not editable, and
+// removed before every edit, so it never reaches the draft.
+function showGhost(text) {
+  removeGhost();
+  const range = draftRange();
+  if (!range || !range.collapsed) return null;
+  const ghost = document.createElement('span');
+  ghost.className = 'lingofrog-ghost';
+  ghost.contentEditable = 'false';
+  ghost.textContent = text;
+  const { startContainer: node, startOffset: offset } = range;
+  // After the text rather than splitting it, when the caret is at its end.
+  if (node.nodeType === 3 && offset === node.length) node.after(ghost);
+  else range.cloneRange().insertNode(ghost);
+  getSelection().collapse(node, offset);
+  return ghost;
+}
+
+// The caret is still where the suggestions were made: right before the
+// ghost text.
+function caretAtSuggestion() {
+  const range = draftRange();
+  if (!range || !range.collapsed) return false;
+  const ghost = outputEl.querySelector('.lingofrog-ghost');
+  if (!ghost) return true;
+  const around = document.createRange();
+  around.selectNode(ghost);
+  if (around.comparePoint(range.startContainer, range.startOffset) > 0) return false;
+  const between = document.createRange();
+  between.setStart(range.startContainer, range.startOffset);
+  between.setEndBefore(ghost);
+  return !between.toString();
+}
+
+// Text of a range with line breaks kept and quotes straightened, the
+// way Gmail's autocomplete reads it.
+function rangeText(range) {
+  const frag = range.cloneContents();
+  frag.querySelectorAll('.lingofrog-ghost').forEach((g) => g.remove());
+  frag.querySelectorAll('br').forEach((br) => br.replaceWith('\n'));
+  return frag.textContent
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/ /g, ' ');
+}
+
+function caretBlock(range) {
+  return closestInDraft(range.startContainer, 'p, li, div') || outputEl;
+}
+
+// The sentence so far: everything in the caret's paragraph or bullet
+// since the last . ! ? or line break.
+function typedSentence(range) {
+  const before = document.createRange();
+  before.setStart(caretBlock(range), 0);
+  before.setEnd(range.startContainer, range.startOffset);
+  return rangeText(before).split(/[.!?\n]+/).pop().replace(/^\s+/, '');
+}
+
+// Words after the caret in the same sentence mean you're editing it,
+// not extending it, so Gmail doesn't suggest there either.
+function editingMidSentence(range) {
+  const block = caretBlock(range);
+  const after = document.createRange();
+  after.setStart(range.startContainer, range.startOffset);
+  after.setEnd(block, block.childNodes.length);
+  return /\w/.test(rangeText(after).split(/[.!?\n]/)[0]);
+}
+
+function updatePhrases() {
+  const config = liveCorpus && liveCorpus.config;
+  const range = draftRange();
+  if (!config || config.enabled === false || config.autoComplete === false || !range || !range.collapsed) {
+    hidePhrases();
+    return;
+  }
+  const typed = typedSentence(range);
+  const found = typed.length >= config.triggerAfterChars && !editingMidSentence(range)
+    ? liveCorpus.getCompletions(typed)
+    : [];
+  showPhrases(found, typed);
+}
+
+function showPhrases(list, typed) {
+  removeGhost();
+  phraseSuggestions = list;
+  phraseTyped = typed;
+  phraseIndex = 0;
+  phraseBox.textContent = '';
+  if (!list.length) {
+    phraseBox.hidden = true;
+    return;
+  }
+
+  const header = document.createElement('div');
+  header.className = 'lingofrog-header';
+  const icon = document.createElement('img');
+  icon.className = 'lingofrog-header-icon';
+  icon.src = 'icons/icon48.png';
+  icon.alt = '';
+  header.append(icon, 'LingoFrog');
+  phraseBox.appendChild(header);
+
+  const autoLink = liveCorpus.config.autoLink !== false;
+  list.forEach((s, i) => {
+    const item = document.createElement('div');
+    item.className = 'lingofrog-item';
+    item.setAttribute('role', 'option');
+    const num = document.createElement('span');
+    num.className = 'lingofrog-num';
+    num.textContent = String(i + 1);
+    const text = document.createElement('span');
+    text.className = 'lingofrog-text';
+    const shown = s.completion.length > PHRASE_MAX_SHOWN ? s.completion.slice(0, PHRASE_MAX_SHOWN) + '…' : s.completion;
+    // 🔗: accepting it adds one of your saved links.
+    text.textContent = (autoLink && liveCorpus.linkRules.findLinks(s.full).length ? '🔗 ' : '') + shown;
+    item.title = s.full;
+    item.append(num, text);
+    // mousedown, so the draft keeps its caret.
+    item.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      phraseIndex = i;
+      acceptPhrase();
+    });
+    phraseBox.appendChild(item);
+  });
+
+  const hint = document.createElement('div');
+  hint.className = 'lingofrog-hint';
+  hint.textContent = 'Tab accept · ↑↓ cycle · Esc close';
+  phraseBox.appendChild(hint);
+
+  phraseBox.hidden = false;
+  updatePhraseSelection();
+  const ghost = outputEl.querySelector('.lingofrog-ghost');
+  placeNear(phraseBox, (ghost && ghost.getClientRects()[0]) || rangeRect(draftRange()), 4);
+}
+
+function updatePhraseSelection() {
+  phraseBox.querySelectorAll('.lingofrog-item').forEach((item, i) => {
+    item.classList.toggle('lingofrog-selected', i === phraseIndex);
+    item.setAttribute('aria-selected', String(i === phraseIndex));
+  });
+  showGhost(phraseSuggestions[phraseIndex].completion);
+}
+
+function hidePhrases() {
+  phraseSuggestions = [];
+  phraseBox.hidden = true;
+  removeGhost();
+}
+
+// Keys while suggestions are up. True if the key was used. Any other
+// key closes them first, so the ghost text is gone before the key edits
+// anything; if it types a character, the input event suggests again.
+function handlePhraseKey(e) {
+  const plain = !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey;
+  if (e.key === 'Tab' && plain) {
+    e.preventDefault();
+    acceptPhrase();
+    return true;
+  }
+  if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && plain) {
+    e.preventDefault();
+    const n = phraseSuggestions.length;
+    phraseIndex = (phraseIndex + (e.key === 'ArrowDown' ? 1 : -1) + n) % n;
+    updatePhraseSelection();
+    return true;
+  }
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    hidePhrases();
+    return true;
+  }
+  if (!['Shift', 'Meta', 'Control', 'Alt', 'CapsLock'].includes(e.key)) hidePhrases();
+  return false;
+}
+
+// Types the rest of the phrase at the caret (one undo step), links any
+// of your saved links in it, and offers its follow-up phrases.
+function acceptPhrase() {
+  const chosen = phraseSuggestions[phraseIndex];
+  const typed = phraseTyped;
+  hidePhrases();
+  const range = draftRange();
+  if (!chosen || !range || !range.collapsed) return;
+  acceptingPhrase = true;
+  try {
+    document.execCommand('insertText', false, chosen.completion);
+    if (liveCorpus.config.autoLink !== false) linkPhrase(typed.length + chosen.completion.length);
+  } finally {
+    acceptingPhrase = false;
+  }
+  liveCorpus.recordUsage(chosen.full);
+
+  // As in Gmail, follow-ups come up right away, each after a space.
+  const followers = liveCorpus.config.autoComplete !== false ? liveCorpus.getFollowedBy(chosen.full) : [];
+  if (followers.length) showPhrases(followers.map((f) => ({ completion: ' ' + f, full: f })), '');
+  else updatePhrases();
+}
+
+// Links saved-link triggers in the `length` characters before the caret
+// (the phrase just accepted), as far back as the caret's text node goes.
+// One more undo step, only when there's a link to add.
+function linkPhrase(length) {
+  const range = draftRange();
+  const node = range && range.startContainer;
+  if (!node || node.nodeType !== 3 || closestInDraft(node, 'a')) return;
+  const end = range.startOffset;
+  let start = Math.max(0, end - length);
+  // Leading spaces would be dropped from the inserted HTML; leave them be.
+  while (start < end && /\s/.test(node.data[start])) start++;
+  const text = node.data.slice(start, end).replace(/ /g, ' ');
+  const matches = liveCorpus.linkRules.findLinks(text)
+    .map((m) => ({ ...m, href: webHref(m.url.trim()) }))
+    .filter((m) => m.href);
+  if (!matches.length) return;
+
+  const html = document.createElement('div');
+  let cursor = 0;
+  for (const m of matches) {
+    html.append(text.slice(cursor, m.start), linkElement({ type: 'link', text: text.slice(m.start, m.end), href: m.href }, document, tagUrl));
+    cursor = m.end;
+  }
+  html.append(text.slice(cursor));
+  const phrase = document.createRange();
+  phrase.setStart(node, start);
+  phrase.setEnd(node, end);
+  restoreDraftSelection(phrase);
+  document.execCommand('insertHTML', false, html.innerHTML);
+}
 
 function urlVariants(href) {
   return [href, href.replace(/\/$/, ''), href.replace(/^mailto:/, '')];
@@ -994,13 +1336,16 @@ function renderLinkWarning(blocks) {
 // ── Write ───────────────────────────────────────────────────
 
 function updateWriteButton() {
+  // Turning AI off mid-draft would hide the Stop button.
+  aiToggle.disabled = !!state.stream;
+  aiToggle.title = state.stream ? 'Stop the draft first' : '';
   if (state.stream) {
     btnWrite.textContent = 'Stop';
     btnWrite.classList.add('stopping');
     btnWrite.disabled = false;
     return;
   }
-  btnWrite.textContent = state.draft ? 'Rewrite' : 'Write';
+  btnWrite.textContent = state.generated ? 'Rewrite' : 'Write';
   btnWrite.classList.remove('stopping');
   btnWrite.disabled = !contextEl.value.trim();
 }
@@ -1081,7 +1426,10 @@ async function write() {
     showStatus(keyStatus, 'Add your API key to start writing.', 'error');
     return;
   }
-  if (isEdited() && !confirm('Rewriting replaces your edited draft. Continue?')) return;
+  // A draft that isn't just Claude's: edited, or typed from scratch.
+  if (state.draft && state.draft !== state.generated && !confirm(state.generated
+    ? 'Rewriting replaces your edited draft. Continue?'
+    : 'Writing replaces the draft you typed. Continue?')) return;
 
   clearStatus(writeStatus);
   hideSuggestion();
@@ -1283,9 +1631,10 @@ btnSuggestGuide.addEventListener('click', () => {
 
 let undoClear = null;
 
-// Disabled mid-stream: Stop is the way out of a draft in progress.
+// Disabled mid-stream: Stop is the way out of a draft in progress. With
+// AI off it clears just the draft, leaving the (hidden) context alone.
 function updateClearButton() {
-  btnClear.disabled = !!state.stream || (!contextEl.value.trim() && !state.draft);
+  btnClear.disabled = !!state.stream || (!(state.ai && contextEl.value.trim()) && !state.draft);
 }
 
 btnClear.addEventListener('click', () => {
@@ -1296,7 +1645,7 @@ btnClear.addEventListener('click', () => {
     draftStyleId: state.draftStyleId,
     draftSources: state.draftSources,
   };
-  contextEl.value = '';
+  if (state.ai) contextEl.value = '';
   state.draft = '';
   state.generated = '';
   state.draftStyleId = null;
@@ -1326,14 +1675,19 @@ btnClear.addEventListener('click', () => {
     persistDraft();
   });
   writeStatus.appendChild(undo);
-  contextEl.focus();
+  if (state.ai) contextEl.focus();
+  else focusDraft();
 });
 
 // ── Init ────────────────────────────────────────────────────
 
 async function init() {
-  const local = await chrome.storage.local.get([KEY_STORAGE, STYLES_STORAGE, STYLE_ID_STORAGE, GUIDE_STORAGE]);
+  const local = await chrome.storage.local.get([AI_STORAGE, KEY_STORAGE, STYLES_STORAGE, STYLE_ID_STORAGE, GUIDE_STORAGE]);
   state.apiKey = local[KEY_STORAGE] || '';
+  // Until it's switched: on for anyone who already has a key, off for a
+  // fresh install, which can write without one.
+  state.ai = typeof local[AI_STORAGE] === 'boolean' ? local[AI_STORAGE] : !!state.apiKey;
+  applyAiMode();
   state.guide = local[GUIDE_STORAGE] || '';
   // Seed the starter styles only on first run — an empty array means
   // the user deleted them all, which we respect.
@@ -1358,9 +1712,11 @@ async function init() {
   }
 
   const corpus = await loadCorpus();
+  liveCorpus = corpus;
   utmRules = corpus.utmRules;
-  // The link check needs to know what a restored draft came from.
-  if (state.draft) {
+  // The link check needs to know what a restored draft came from. A
+  // draft the user typed themselves has nothing to check.
+  if (state.generated) {
     state.draftSources = {
       context: contextEl.value,
       savedUrls: savedUrlSet(savedLinks(corpus)),
@@ -1372,19 +1728,22 @@ async function init() {
   renderStyles();
   renderOutput();
   updateWriteButton();
-  if (!state.apiKey) openKeyCard();
+  if (!state.ai) focusDraft();
+  else if (!state.apiKey) openKeyCard();
   else contextEl.focus();
 }
 
-// UTM rules edited in the popup while the panel is open: re-tag the
-// draft's links right away.
+// Phrases, links, or settings changed in the popup (or by autocomplete
+// recording a use): refresh the live corpus. For UTM rules, also re-tag
+// the draft's links right away.
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area !== 'local' || !changes.lingofrog_utm_rules) return;
+  if (area !== 'local' || !CORPUS_KEYS.some((k) => changes[k])) return;
   loadCorpus().then((corpus) => {
+    liveCorpus = corpus;
     utmRules = corpus.utmRules;
     // Skip while the user is typing in the draft: a re-render would
     // reset their caret. Copy re-reads the rules anyway.
-    if (!state.stream && document.activeElement !== outputEl && !linkDialog.open && !picker) renderOutput();
+    if (changes.lingofrog_utm_rules && !state.stream && document.activeElement !== outputEl && !linkDialog.open && !picker) renderOutput();
   });
 });
 

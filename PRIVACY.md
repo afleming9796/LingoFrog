@@ -1,11 +1,12 @@
 # Privacy Policy
 
-_Last updated: 2026-10-30_
+_Last updated: 2026-11-02_
 
 LingoFrog is a Chrome extension that provides autocomplete and link
 suggestions inside Gmail's compose, drawn from phrases the user has
-imported or saved. Its optional Scribe side panel drafts emails with
-Anthropic's Claude API, using an API key the user provides.
+imported or saved. Its Scribe side panel is an email editor with the
+same suggestions, and can optionally draft emails with Anthropic's
+Claude API, using an API key the user provides.
 
 ## What LingoFrog stores
 
@@ -17,17 +18,17 @@ All data LingoFrog uses lives locally on your device via Chrome's
 - Link rules (trigger phrase → URL pairs).
 - UTM parameter rules.
 - Extension settings.
-- Scribe's general style and styles, and your Anthropic API key if you
-  add one. The key
+- Whether Scribe's "Write with AI" is on, Scribe's general style and
+  styles, and your Anthropic API key if you add one. The key
   is stored only in `chrome.storage.local` on this device and is
   never synced or included in exports.
 - Scribe's current context and draft, kept in `chrome.storage.session`
   so they survive closing the side panel; Chrome clears it when the
   browser restarts.
 
-While you are typing in Gmail's compose, the content script reads
-your in-progress text to match it against your local phrase and
-link rules. This matching happens entirely on your device.
+While you are typing in Gmail's compose or in Scribe's draft,
+LingoFrog reads your in-progress text to match it against your local
+phrase and link rules. This matching happens entirely on your device.
 
 When you use Scribe's "Use Gmail selection" button, the side panel
 reads the text you've highlighted in the active Gmail tab and adds it
@@ -58,8 +59,8 @@ your general style, so Claude can propose a rule. The
 suggestion is shown to you and only saved if you choose to add it.
 
 Nothing is sent before you click one of those buttons, nothing is sent
-if you never add an API key, and LingoFrog sends no data to any other
-server.
+while "Write with AI" is off (the buttons are hidden) or if you never
+add an API key, and LingoFrog sends no data to any other server.
 Anthropic handles API requests under its own terms and privacy
 policy: <https://www.anthropic.com/legal/privacy>.
 

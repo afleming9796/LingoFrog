@@ -55,6 +55,34 @@
       gap: 14px;
     }
 
+    /* "Write with AI" switch. Off, everything marked .ai-only goes away
+       and the draft fills the panel. */
+    .ai-switch {
+      display: flex; align-items: center; gap: 10px;
+      background: #ffffff; border: 1px solid #e2e2e2; border-radius: 10px;
+      padding: 9px 12px; cursor: pointer;
+    }
+    .ai-switch-text { flex: 1; min-width: 0; }
+    .ai-switch-title { display: block; font-size: 12px; font-weight: 600; }
+    .ai-switch-hint { display: block; font-size: 11px; color: #7a7a7a; }
+    #ai-toggle {
+      appearance: none; flex-shrink: 0; margin: 0; cursor: pointer;
+      position: relative; width: 30px; height: 18px; border-radius: 9px;
+      background: #c4c4c4; transition: background 0.15s;
+    }
+    #ai-toggle::after {
+      content: ''; position: absolute; top: 2px; left: 2px;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: #ffffff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+      transition: transform 0.15s;
+    }
+    #ai-toggle:checked { background: #6da34d; }
+    #ai-toggle:checked::after { transform: translateX(12px); }
+    #ai-toggle:focus-visible { outline: 2px solid #6da34d; outline-offset: 2px; }
+    #ai-toggle:disabled { opacity: 0.5; cursor: not-allowed; }
+    .ai-off .ai-only { display: none !important; }
+    .ai-off .draft-section, .ai-off .output { flex: 1 0 auto; }
+
     .section-head {
       display: flex;
       align-items: center;
@@ -189,11 +217,16 @@
     #btn-link { padding: 3px; }
     #btn-link svg { width: 14px; height: 14px; }
     .output {
+      position: relative;
       background: #ffffff;
       border: 1px solid #e2e2e2;
       border-radius: 10px;
       padding: 12px 14px;
       min-height: 160px;
+      /* The body's stack minus BlinkMacSystemFont, which Chrome reports
+         as system-ui; the mismatch made its editor wrap inserted links
+         and phrases in redundant font-family spans. Renders the same. */
+      font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
       font-size: 13px;
       line-height: 1.55;
       overflow-wrap: anywhere;
@@ -204,7 +237,11 @@
     .output ul, .output ol { padding-left: 1.4em; }
     .output li + li { margin-top: 0.2em; }
     .output a { color: #2f6fb3; }
-    .output .placeholder { color: #b5b5b5; }
+    .output.is-empty::before {
+      content: attr(data-placeholder);
+      position: absolute; top: 12px; left: 14px; right: 14px;
+      color: #b5b5b5; pointer-events: none;
+    }
     .output[contenteditable="true"] { cursor: text; }
     .output[contenteditable="true"]:hover { border-color: #c8dfa8; }
     .output:focus { outline: none; border-color: #6da34d; }
@@ -276,6 +313,14 @@
     .save-chip { display: flex; max-width: 100%; white-space: normal; }
     .save-chip .lingofrog-src-label { min-width: 0; overflow-wrap: anywhere; }
 
+    /* Phrase suggestions: Gmail's dropdown (lingofrog.css), placed the
+       same way. */
+    .phrase-box {
+      display: block; position: absolute; z-index: 6;
+      min-width: 0; width: min(320px, 100%);
+    }
+    .phrase-box .lingofrog-text { min-width: 0; }
+
     .link-warning {
       margin-top: 8px;
       font-size: 11px;
@@ -302,15 +347,23 @@
       <img src="icons/icon48.png" alt="">
       <h1>LingoFrog <span>Scribe</span></h1>
     </div>
-    <button class="icon-btn" id="btn-key" title="Anthropic API key" aria-label="Anthropic API key">
+    <button class="icon-btn ai-only" id="btn-key" title="Anthropic API key" aria-label="Anthropic API key">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>
     </button>
   </div>
 
   <div class="content">
 
-    <!-- API key — shown on first run, or from the key button. -->
-    <section class="card" id="key-card" hidden>
+    <label class="ai-switch">
+      <span class="ai-switch-text">
+        <span class="ai-switch-title">Write with AI</span>
+        <span class="ai-switch-hint" id="ai-hint"></span>
+      </span>
+      <input type="checkbox" id="ai-toggle" role="switch">
+    </label>
+
+    <!-- API key — shown when AI is first turned on, or from the key button. -->
+    <section class="card ai-only" id="key-card" hidden>
       <div class="section-head"><span class="section-label">Anthropic API key</span></div>
       <p>
         Scribe writes drafts with Claude using your own Anthropic API key
@@ -331,7 +384,7 @@
       <div class="status" id="key-status"></div>
     </section>
 
-    <section>
+    <section class="ai-only">
       <div class="section-head">
         <label class="section-label" for="context">Context</label>
         <button class="link-btn" id="btn-use-selection" title="Add the text highlighted in the current Gmail tab">Use Gmail selection</button>
@@ -340,7 +393,7 @@
       <div class="status" id="context-status"></div>
     </section>
 
-    <section>
+    <section class="ai-only">
       <div class="section-head">
         <span class="section-label">General style</span>
         <span class="section-hint">Applies to every style</span>
@@ -360,7 +413,7 @@
       </div>
     </section>
 
-    <section>
+    <section class="ai-only">
       <div class="section-head">
         <span class="section-label" id="style-label">Styles</span>
         <button class="link-btn" id="btn-add-style">+ Add style</button>
@@ -376,7 +429,7 @@
       </div>
     </section>
 
-    <button class="btn btn-primary" id="btn-write">Write</button>
+    <button class="btn btn-primary ai-only" id="btn-write">Write</button>
 
     <section class="draft-section">
       <div class="section-head">
@@ -406,15 +459,16 @@
         <div class="lingofrog-ls-list" id="link-search-list" role="listbox"></div>
         <div class="lingofrog-ls-hint" id="link-search-hint"></div>
       </div>
+      <div class="lingofrog-box phrase-box" id="phrase-box" role="listbox" aria-label="Phrase suggestions" hidden></div>
       <div class="lingofrog-save-rule-chip save-chip" id="save-chip" hidden>
         <span class="lingofrog-src-label" id="save-chip-label"></span>
         <button class="lingofrog-src-btn" id="btn-save-chip" tabindex="-1">Save</button>
         <button class="lingofrog-src-dismiss" id="btn-save-chip-dismiss" title="Dismiss" aria-label="Dismiss" tabindex="-1">×</button>
       </div>
-      <div class="draft-actions" id="draft-actions" hidden>
+      <div class="draft-actions ai-only" id="draft-actions" hidden>
         <button class="link-btn" id="btn-suggest" disabled>Suggest a rule from my edits</button>
       </div>
-      <div class="card suggest-card" id="suggest-card" hidden>
+      <div class="card suggest-card ai-only" id="suggest-card" hidden>
         <div class="section-head"><span class="section-label" id="suggest-title">Suggested rule</span></div>
         <p class="suggest-why" id="suggest-why"></p>
         <textarea id="suggest-text" placeholder="Rule to add…"></textarea>
