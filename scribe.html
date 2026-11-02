@@ -199,6 +199,16 @@
     .output li + li { margin-top: 0.2em; }
     .output a { color: #2f6fb3; }
     .output .placeholder { color: #b5b5b5; }
+    .output[contenteditable="true"] { cursor: text; }
+    .output[contenteditable="true"]:hover { border-color: #c8dfa8; }
+    .output:focus { outline: none; border-color: #6da34d; }
+    .section-hint.edited { color: #4d7a2e; font-weight: 600; }
+    .draft-actions { display: flex; justify-content: flex-start; margin-top: 6px; }
+
+    .suggest-card { margin-top: 8px; }
+    .suggest-card .suggest-why { font-size: 11px; color: #5a5a5a; line-height: 1.5; margin-bottom: 8px; }
+    #suggest-text { min-height: 60px; }
+    .suggest-card .btn-row { flex-wrap: wrap; }
     .output.streaming::after {
       content: '';
       display: inline-block;
@@ -251,7 +261,9 @@
         (create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">console.anthropic.com</a>).
         The key is stored only on this device. When you click Write, your
         context, style guide and chosen style, saved links, and top phrases
-        are sent to Anthropic's API — nothing is sent before that.
+        are sent to Anthropic's API. Asking for a style suggestion also
+        sends the original and edited draft. Nothing is sent before you
+        click.
       </p>
       <div class="key-current" id="key-current" hidden></div>
       <input type="password" id="api-key-input" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
@@ -312,10 +324,26 @@
 
     <section class="draft-section">
       <div class="section-head">
-        <span class="section-label">Draft</span>
+        <span>
+          <span class="section-label">Draft</span>
+          <span class="section-hint" id="draft-hint"></span>
+        </span>
         <button class="link-btn" id="btn-copy" disabled>Copy</button>
       </div>
-      <div class="output" id="output" aria-live="polite"></div>
+      <div class="output" id="output" aria-live="polite" aria-label="Draft" spellcheck="true"></div>
+      <div class="draft-actions" id="draft-actions" hidden>
+        <button class="link-btn" id="btn-suggest" disabled>Suggest a style update from my edits</button>
+      </div>
+      <div class="card suggest-card" id="suggest-card" hidden>
+        <div class="section-head"><span class="section-label" id="suggest-title">Suggested guideline</span></div>
+        <p class="suggest-why" id="suggest-why"></p>
+        <textarea id="suggest-text" placeholder="Guideline to add…"></textarea>
+        <div class="btn-row">
+          <button class="btn btn-quiet" id="btn-suggest-dismiss">Dismiss</button>
+          <button class="btn btn-secondary" id="btn-suggest-guide">Add to style guide</button>
+          <button class="btn btn-primary" id="btn-suggest-style">Add to style</button>
+        </div>
+      </div>
       <div class="link-warning" id="link-warning" hidden></div>
       <div class="status" id="write-status"></div>
     </section>

@@ -36,6 +36,7 @@ Scribe drafts emails with Claude in Chrome's side panel. Click the extension ico
 2. Fill in **Context**: paste notes or an email thread, or highlight text in Gmail and click **Use Gmail selection**.
 3. Pick a **Style** (post-call follow-up, intro email, quick reply, or your own). Rules that should apply to every draft (tone, length, sign-off) go in the **Style guide** above the styles.
 4. Click **Write** (or press Cmd/Ctrl + Enter in the context box). The draft streams in with formatting and links, and **Copy** puts it on your clipboard as rich text for Gmail. **Clear context and draft** at the bottom starts over (with an undo).
+5. Edit the draft right in the panel before copying. Once you've changed it, **Suggest a style update from my edits** compares your version with Claude's and proposes a guideline for the style that wrote it. You can reword it, then add it to that style or to your style guide.
 
 Scribe reuses your most-used saved phrases where they fit and matches their voice, and it can include your saved links. Links in drafts get your UTM rules, both in the preview and when you copy. Any link in a draft that isn't one of your saved links is listed under the draft, so check those before sending. Context is sent to Anthropic only when you click Write. See [PRIVACY.md](PRIVACY.md).
 

@@ -12,8 +12,13 @@
  * injected prompt exfiltrates data, whereas a link only goes anywhere
  * if the user clicks it.
  *
- * Pure functions apart from renderDraft (which takes a document), so
- * the parser can be exercised outside the extension.
+ * The draft is also editable in place. domToMarkdown reads the edited
+ * DOM back into the same Markdown subset, and everything downstream
+ * (copy, the link check) re-parses that, so whatever the editor holds
+ * still goes through the allowlist above.
+ *
+ * Pure functions apart from renderDraft / domToMarkdown (which take DOM
+ * nodes), so the parser can be exercised outside the extension.
  */
 
 const ALLOWED_PROTOCOLS = new Set(['https:', 'http:', 'mailto:']);
@@ -139,6 +144,10 @@ function appendInline(parent, tokens, doc, mapHref) {
       a.href = href;
       a.textContent = text;
       a.title = href;
+      // The untagged URL, so reading an edited draft back doesn't bake
+      // UTM tags into the text.
+      a.dataset.href = t.href;
+      if (t.bare) a.dataset.bare = '1';
       // Without a target, clicking would navigate the side panel itself.
       a.target = '_blank';
       a.rel = 'noopener noreferrer';
@@ -222,4 +231,94 @@ export function toPlainText(blocks, mapHref = (h) => h) {
       .map((item, i) => (b.type === 'ol' ? `${i + 1}. ` : '• ') + inlineText(item, mapHref))
       .join('\n');
   }).join('\n\n');
+}
+
+// ── Markdown round trip (for the editable draft) ───────────
+
+function inlineMarkdown(tokens) {
+  return tokens.map((t) => {
+    if (t.type === 'text') return t.text;
+    if (t.type === 'em') return `*${inlineMarkdown(t.children)}*`;
+    if (t.type === 'strong') return `**${inlineMarkdown(t.children)}**`;
+    return t.bare ? t.href : `[${t.text}](${t.href})`;
+  }).join('');
+}
+
+export function toMarkdown(blocks) {
+  return blocks.map((b) => {
+    if (b.type === 'p') return b.lines.map(inlineMarkdown).join('\n');
+    return b.items
+      .map((item, i) => (b.type === 'ol' ? `${i + 1}. ` : '- ') + inlineMarkdown(item))
+      .join('\n');
+  }).join('\n\n');
+}
+
+// One canonical spelling of a draft, so "has the user edited it?" is a
+// plain string comparison.
+export function canonicalDraft(text) {
+  return toMarkdown(parseDraft(text));
+}
+
+const BLOCK_TAGS = new Set(['P', 'DIV', 'UL', 'OL', 'LI', 'BLOCKQUOTE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6']);
+
+// Keep surrounding spaces outside the markers: "*word* " not "*word *".
+function wrapMarks(inner, mark) {
+  const m = inner.match(/^(\s*)([\s\S]*?)(\s*)$/);
+  return m[2] ? `${m[1]}${mark}${m[2]}${mark}${m[3]}` : inner;
+}
+
+function nodeMarkdown(node) {
+  if (node.nodeType === 3) return node.nodeValue.replace(/\s*\n\s*/g, ' ');
+  if (node.nodeType !== 1) return '';
+  const tag = node.tagName;
+  if (tag === 'BR') return '\n';
+  const inner = [...node.childNodes].map(nodeMarkdown).join('');
+  if (tag === 'EM' || tag === 'I') return wrapMarks(inner, '*');
+  if (tag === 'STRONG' || tag === 'B') return wrapMarks(inner, '**');
+  if (tag === 'A') {
+    const href = node.dataset.href || node.getAttribute('href') || '';
+    if (!inner.trim() || !href) return inner;
+    // A bare URL the user didn't touch goes back to being a bare URL.
+    if (node.dataset.bare && inner === node.getAttribute('href')) return href;
+    return `[${inner}](${href})`;
+  }
+  // Spans, fonts, and anything else: keep the text, drop the wrapper.
+  // Images and other embeds have no text, so they vanish here.
+  return inner;
+}
+
+// Reads the contenteditable draft back into Markdown. Block elements
+// (Chrome makes a new <p> or <div> on Enter) become paragraphs; <br>
+// (Shift+Enter) is a line break within one.
+export function domToMarkdown(root) {
+  const blocks = [];
+  let pending = [];
+  const flush = () => {
+    const md = pending.map(nodeMarkdown).join('').replace(/[ \t]+\n/g, '\n').trim();
+    if (md) blocks.push(md);
+    pending = [];
+  };
+  const walk = (parent) => {
+    for (const node of parent.childNodes) {
+      if (node.nodeType !== 1 || !BLOCK_TAGS.has(node.tagName)) {
+        pending.push(node);
+        continue;
+      }
+      flush();
+      if (node.tagName === 'UL' || node.tagName === 'OL') {
+        const items = [...node.children]
+          .map((li) => nodeMarkdown(li).replace(/\s*\n\s*/g, ' ').trim())
+          .filter(Boolean);
+        if (items.length) {
+          blocks.push(items.map((t, i) => (node.tagName === 'OL' ? `${i + 1}. ` : '- ') + t).join('\n'));
+        }
+      } else {
+        walk(node);
+        flush();
+      }
+    }
+  };
+  walk(root);
+  flush();
+  return blocks.join('\n\n');
 }

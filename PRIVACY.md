@@ -51,8 +51,15 @@ request contains:
 - your most-used saved phrases (up to 200), so the draft can reuse
   them and match your voice.
 
-Nothing is sent before you click Write, nothing is sent if you never
-add an API key, and LingoFrog sends no data to any other server.
+If you edit a draft and click **Suggest a style update from my
+edits**, Scribe sends one more request to the same API containing the
+draft as Claude wrote it, your edited version, the style that wrote it,
+and your general style guide, so Claude can propose a guideline. The
+suggestion is shown to you and only saved if you choose to add it.
+
+Nothing is sent before you click one of those buttons, nothing is sent
+if you never add an API key, and LingoFrog sends no data to any other
+server.
 Anthropic handles API requests under its own terms and privacy
 policy: <https://www.anthropic.com/legal/privacy>.
 

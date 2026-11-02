@@ -11,17 +11,19 @@
  *   local   lingofrog_scribe_styles       [{ id, name, instructions }]
  *   local   lingofrog_scribe_style_id     selected style id
  *   local   lingofrog_scribe_guide        general style guide (string)
- *   session lingofrog_scribe_draft        { context, output } — survives
- *                                         closing the panel, not a restart
+ *   session lingofrog_scribe_draft        { context, output, generated,
+ *                                           styleId } — survives closing
+ *                                           the panel, not a restart
  *
  * Corpus (saved links, phrases, UTM rules, config) comes from trie.js,
  * loaded as a classic script ahead of this module.
  */
 
 import Anthropic from './vendor/anthropic-sdk.js';
-import { buildRequest } from './scribe-prompt.js';
+import { buildRequest, buildSuggestionRequest } from './scribe-prompt.js';
 import {
   parseDraft, renderDraft, collectLinks, safeHref, toClipboardHtml, toPlainText,
+  canonicalDraft, domToMarkdown,
 } from './scribe-format.js';
 
 const KEY_STORAGE = 'lingofrog_anthropic_api_key';
@@ -86,6 +88,15 @@ const outputEl = $('#output');
 const linkWarning = $('#link-warning');
 const writeStatus = $('#write-status');
 const btnClear = $('#btn-clear');
+const draftHint = $('#draft-hint');
+const draftActions = $('#draft-actions');
+const btnSuggest = $('#btn-suggest');
+const suggestCard = $('#suggest-card');
+const suggestTitle = $('#suggest-title');
+const suggestWhy = $('#suggest-why');
+const suggestText = $('#suggest-text');
+const btnSuggestStyle = $('#btn-suggest-style');
+const btnSuggestGuide = $('#btn-suggest-guide');
 
 const state = {
   apiKey: '',
@@ -93,11 +104,21 @@ const state = {
   styleId: null,
   guide: '',
   editingStyleId: null, // null = form closed, '' = adding, id = editing
+  // The draft as it stands (user edits included) and as Claude wrote
+  // it, both in canonical Markdown so "edited?" is a string compare.
   draft: '',
+  generated: '',
+  // Style that wrote the current draft (null = none), for suggestions.
+  draftStyleId: null,
   // What the current draft was written from, for the link check.
   draftSources: null,
   stream: null,
+  suggesting: false,
+  // Style id a pending suggestion is for (null = the style guide).
+  suggestionStyleId: null,
 };
+
+const isEdited = () => !!state.generated && state.draft !== state.generated;
 
 // ── Helpers ─────────────────────────────────────────────────
 
@@ -173,7 +194,12 @@ function persistDraftSoon() {
 }
 function persistDraft() {
   chrome.storage.session.set({
-    [DRAFT_STORAGE]: { context: contextEl.value, output: state.draft },
+    [DRAFT_STORAGE]: {
+      context: contextEl.value,
+      output: state.draft,
+      generated: state.generated,
+      styleId: state.draftStyleId,
+    },
   }).catch(() => {});
 }
 
@@ -374,10 +400,13 @@ function scheduleRender() {
   });
 }
 
+// Rebuilds the draft from state.draft. Not called on the user's own
+// keystrokes (that would reset the caret); see the input handler below.
 function renderOutput() {
   const blocks = parseDraft(state.draft);
   outputEl.textContent = '';
   outputEl.classList.toggle('streaming', !!state.stream);
+  outputEl.contentEditable = String(!state.stream && blocks.length > 0);
   if (blocks.length) {
     outputEl.appendChild(renderDraft(blocks, document, tagUrl));
   } else if (!state.stream) {
@@ -388,8 +417,42 @@ function renderOutput() {
   }
   btnCopy.disabled = !!state.stream || !blocks.length;
   renderLinkWarning(state.stream ? [] : blocks);
+  updateDraftHint();
+  updateSuggestButton();
   updateClearButton();
 }
+
+function updateDraftHint() {
+  const edited = isEdited();
+  draftHint.classList.toggle('edited', edited);
+  draftHint.textContent = state.stream ? '' : edited ? 'Edited' : state.draft ? 'Click to edit' : '';
+}
+
+// ── Editing ─────────────────────────────────────────────────
+//
+// The draft is contenteditable once written. Each edit is read back to
+// Markdown and canonicalized, and copy/link-check work from that, so
+// the editor's DOM never reaches the clipboard directly. Paste and drop
+// are forced to plain text so nothing (images included) can be pasted
+// in with markup.
+
+outputEl.addEventListener('input', () => {
+  if (state.stream || outputEl.contentEditable !== 'true') return;
+  state.draft = canonicalDraft(domToMarkdown(outputEl));
+  btnCopy.disabled = !state.draft;
+  renderLinkWarning(parseDraft(state.draft));
+  updateDraftHint();
+  updateSuggestButton();
+  updateClearButton();
+  updateWriteButton();
+  persistDraftSoon();
+});
+
+outputEl.addEventListener('paste', (e) => {
+  e.preventDefault();
+  document.execCommand('insertText', false, e.clipboardData.getData('text/plain'));
+});
+outputEl.addEventListener('drop', (e) => e.preventDefault());
 
 function urlVariants(href) {
   return [href, href.replace(/\/$/, ''), href.replace(/^mailto:/, '')];
@@ -513,8 +576,10 @@ async function write() {
     showStatus(keyStatus, 'Add your API key to start writing.', 'error');
     return;
   }
+  if (isEdited() && !confirm('Rewriting replaces your edited draft. Continue?')) return;
 
   clearStatus(writeStatus);
+  hideSuggestion();
   const corpus = await loadCorpus();
   utmRules = corpus.utmRules;
   const links = savedLinks(corpus);
@@ -523,6 +588,8 @@ async function write() {
   const client = new Anthropic({ apiKey: state.apiKey, dangerouslyAllowBrowser: true });
 
   state.draft = '';
+  state.generated = '';
+  state.draftStyleId = style ? style.id : null;
   state.draftSources = { context, savedUrls: savedUrlSet(links) };
   const stream = client.beta.messages.stream(
     buildRequest({ context, style, guide: state.guide, links, phrases })
@@ -552,6 +619,10 @@ async function write() {
       if (err instanceof Anthropic.AuthenticationError) openKeyCard();
     }
   } finally {
+    // Whatever came back (complete, stopped early, or cut off) becomes
+    // the baseline that later edits are compared against.
+    state.draft = canonicalDraft(state.draft);
+    state.generated = state.draft;
     state.stream = null;
     updateWriteButton();
     renderOutput();
@@ -587,6 +658,118 @@ btnCopy.addEventListener('click', async () => {
   }
 });
 
+// ── Suggest a style update ──────────────────────────────────
+//
+// Compares the draft as Claude wrote it with the user's edited version
+// and proposes one guideline for the style that wrote it (or the style
+// guide if none did). Nothing is saved until the user clicks Add, and
+// they can edit the wording first.
+
+function updateSuggestButton() {
+  draftActions.hidden = !state.generated || !!state.stream;
+  btnSuggest.disabled = !isEdited() || state.suggesting;
+  btnSuggest.textContent = state.suggesting ? 'Comparing your edits…' : 'Suggest a style update from my edits';
+  btnSuggest.title = isEdited() ? '' : 'Edit the draft first; Scribe suggests a rule based on your changes.';
+}
+
+function hideSuggestion() {
+  suggestCard.hidden = true;
+  state.suggestionStyleId = null;
+}
+
+// New rules go on their own line, as a bullet if the rules already are.
+function appendRule(existing, rule) {
+  const text = existing.trimEnd();
+  if (!text) return rule;
+  const lastLine = text.split('\n').pop();
+  const bullet = /^\s*[-*•]\s/.test(lastLine) && !/^\s*[-*•]\s/.test(rule) ? '- ' : '';
+  return `${text}\n${bullet}${rule}`;
+}
+
+function showSuggestion(result, style) {
+  const guideline = (result.guideline || '').trim();
+  state.suggestionStyleId = style ? style.id : null;
+  suggestTitle.textContent = !guideline
+    ? 'No guideline to suggest'
+    : style ? `Suggested for "${style.name}"` : 'Suggested for your style guide';
+  suggestWhy.textContent = result.explanation || '';
+  suggestText.hidden = !guideline;
+  suggestText.value = guideline;
+  btnSuggestStyle.hidden = !guideline || !style;
+  btnSuggestStyle.textContent = 'Add to style';
+  btnSuggestStyle.title = style ? `Add to "${style.name}"` : '';
+  btnSuggestGuide.hidden = !guideline;
+  $('#btn-suggest-dismiss').textContent = guideline ? 'Dismiss' : 'OK';
+  suggestCard.hidden = false;
+  suggestCard.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+btnSuggest.addEventListener('click', async () => {
+  if (!isEdited() || state.suggesting) return;
+  if (!state.apiKey) {
+    openKeyCard();
+    return;
+  }
+  // The style may have been deleted since it wrote the draft; then the
+  // suggestion is for the style guide.
+  const style = state.styles.find((s) => s.id === state.draftStyleId) || null;
+  state.suggesting = true;
+  updateSuggestButton();
+  hideSuggestion();
+  try {
+    const client = new Anthropic({ apiKey: state.apiKey, dangerouslyAllowBrowser: true });
+    const message = await client.beta.messages.create(buildSuggestionRequest({
+      style, guide: state.guide, original: state.generated, edited: state.draft,
+    }));
+    if (message.stop_reason === 'refusal') {
+      showStatus(writeStatus, 'Claude declined to suggest a guideline for these edits.', 'error');
+      return;
+    }
+    const text = message.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+    let result;
+    try {
+      result = JSON.parse(text);
+    } catch (e) {
+      showStatus(writeStatus, 'Couldn\'t read Claude\'s suggestion. Try again.', 'error');
+      return;
+    }
+    showSuggestion(result, style);
+  } catch (err) {
+    showStatus(writeStatus, describeError(err), 'error', 0);
+    if (err instanceof Anthropic.AuthenticationError) openKeyCard();
+  } finally {
+    state.suggesting = false;
+    updateSuggestButton();
+  }
+});
+
+$('#btn-suggest-dismiss').addEventListener('click', hideSuggestion);
+
+btnSuggestStyle.addEventListener('click', () => {
+  const rule = suggestText.value.trim();
+  const style = state.styles.find((s) => s.id === state.suggestionStyleId);
+  if (!rule) return;
+  if (!style) {
+    showStatus(writeStatus, 'That style no longer exists. Add the guideline to your style guide instead.', 'error');
+    return;
+  }
+  style.instructions = appendRule(style.instructions, rule);
+  saveStyles();
+  renderStyles();
+  hideSuggestion();
+  showStatus(writeStatus, `✓ Added to "${style.name}"`, 'success');
+});
+
+btnSuggestGuide.addEventListener('click', () => {
+  const rule = suggestText.value.trim();
+  if (!rule) return;
+  state.guide = appendRule(state.guide, rule);
+  chrome.storage.local.set({ [GUIDE_STORAGE]: state.guide });
+  renderGuide();
+  hideSuggestion();
+  showStatus(writeStatus, '✓ Added to your style guide', 'success');
+});
+
 // ── Clear ───────────────────────────────────────────────────
 
 let undoClear = null;
@@ -597,10 +780,19 @@ function updateClearButton() {
 }
 
 btnClear.addEventListener('click', () => {
-  const snapshot = { context: contextEl.value, draft: state.draft, draftSources: state.draftSources };
+  const snapshot = {
+    context: contextEl.value,
+    draft: state.draft,
+    generated: state.generated,
+    draftStyleId: state.draftStyleId,
+    draftSources: state.draftSources,
+  };
   contextEl.value = '';
   state.draft = '';
+  state.generated = '';
+  state.draftStyleId = null;
   state.draftSources = null;
+  hideSuggestion();
   updateWriteButton();
   renderOutput();
   persistDraft();
@@ -615,6 +807,8 @@ btnClear.addEventListener('click', () => {
     if (!undoClear) return;
     contextEl.value = undoClear.context;
     state.draft = undoClear.draft;
+    state.generated = undoClear.generated;
+    state.draftStyleId = undoClear.draftStyleId;
     state.draftSources = undoClear.draftSources;
     undoClear = null;
     clearStatus(writeStatus);
@@ -644,7 +838,9 @@ async function init() {
     const { [DRAFT_STORAGE]: draft } = await chrome.storage.session.get(DRAFT_STORAGE);
     if (draft) {
       contextEl.value = draft.context || '';
-      state.draft = draft.output || '';
+      state.draft = canonicalDraft(draft.output || '');
+      state.generated = draft.generated != null ? draft.generated : state.draft;
+      state.draftStyleId = draft.styleId || null;
     }
   } catch (e) {
     // Session storage unavailable; start blank.
@@ -671,7 +867,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local' || !changes.lingofrog_utm_rules) return;
   loadCorpus().then((corpus) => {
     utmRules = corpus.utmRules;
-    if (!state.stream) renderOutput();
+    // Skip while the user is typing in the draft: a re-render would
+    // reset their caret. Copy re-reads the rules anyway.
+    if (!state.stream && document.activeElement !== outputEl) renderOutput();
   });
 });
 
