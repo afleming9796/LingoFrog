@@ -603,9 +603,10 @@ function openLinkDialog(anchor = null) {
   (text ? linkUrlInput : linkTextInput).focus();
 }
 
-// Puts the caret (or the saved selection) back in the draft.
+// Puts the caret (or the saved selection) back in the draft. A plain
+// focus() would scroll a long draft back to its top.
 function restoreDraftSelection(range) {
-  outputEl.focus();
+  outputEl.focus({ preventScroll: true });
   const sel = getSelection();
   sel.removeAllRanges();
   sel.addRange(range);
