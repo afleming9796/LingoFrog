@@ -115,6 +115,30 @@ function searchPlaceholder(count, noun) {
   return `Search ${label}...`;
 }
 
+// A phrase on one line (a formatted one's line breaks become spaces),
+// cut to `max` characters.
+function shortPhrase(phrase, max) {
+  const line = phrase.replace(/\s*\n+\s*/g, ' ');
+  return line.length > max ? line.slice(0, max) + '…' : line;
+}
+
+// A formatted phrase is copied as rich text that pastes into Gmail with
+// its formatting (plus its plain text for anywhere else).
+async function copyPhrase(phrase) {
+  const rich = corpus.getRich(phrase);
+  if (!rich) {
+    await navigator.clipboard.writeText(phrase);
+    return;
+  }
+  const html = PhraseFormat.toHtml(PhraseFormat.parse(rich), { clipboard: true });
+  await navigator.clipboard.write([
+    new ClipboardItem({
+      'text/html': new Blob([html], { type: 'text/html' }),
+      'text/plain': new Blob([phrase], { type: 'text/plain' }),
+    }),
+  ]);
+}
+
 function updatePhraseList() {
   const filter = phraseSearch ? phraseSearch.value.trim() : '';
   const allPhrases = corpus.getAllPhrases(filter);
@@ -147,7 +171,7 @@ function updatePhraseList() {
     copyBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       try {
-        await navigator.clipboard.writeText(item.phrase);
+        await copyPhrase(item.phrase);
         showStatus(corpusStatus, '✓ Phrase copied', 'success');
       } catch (err) {
         showStatus(corpusStatus, 'Copy failed: ' + err.message, 'error');
@@ -159,7 +183,7 @@ function updatePhraseList() {
     const text = document.createElement('button');
     text.type = 'button';
     text.className = 'phrase-text';
-    text.textContent = item.phrase.length > 60 ? item.phrase.slice(0, 60) + '\u2026' : item.phrase;
+    text.textContent = shortPhrase(item.phrase, 60);
     text.title = item.phrase;
 
     text.addEventListener('click', () => openPhraseForm('edit', item.phrase));
@@ -387,7 +411,7 @@ const IMPORT_TYPES = {
     label: 'Phrases',
     button: 'Import Phrases',
     empty: 'Paste some phrases first',
-    hint: 'One phrase per line. Casing is preserved on insertion.<br>e.g. <code>Thanks for the quick turnaround</code><br><br>Tip: when you highlight text in Gmail, press <code>⌘ + Shift + P</code> to save it directly or press <code>⌘ + L</code> to insert a link. Search existing links or paste a new one.',
+    hint: 'One phrase per line. Casing is preserved on insertion.<br>e.g. <code>Thanks for the quick turnaround</code><br>A formatted phrase (line breaks, lists, bold, links) is one line starting with <code>md:</code>, the way Copy all writes it. It\'s easier to add one with + on the Phrases tab.<br><br>Tip: when you highlight text in Gmail, press <code>⌘ + Shift + P</code> to save it directly or press <code>⌘ + L</code> to insert a link. Search existing links or paste a new one.',
     placeholder: 'Add your phrases here, one per line...\n\nThanks for the quick turnaround\nPlease see the attached document\nThese pretzels are making me thirsty\n\nThen start typing in Gmail to see the magic',
   },
   links: {
@@ -1014,7 +1038,10 @@ document.addEventListener('click', (e) => {
 // ---- Phrases: full-page add/edit form ----
 
 const btnAddPhrase = document.getElementById('btn-add-phrase');
-const phraseFormInput = document.getElementById('phrase-form-input');
+const phraseEditor = document.getElementById('phrase-form-input');
+const phraseLinkRow = document.getElementById('phrase-link-row');
+const phraseLinkUrl = document.getElementById('phrase-link-url');
+const btnPhraseLinkRemove = document.getElementById('btn-phrase-link-remove');
 const phraseFormTitle = document.getElementById('phrase-form-title');
 const phraseFormBopsBox = document.getElementById('phrase-form-bops-box');
 const phraseFormBopsSearch = document.getElementById('phrase-form-bops-search');
@@ -1036,7 +1063,8 @@ let workingBops = [];
 
 function openPhraseForm(mode, phrase) {
   phraseFormOriginal = mode === 'edit' ? phrase : null;
-  phraseFormInput.value = phrase || '';
+  fillPhraseEditor(phrase);
+  closePhraseLink(false);
   workingBops = phrase ? corpus.getFollowedBy(phrase).slice() : [];
   phraseFormBopsSearch.value = '';
   phraseFormStatus.className = 'status';
@@ -1055,22 +1083,7 @@ function openPhraseForm(mode, phrase) {
     t.classList.toggle('active', t.dataset.tab === 'corpus');
   });
 
-  autoGrowPhraseInput();
-  phraseFormInput.focus();
-  if (mode === 'edit') phraseFormInput.select();
-}
-
-// Grow the textarea to fit its content. Manual resize via the drag
-// handle keeps working — the next input event will re-fit based on
-// content, so if the user dragged it larger and then adds text,
-// their extra height is only preserved up to the point where new
-// content needs more room.
-function autoGrowPhraseInput() {
-  // border-y (1px + 1px) since scrollHeight excludes borders and
-  // box-sizing: border-box means the assigned height must include
-  // them for a stable measurement.
-  phraseFormInput.style.height = 'auto';
-  phraseFormInput.style.height = (phraseFormInput.scrollHeight + 2) + 'px';
+  focusPhraseEditor();
 }
 
 function closePhraseForm() {
@@ -1079,16 +1092,19 @@ function closePhraseForm() {
 }
 
 function updatePhraseFormSaveEnabled() {
-  const text = phraseFormInput.value.trim();
+  const { text, rich } = readPhraseEditor();
   // Disable save if empty, or if we're editing and nothing changed
-  // (text unchanged AND same bops list).
+  // (same text and formatting AND same bops list).
   let dirty = true;
   if (phraseFormOriginal !== null) {
     const originalBops = corpus.getFollowedBy(phraseFormOriginal);
     const sameBops =
       originalBops.length === workingBops.length &&
       originalBops.every((b, i) => b === workingBops[i]);
-    dirty = text !== phraseFormOriginal || !sameBops;
+    const originalRich = corpus.getRich(phraseFormOriginal);
+    // Compared in the editor's own spelling of the Markdown.
+    const sameRich = rich === (originalRich && PhraseFormat.serialize(PhraseFormat.parse(originalRich)));
+    dirty = text !== phraseFormOriginal || !sameRich || !sameBops;
   }
   btnPhraseFormSave.disabled = text.length === 0 || !dirty;
 }
@@ -1195,17 +1211,15 @@ function addBopToForm(phrase) {
 }
 
 async function savePhraseForm() {
-  // Collapse any line breaks (from paste or an old browser
-  // shortcut) into single spaces — multi-line phrases silently
-  // break Gmail autocomplete.
-  const text = phraseFormInput.value.replace(/\s*\r?\n\s*/g, ' ').trim();
+  const { text, rich } = readPhraseEditor();
   if (!text) return;
 
   let targetPhrase = text;
   let statusMsg;
   if (phraseFormOriginal === null) {
-    const result = await corpus.addOrBumpPhrase(text, 'popup');
-    const label = text.length > 40 ? text.slice(0, 40) + '…' : text;
+    const result = await corpus.addOrBumpPhrase(text, 'popup', rich);
+    targetPhrase = result.phrase;
+    const label = shortPhrase(text, 40);
     statusMsg = result.added ? `✓ Added "${label}"` : `✓ Bumped "${label}"`;
   } else {
     if (text !== phraseFormOriginal) {
@@ -1215,6 +1229,7 @@ async function savePhraseForm() {
         return;
       }
     }
+    await corpus.setRich(text, rich);
     statusMsg = '✓ Saved';
   }
 
@@ -1227,7 +1242,7 @@ async function savePhraseForm() {
 
 async function deletePhraseFromForm() {
   if (phraseFormOriginal === null) return;
-  if (!confirm(`Delete "${phraseFormOriginal}"? This cannot be undone.`)) return;
+  if (!confirm(`Delete "${shortPhrase(phraseFormOriginal, 80)}"? This cannot be undone.`)) return;
   await corpus.deletePhrase(phraseFormOriginal);
   updateStats();
   showStatus(corpusStatus, '✓ Deleted', 'success');
@@ -1240,22 +1255,250 @@ btnPhraseFormCancel.addEventListener('click', closePhraseForm);
 btnPhraseFormSave.addEventListener('click', savePhraseForm);
 btnPhraseFormDelete.addEventListener('click', deletePhraseFromForm);
 
-phraseFormInput.addEventListener('input', () => {
+// ---- Phrases: the editor ----
+//
+// The phrase box edits like a Gmail reply: Enter starts a new line, an
+// empty line separates paragraphs, "* ", "- " or "1. " on an empty
+// line starts a list, Cmd/Ctrl+B and +I format, and Cmd/Ctrl+K links.
+// What's saved is read back from the editor (PhraseFormat.fromDom), so
+// only that formatting survives, and paste is cleaned the same way.
+
+const isMac = /Mac/i.test(navigator.platform);
+const MOD = isMac ? '⌘' : 'Ctrl+';
+document.getElementById('phrase-form-hint').textContent =
+  `${MOD}B bold · ${MOD}I italic · ${MOD}K link · * or 1. starts a list`;
+
+// Enter makes a <p>, matching the paragraphs a saved phrase has.
+document.execCommand('defaultParagraphSeparator', false, 'p');
+
+// The phrase in the editor: { text, rich }, where text is its plain text
+// (the phrase's key) and rich its Markdown, or null when it has no
+// formatting.
+function readPhraseEditor() {
+  const blocks = PhraseFormat.fromDom(phraseEditor);
+  return {
+    text: PhraseFormat.plainText(blocks).trim(),
+    rich: PhraseFormat.isPlain(blocks) ? null : PhraseFormat.serialize(blocks),
+  };
+}
+
+function fillPhraseEditor(phrase) {
+  const rich = phrase ? corpus.getRich(phrase) : null;
+  // A plain phrase is literal text, never read as Markdown.
+  const blocks = rich
+    ? PhraseFormat.parse(rich)
+    : phrase ? [{ type: 'p', lines: [[{ type: 'text', text: phrase }]], gap: false }] : [];
+  phraseEditor.replaceChildren(PhraseFormat.toEditor(blocks, document));
+  updatePhraseEditorEmpty();
+}
+
+// Shows the placeholder over an empty editor.
+function updatePhraseEditorEmpty() {
+  phraseEditor.classList.toggle('is-empty', !phraseEditor.textContent && !phraseEditor.querySelector('li'));
+}
+
+// The selection, if it's in the editor.
+function phraseEditorRange() {
+  const sel = getSelection();
+  if (!sel.rangeCount) return null;
+  const range = sel.getRangeAt(0);
+  return phraseEditor.contains(range.commonAncestorContainer) ? range : null;
+}
+
+function closestInEditor(node, selector) {
+  const el = node && (node.nodeType === 1 ? node : node.parentElement);
+  const match = el && el.closest(selector);
+  return match && phraseEditor.contains(match) ? match : null;
+}
+
+function selectInEditor(range) {
+  phraseEditor.focus({ preventScroll: true });
+  const sel = getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+// Cursor at the end of the phrase.
+function focusPhraseEditor() {
+  const range = document.createRange();
+  range.selectNodeContents(phraseEditor.lastElementChild || phraseEditor);
+  range.collapse(false);
+  selectInEditor(range);
+}
+
+// The list item whose very start the cursor is at, if any.
+function listItemAtStart(range) {
+  if (!range || !range.collapsed) return null;
+  const li = closestInEditor(range.startContainer, 'li');
+  if (!li) return null;
+  const before = document.createRange();
+  before.setStart(li, 0);
+  before.setEnd(range.startContainer, range.startOffset);
+  return before.toString() ? null : li;
+}
+
+// Like Docs: "* " or "- " typed on an empty line makes it a bullet and
+// "1. " a numbered item. The marker is swapped for the list in one
+// edit, so a single undo brings the characters back. (Chrome's own list
+// commands would nest the list inside the paragraph.)
+let startingList = false;
+function startListFromMarker(e) {
+  if (e.inputType !== 'insertText' || e.data !== ' ') return;
+  const range = phraseEditorRange();
+  const node = range && range.startContainer;
+  if (!range || !range.collapsed || node.nodeType !== 3 || closestInEditor(node, 'li')) return;
+  const block = closestInEditor(node, 'p, div') || phraseEditor;
+  const before = document.createRange();
+  before.setStart(block, 0);
+  before.setEnd(node, range.startOffset);
+  const after = document.createRange();
+  after.setStart(node, range.startOffset);
+  after.setEnd(block, block.childNodes.length);
+  const lineText = (r) => {
+    const frag = r.cloneContents();
+    frag.querySelectorAll('br').forEach((br) => br.replaceWith('\n'));
+    return frag.textContent.replace(/\u00a0/g, ' ');
+  };
+  const marker = lineText(before).split('\n').pop();
+  const tag = /^[*-] $/.test(marker) ? 'ul' : /^1[.)] $/.test(marker) ? 'ol' : null;
+  if (!tag || range.startOffset < marker.length || lineText(after).split('\n')[0].trim()) return;
+  const typed = document.createRange();
+  typed.setStart(node, range.startOffset - marker.length);
+  typed.setEnd(node, range.startOffset);
+  startingList = true;
+  try {
+    selectInEditor(typed);
+    document.execCommand('insertHTML', false, `<${tag}><li><br></li></${tag}>`);
+  } finally {
+    startingList = false;
+  }
+}
+
+phraseEditor.addEventListener('input', (e) => {
+  if (startingList) return;
+  if (!e.isComposing) startListFromMarker(e);
+  updatePhraseEditorEmpty();
   updatePhraseFormSaveEnabled();
-  autoGrowPhraseInput();
 });
-phraseFormInput.addEventListener('keydown', (e) => {
-  // Textarea is here for visual wrapping only — line breaks in a
-  // phrase would silently break Gmail autocomplete. Enter flags a
-  // warning instead of inserting a newline (users save via the ✓
-  // button); Esc cancels.
-  if (e.key === 'Enter') {
+
+phraseEditor.addEventListener('keydown', (e) => {
+  if (e.isComposing) return;
+  const plain = !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey;
+  if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k') {
     e.preventDefault();
-    showStatus(phraseFormStatus, 'Line breaks are not supported', 'error');
+    openPhraseLink();
   } else if (e.key === 'Escape') {
     e.preventDefault();
     closePhraseForm();
+  } else if (e.key === 'Enter' && plain) {
+    // Like Gmail, a new line rather than a new paragraph; in a list,
+    // Enter still adds a bullet (or ends the list from an empty one).
+    const range = phraseEditorRange();
+    if (range && !closestInEditor(range.startContainer, 'li')) {
+      e.preventDefault();
+      document.execCommand('insertLineBreak');
+    }
+  } else if (e.key === 'Backspace' && plain) {
+    // Backspace at the start of a bullet turns it back into a plain
+    // line, where Chrome would merge it into the bullet above.
+    const li = listItemAtStart(phraseEditorRange());
+    if (!li) return;
+    e.preventDefault();
+    document.execCommand(li.parentElement.tagName === 'OL' ? 'insertOrderedList' : 'insertUnorderedList');
+    document.execCommand('formatBlock', false, 'p');
   }
+});
+
+// Pasted text keeps its line breaks, lists, bold, italic, and links (from
+// Gmail, Docs, or anywhere) and nothing else.
+phraseEditor.addEventListener('paste', (e) => {
+  e.preventDefault();
+  const html = e.clipboardData.getData('text/html');
+  if (!html) {
+    document.execCommand('insertText', false, e.clipboardData.getData('text/plain'));
+    return;
+  }
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const holder = document.createElement('div');
+  holder.appendChild(PhraseFormat.toEditor(PhraseFormat.fromDom(doc.body), document));
+  // One pasted paragraph goes in as inline content, joining the line.
+  const only = holder.children.length === 1 && holder.firstElementChild.tagName === 'P' ? holder.firstElementChild : holder;
+  document.execCommand('insertHTML', false, only.innerHTML);
+});
+phraseEditor.addEventListener('drop', (e) => e.preventDefault());
+
+// ---- Phrases: links (Cmd/Ctrl+K) ----
+//
+// A row under the editor asks for the address. With text selected it
+// becomes the link; with the cursor in a link, the row changes or
+// removes it; otherwise the address goes in as its own link.
+
+let phraseLinkTarget = null; // { range, anchor }
+
+function openPhraseLink() {
+  let range = phraseEditorRange();
+  if (!range) return;
+  const anchor = closestInEditor(range.startContainer, 'a');
+  if (anchor) {
+    range = document.createRange();
+    range.selectNodeContents(anchor);
+  }
+  phraseLinkTarget = { range: range.cloneRange(), anchor };
+  phraseLinkUrl.value = anchor ? anchor.getAttribute('href').replace(/^mailto:/, '') : '';
+  btnPhraseLinkRemove.hidden = !anchor;
+  phraseLinkRow.hidden = false;
+  phraseLinkUrl.focus();
+  phraseLinkUrl.select();
+}
+
+function closePhraseLink(restore = true) {
+  const target = phraseLinkTarget;
+  phraseLinkTarget = null;
+  phraseLinkRow.hidden = true;
+  if (restore && target) selectInEditor(target.range);
+}
+
+function applyPhraseLink() {
+  if (!phraseLinkTarget) return;
+  const raw = phraseLinkUrl.value.trim();
+  // A bare email address is a mailto: link.
+  const url = normalizeAddedUrl(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw) ? 'mailto:' + raw : raw);
+  if (!url) {
+    showStatus(phraseFormStatus, 'Enter a web address, like example.com/page', 'error');
+    phraseLinkUrl.focus();
+    return;
+  }
+  const { range } = phraseLinkTarget;
+  closePhraseLink(false);
+  selectInEditor(range);
+  if (range.collapsed) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.textContent = url.replace(/^mailto:/, '');
+    document.execCommand('insertHTML', false, a.outerHTML);
+  } else {
+    document.execCommand('createLink', false, url);
+    getSelection().collapseToEnd();
+  }
+}
+
+phraseLinkUrl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.isComposing) {
+    e.preventDefault();
+    applyPhraseLink();
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    closePhraseLink();
+  }
+});
+btnPhraseLinkRemove.addEventListener('mousedown', (e) => e.preventDefault());
+btnPhraseLinkRemove.addEventListener('click', () => {
+  const target = phraseLinkTarget;
+  closePhraseLink(false);
+  if (!target || !target.anchor) return;
+  selectInEditor(target.range);
+  document.execCommand('unlink');
+  getSelection().collapseToEnd();
 });
 
 phraseFormBopsSearch.addEventListener('input', () =>
@@ -1352,10 +1595,9 @@ function closeLinkForm() {
   document.querySelector('.tab[data-tab="links"]').click();
 }
 
-// Grow the URL textarea to fit its content (mirrors
-// autoGrowPhraseInput). The +2 accounts for the 1px top and bottom
-// borders that scrollHeight excludes but border-box height must
-// include.
+// Grow the URL textarea to fit its content. The +2 accounts for the
+// 1px top and bottom borders that scrollHeight excludes but
+// border-box height must include.
 function autoGrowLinkFormUrl() {
   linkFormUrl.style.height = 'auto';
   linkFormUrl.style.height = (linkFormUrl.scrollHeight + 2) + 'px';

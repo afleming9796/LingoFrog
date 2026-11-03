@@ -25,7 +25,7 @@
   "content_scripts": [
     {
       "matches": ["https://mail.google.com/*"],
-      "js": ["trie.js", "content.js"],
+      "js": ["phrase-format.js", "trie.js", "content.js"],
       "css": ["lingofrog.css"],
       "all_frames": true
     }

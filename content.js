@@ -229,7 +229,9 @@
 
       const text = document.createElement('span');
       text.className = 'lingofrog-text';
-      const display = s.completion.length > 60 ? s.completion.slice(0, 60) + '…' : s.completion;
+      // A formatted phrase's line breaks show as spaces here.
+      const line = s.completion.replace(/\s*\n+\s*/g, ' ');
+      const display = line.length > 60 ? line.slice(0, 60) + '…' : line;
 
       const links = corpus.linkRules.findLinks(s.full);
       if (links.length > 0) {
@@ -238,8 +240,15 @@
         text.textContent = display;
       }
 
+      // The whole phrase's length, so a long one is no surprise.
+      const words = document.createElement('span');
+      words.className = 'lingofrog-words';
+      const count = PhraseFormat.wordCount(s.full);
+      words.textContent = `${count} ${count === 1 ? 'word' : 'words'}`;
+
       item.appendChild(num);
       item.appendChild(text);
+      item.appendChild(words);
 
       item.addEventListener('mousedown', (e) => {
         e.preventDefault();
@@ -298,7 +307,10 @@
 
     ghostSpan = document.createElement('span');
     ghostSpan.className = 'lingofrog-ghost';
-    ghostSpan.textContent = text;
+    // Just the rest of this line; an ellipsis stands for a formatted
+    // phrase's further lines.
+    const [line, ...more] = text.split('\n');
+    ghostSpan.textContent = more.length ? line + ' …' : line;
     ghostSpan.contentEditable = 'false';
 
     try {
@@ -1006,14 +1018,15 @@
    * already-trimmed text and the selection's bounding rect (for
    * positioning).
    */
-  function showSavePhraseChip(text, anchorRect) {
+  function showSavePhraseChip(text, anchorRect, rich = null) {
     if (!savePhraseChipBox) return;
 
     const alreadyExists = corpus.phrases.has(text);
-    pendingSavePhraseChip = { text, alreadyExists };
+    pendingSavePhraseChip = { text, rich, alreadyExists };
     savePhraseChipBox.innerHTML = '';
 
-    const truncated = text.length > 50 ? text.slice(0, 50) + '…' : text;
+    const line = text.replace(/\s*\n+\s*/g, ' ');
+    const truncated = line.length > 50 ? line.slice(0, 50) + '…' : line;
 
     const label = document.createElement('span');
     label.className = 'lingofrog-src-label';
@@ -1090,8 +1103,8 @@
     // addOrBumpPhrase would clobber every previously-stored phrase.
     await corpusReady;
     if (!pendingSavePhraseChip) return; // chip may have been dismissed in the meantime
-    const { text } = pendingSavePhraseChip;
-    const result = await corpus.addOrBumpPhrase(text, 'highlight');
+    const { text, rich } = pendingSavePhraseChip;
+    const result = await corpus.addOrBumpPhrase(text, 'highlight', rich);
     let toastMessage = null;
     if (result.added) {
       console.log('[LingoFrog] Saved new phrase');
@@ -1119,12 +1132,20 @@
     if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
 
     const raw = sel.toString();
-    const text = raw.trim().replace(/[‘’]/g, "'").replace(/[“”]/g, '"');
+    let text = raw.trim().replace(/[‘’]/g, "'").replace(/[“”]/g, '"');
     if (!text) return;
 
+    // Line breaks, lists, bold, italic, and links in the selection are
+    // kept, as a formatted phrase.
     const range = sel.getRangeAt(0);
+    const blocks = PhraseFormat.fromDom(range.cloneContents());
+    let rich = null;
+    if (!PhraseFormat.isPlain(blocks)) {
+      text = PhraseFormat.plainText(blocks).replace(/[‘’]/g, "'").replace(/[“”]/g, '"');
+      rich = PhraseFormat.serialize(blocks);
+    }
     const rect = range.getBoundingClientRect();
-    showSavePhraseChip(text, rect);
+    showSavePhraseChip(text, rect, rich);
   }
 
   // ── Success Toast ───────────────────────────────────────────
@@ -1586,6 +1607,10 @@
         hideSuggestions();
       } else {
         const suggestions = corpus.getCompletions(typed);
+        // What was typed, for a formatted phrase to replace when it's
+        // accepted. (Read again then, with the ghost text just removed,
+        // the caret can sit outside the text and take in the line below.)
+        for (const s of suggestions) s.typed = typed;
         if (suggestions.length > 0) {
           const cursorRect = getCursorRect();
           showSuggestions(suggestions, cursorRect);
@@ -1615,6 +1640,45 @@
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return;
 
+    const rich = corpus.getRich(selected.full);
+    if (rich && activeElement && activeElement.isContentEditable) {
+      insertFormattedPhrase(selected, rich);
+    } else {
+      insertPlainCompletion(completion, sel);
+    }
+
+    corpus.recordUsage(selected.full);
+    showBops(selected.full);
+  }
+
+  // A formatted phrase replaces the sentence typed so far with the whole
+  // phrase, the typed part kept as typed, in one edit: Gmail splits its
+  // lines around it, and Cmd+Z takes it back out. Link rules apply as
+  // they do to plain phrases. A Bop goes in after a space instead.
+  function insertFormattedPhrase(selected, rich) {
+    const sel = window.getSelection();
+    const normalize = (t) => t.replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/\u00A0/g, ' ');
+    const typed = selected.bop ? ' ' : selected.typed || '';
+    let replaceTyped = !selected.bop && !!typed;
+    if (replaceTyped) {
+      const caret = sel.getRangeAt(0).cloneRange();
+      for (let i = 0; i < typed.length; i++) sel.modify('extend', 'backward', 'character');
+      // If the selection didn't land on exactly what was typed, leave it
+      // be and add only the rest of the phrase.
+      if (normalize(sel.toString()) !== typed) {
+        sel.removeAllRanges();
+        sel.addRange(caret);
+        replaceTyped = false;
+      }
+    }
+    let blocks = PhraseFormat.continueFrom(PhraseFormat.parse(rich), typed, { keepTyped: selected.bop || replaceTyped });
+    if (corpus.config.autoLink !== false) {
+      blocks = PhraseFormat.linkify(blocks, (t) => corpus.linkRules.findLinks(t), (url) => corpus.utmRules.applyTo(url));
+    }
+    document.execCommand('insertHTML', false, PhraseFormat.toHtml(blocks, { inlineFirst: true }));
+  }
+
+  function insertPlainCompletion(completion, sel) {
     const range = sel.getRangeAt(0);
     range.collapse(false);
 
@@ -1660,9 +1724,9 @@
     if (activeElement) {
       activeElement.dispatchEvent(new Event('input', { bubbles: true }));
     }
+  }
 
-    corpus.recordUsage(selected.full);
-
+  function showBops(phrase) {
     // ── Bop trigger ──
     // If the just-accepted phrase has a followedBy list, surface
     // those as suggestions immediately, bypassing the
@@ -1674,16 +1738,17 @@
     // checks the new phrase's followedBy, enabling A → B → C bops
     // without special handling.
     if (corpus.config.autoComplete !== false) {
-      const followers = corpus.getFollowedBy(selected.full);
+      const followers = corpus.getFollowedBy(phrase);
       if (followers.length) {
         const bopSuggestions = followers.map((follower, i) => ({
           completion: ' ' + follower,
           full: follower,
           score: 1e6 - i, // preserve declared order via pseudo-score
+          bop: true,
         }));
-        // Defer one tick so the dispatched 'input' event above can
-        // settle (Gmail compose runs its own handlers on input which
-        // can move the cursor or selection).
+        // Defer one tick so the insert's 'input' event can settle
+        // (Gmail compose runs its own handlers on input which can move
+        // the cursor or selection).
         setTimeout(() => {
           const cursorRect = getCursorRect();
           if (cursorRect) {

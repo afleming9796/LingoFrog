@@ -21,12 +21,22 @@ Like a best friend, LingoFrog finishes your sentences and inserts relevant hyper
 ## How It Works
 
 - **Type in Gmail** — after a few characters, LingoFrog checks your corpus for matching phrases
-- **A dropdown** shows up to relevant matches
+- **A dropdown** shows up to relevant matches, each with the whole phrase's word count
 - **Tab** accepts the top suggestion
 - **↑/↓** arrows cycle through options
 - **Cmd+L** accepts hyperlink suggestions
 - **Highlight + Cmd + P** to add new phrases
 - **Highlight + CMD + L** brings up dropdown of your links to insert and let's you insert ad-hoc links. 
+
+## Formatted phrases
+
+A phrase can be more than one line, with line breaks, bulleted or numbered lists, bold, italics, and links. When you accept one in Gmail, it goes in with its formatting (Cmd+Z takes it back out), and your link rules still apply to its text.
+
+- **In the popup** (Phrases → + or click a phrase), the phrase box edits like a Gmail reply: Enter starts a new line, an empty line separates paragraphs, `* ` or `- ` on an empty line starts a bulleted list and `1. ` a numbered one, Cmd+B and Cmd+I format, and Cmd+K adds a link. Pasting from Gmail or a Google Doc keeps that formatting and drops the rest.
+- **Highlight + Cmd + Shift + P** in Gmail saves the selection's formatting too.
+- **Backups:** Copy all still writes one phrase per line. A formatted phrase is written as `md: ` followed by its Markdown, with `\n` for each line break, and importing reads it back. You can write these lines yourself, e.g. `md: Next steps:\n- Send the **deck**\n- Book a demo`.
+
+Autocomplete matches the start of a phrase's first line, as with any phrase.
 
 ## Settings
 
@@ -42,7 +52,7 @@ You should maintain your corpus of phrases outside of the browser extension. You
 
 Note that you can lower the trigger threshold (i.e. number of characters) for suggestions.
 
-Phrases don't support special formatting or hyperlinks, but hyperlinks will get added based on matching link text. 
+Hyperlinks get added to phrases based on matching link text, and formatted phrases can also carry links of their own (see above).
 
 GitHub issues are welcome.
 
