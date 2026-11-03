@@ -36,7 +36,7 @@ A phrase can be more than one line, with line breaks, bulleted or numbered lists
 - **Highlight + Cmd + Shift + P** in Gmail saves the selection's formatting too.
 - **Backups:** Copy all still writes one phrase per line. A formatted phrase is written as `md: ` followed by its Markdown, with `\n` for each line break, and importing reads it back. You can write these lines yourself, e.g. `md: Next steps:\n- Send the **deck**\n- Book a demo`.
 
-Autocomplete matches the start of a phrase's first line, as with any phrase.
+Autocomplete matches the start of a phrase's first line, as with any phrase. The Phrases tab and the Gmail suggestions show each phrase's word count, so phrases that start the same are easy to tell apart.
 
 ## Settings
 

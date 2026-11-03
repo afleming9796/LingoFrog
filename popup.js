@@ -199,6 +199,13 @@ function updatePhraseList() {
       badge.title = 'This phrase bops to ' + followCount + ' follow-up phrase' + (followCount === 1 ? '' : 's');
       li.appendChild(badge);
     }
+    // Word count, so phrases that start the same are easy to tell
+    // apart. It sits just left of the copy icon so the counts line up.
+    const words = document.createElement('span');
+    words.className = 'phrase-words';
+    const count = PhraseFormat.wordCount(item.phrase);
+    words.textContent = `${count} ${count === 1 ? 'word' : 'words'}`;
+    li.appendChild(words);
     // Copy icon lives on the right — after the bop badge — so both
     // Phrases and Links share the "icon actions on the right" layout.
     li.appendChild(copyBtn);
