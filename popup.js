@@ -1101,10 +1101,11 @@ function updatePhraseFormSaveEnabled() {
     const sameBops =
       originalBops.length === workingBops.length &&
       originalBops.every((b, i) => b === workingBops[i]);
-    const originalRich = corpus.getRich(phraseFormOriginal);
-    // Compared in the editor's own spelling of the Markdown.
-    const sameRich = rich === (originalRich && PhraseFormat.serialize(PhraseFormat.parse(originalRich)));
-    dirty = text !== phraseFormOriginal || !sameRich || !sameBops;
+    // Compared in the editor's own spelling of the Markdown (a phrase
+    // with line breaks but no formatting reads back as Markdown too).
+    const originalBlocks = PhraseFormat.blocksOf(phraseFormOriginal, corpus.getRich(phraseFormOriginal));
+    const originalRich = PhraseFormat.isPlain(originalBlocks) ? null : PhraseFormat.serialize(originalBlocks);
+    dirty = text !== phraseFormOriginal || rich !== originalRich || !sameBops;
   }
   btnPhraseFormSave.disabled = text.length === 0 || !dirty;
 }
@@ -1283,11 +1284,8 @@ function readPhraseEditor() {
 }
 
 function fillPhraseEditor(phrase) {
-  const rich = phrase ? corpus.getRich(phrase) : null;
   // A plain phrase is literal text, never read as Markdown.
-  const blocks = rich
-    ? PhraseFormat.parse(rich)
-    : phrase ? [{ type: 'p', lines: [[{ type: 'text', text: phrase }]], gap: false }] : [];
+  const blocks = phrase ? PhraseFormat.blocksOf(phrase, corpus.getRich(phrase)) : [];
   phraseEditor.replaceChildren(PhraseFormat.toEditor(blocks, document));
   updatePhraseEditorEmpty();
 }

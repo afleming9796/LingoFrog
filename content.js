@@ -1640,9 +1640,10 @@
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return;
 
+    // A phrase with line breaks goes in with them, formatted or not.
     const rich = corpus.getRich(selected.full);
-    if (rich && activeElement && activeElement.isContentEditable) {
-      insertFormattedPhrase(selected, rich);
+    if ((rich || selected.full.includes('\n')) && activeElement && activeElement.isContentEditable) {
+      insertFormattedPhrase(selected, PhraseFormat.blocksOf(selected.full, rich));
     } else {
       insertPlainCompletion(completion, sel);
     }
@@ -1651,11 +1652,12 @@
     showBops(selected.full);
   }
 
-  // A formatted phrase replaces the sentence typed so far with the whole
-  // phrase, the typed part kept as typed, in one edit: Gmail splits its
-  // lines around it, and Cmd+Z takes it back out. Link rules apply as
-  // they do to plain phrases. A Bop goes in after a space instead.
-  function insertFormattedPhrase(selected, rich) {
+  // A formatted phrase (`blocks`, see phrase-format.js) replaces the
+  // sentence typed so far with the whole phrase, the typed part kept as
+  // typed, in one edit: Gmail splits its lines around it, and Cmd+Z takes
+  // it back out. Link rules apply as they do to plain phrases. A Bop goes
+  // in after a space instead.
+  function insertFormattedPhrase(selected, blocks) {
     const sel = window.getSelection();
     const normalize = (t) => t.replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/\u00A0/g, ' ');
     const typed = selected.bop ? ' ' : selected.typed || '';
@@ -1671,7 +1673,7 @@
         replaceTyped = false;
       }
     }
-    let blocks = PhraseFormat.continueFrom(PhraseFormat.parse(rich), typed, { keepTyped: selected.bop || replaceTyped });
+    blocks = PhraseFormat.continueFrom(blocks, typed, { keepTyped: selected.bop || replaceTyped });
     if (corpus.config.autoLink !== false) {
       blocks = PhraseFormat.linkify(blocks, (t) => corpus.linkRules.findLinks(t), (url) => corpus.utmRules.applyTo(url));
     }

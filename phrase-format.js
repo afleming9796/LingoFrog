@@ -110,6 +110,34 @@ const PhraseFormat = (() => {
     return blocks;
   }
 
+  // A phrase with no `rich` field as blocks: its text taken literally,
+  // a line for each line break and a gap for each empty line. Phrases
+  // saved before formatting existed (⌘⇧P on several lines) have line
+  // breaks but no formatting.
+  function fromText(text) {
+    const blocks = [];
+    let current = null;
+    let blank = false;
+    for (const raw of String(text || '').replace(/\r\n?/g, '\n').split('\n')) {
+      const line = raw.trim();
+      if (!line) {
+        current = null;
+        blank = true;
+        continue;
+      }
+      if (!current) {
+        current = { type: 'p', lines: [], gap: blank && blocks.length > 0 };
+        blank = false;
+        blocks.push(current);
+      }
+      current.lines.push([{ type: 'text', text: line }]);
+    }
+    return blocks;
+  }
+
+  // A stored phrase as blocks, from its Markdown if it has any.
+  const blocksOf = (phrase, rich) => (rich ? parse(rich) : fromText(phrase));
+
   // ── Blocks → Markdown ──────────────────────────────────────
 
   // Keep surrounding spaces outside the markers: "**word** " not "**word **".
@@ -483,7 +511,7 @@ const PhraseFormat = (() => {
   }
 
   return {
-    safeHref, parse, serialize, plainText, isPlain, wordCount,
+    safeHref, parse, fromText, blocksOf, serialize, plainText, isPlain, wordCount,
     continueFrom, linkify, toHtml, toEditor, fromDom,
     toBackupLine, fromBackupLine, escapeHtml,
   };
