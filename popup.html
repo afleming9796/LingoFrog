@@ -272,18 +272,35 @@
       margin-bottom: 16px;
     }
     .form-field-large:focus { border-color: #6da34d; }
-    /* Textarea variant of .form-field-large — overrides the global
-       .textarea rule (monospace, 140px min-height) to keep the popup's
-       sans-serif look at a compact 3-row size. */
-    .phrase-form-textarea {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    /* The phrase editor: a .form-field-large that can hold line breaks,
+       lists, bold, italic, and links. It grows with the phrase up to a
+       point, then scrolls. Its font leaves out BlinkMacSystemFont,
+       which Chrome reports as system-ui; the mismatch made Chrome wrap
+       inserted lists and links in redundant font-family spans. Renders
+       the same. */
+    .phrase-form-editor {
+      position: relative;
+      font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
       font-size: 13px;
       line-height: 1.4;
-      min-height: 0;
-      max-width: 100%;
-      resize: vertical;
+      min-height: calc(4.2em + 22px);
+      max-height: 260px;
+      overflow-y: auto;
       overflow-wrap: anywhere;
+      cursor: text;
+      margin-bottom: 6px;
     }
+    .phrase-form-editor ul, .phrase-form-editor ol { padding-left: 1.4em; }
+    .phrase-form-editor a { color: #2f6fb3; }
+    .phrase-form-editor.is-empty::before {
+      content: attr(data-placeholder);
+      position: absolute; top: 10px; left: 12px; right: 12px;
+      color: #b5b5b5; pointer-events: none;
+    }
+    .phrase-form-hint { margin-top: 0; margin-bottom: 16px; }
+    /* ⌘K: the address for a link in the phrase. */
+    .phrase-link-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+    .phrase-link-row input { flex: 1; min-width: 0; }
     /* URL textarea in the Link edit form: shares the phrase-form
        sizing but breaks anywhere so long URLs wrap and auto-grow
        instead of scrolling horizontally. The 2.8em min-height keeps
@@ -416,6 +433,7 @@
       font-size: 9px; font-weight: 600;
       flex-shrink: 0; letter-spacing: 0.3px;
     }
+    .phrase-words { color: #9a9a9a; font-size: 10px; flex-shrink: 0; white-space: nowrap; }
     .phrase-edit-bops-box {
       flex: 1; min-width: 0;
       display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
@@ -704,8 +722,13 @@
       </div>
     </div>
 
-    <label class="form-label" for="phrase-form-input">Phrase</label>
-    <textarea id="phrase-form-input" class="form-field-large phrase-form-textarea" placeholder="Type your phrase here…" spellcheck="true" rows="3"></textarea>
+    <span class="form-label" id="phrase-form-label">Phrase</span>
+    <div id="phrase-form-input" class="form-field-large phrase-form-editor" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="phrase-form-label" data-placeholder="Type your phrase here…" spellcheck="true"></div>
+    <div class="phrase-link-row" id="phrase-link-row" hidden>
+      <input type="text" id="phrase-link-url" placeholder="Paste a link, then press Enter" autocomplete="off" spellcheck="false" aria-label="Link address">
+      <button class="btn-link" id="btn-phrase-link-remove" hidden>Remove link</button>
+    </div>
+    <div class="form-helper phrase-form-hint" id="phrase-form-hint"></div>
 
     <div class="form-section-header">
       <label class="form-label" for="phrase-form-bops-search">Bops</label>
@@ -820,6 +843,7 @@
     </div>
   </div>
 
+  <script src="phrase-format.js"></script>
   <script src="trie.js"></script>
   <script src="popup.js"></script>
 </body>

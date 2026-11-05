@@ -76,11 +76,22 @@
 }
 
 .lingofrog-text {
+  min-width: 0;
   color: #1a1a1a;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   line-height: 1.4;
+}
+
+/* The whole phrase's word count, at the right of each suggestion. */
+.lingofrog-words {
+  margin-left: auto;
+  padding-left: 4px;
+  flex-shrink: 0;
+  color: #9a9a9a;
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .lingofrog-hint {

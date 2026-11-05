@@ -401,7 +401,11 @@ UtmRules.MAX_PARAMS = 3;
 class Corpus {
   constructor() {
     this.trie = new PhraseTrie();
-    this.phrases = new Map(); // original phrase -> { frequency, source, importedAt, lastUsed, followedBy?: string[] }
+    // original phrase -> { frequency, source, importedAt, lastUsed, followedBy?: string[], rich?: string }
+    // A formatted phrase (line breaks, lists, bold, links; see
+    // phrase-format.js) is keyed by its plain text, which is what
+    // matching uses, and keeps its Markdown in `rich`.
+    this.phrases = new Map();
     this.linkRules = new LinkRules();
     this.utmRules = new UtmRules();
     this.config = {
@@ -486,7 +490,9 @@ class Corpus {
 
   /**
    * Import phrases — one per line. No sentence extraction.
-   * Each non-empty line is stored as-is, preserving original casing.
+   * Each non-empty line is stored as-is, preserving original casing,
+   * except a formatted phrase's line ("md: " + its Markdown, as
+   * exportText writes it).
    */
   async importPhrases(text, source = 'import') {
     const lines = text.split('\n');
@@ -500,17 +506,21 @@ class Corpus {
       // Normalize smart quotes to straight quotes
       line = line.replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"');
 
-      if (this.phrases.has(line)) {
-        const entry = this.phrases.get(line);
+      const { phrase, rich } = Corpus.readPhraseLine(line);
+      if (!phrase) continue;
+      if (this.phrases.has(phrase)) {
+        const entry = this.phrases.get(phrase);
         entry.frequency += 1;
         entry.lastUsed = now;
-        this.phrases.set(line, entry);
+        if (rich) entry.rich = rich;
+        this.phrases.set(phrase, entry);
       } else {
-        this.phrases.set(line, {
+        this.phrases.set(phrase, {
           frequency: 1,
           source,
           importedAt: now,
           lastUsed: now,
+          ...(rich ? { rich } : {}),
         });
         added++;
       }
@@ -534,19 +544,25 @@ class Corpus {
    *
    * Mirrors the per-line logic in importBulk so behavior is
    * consistent between bulk paste and the ⌘+Shift+P shortcut.
+   *
+   * `rich` is the phrase's Markdown when it's formatted (see
+   * phrase-format.js); `text` is then its plain text. Saving an
+   * existing phrase with formatting replaces its formatting.
    */
-  async addOrBumpPhrase(text, source = 'highlight') {
+  async addOrBumpPhrase(text, source = 'highlight', rich = null) {
     const normalized = (text || '')
       .trim()
       .replace(/[‘’]/g, "'")
       .replace(/[“”]/g, '"');
     if (!normalized) return { added: false, bumped: false, phrase: '' };
+    const richText = rich ? rich.replace(/[‘’]/g, "'").replace(/[“”]/g, '"') : null;
 
     const now = Date.now();
     if (this.phrases.has(normalized)) {
       const entry = this.phrases.get(normalized);
       entry.frequency += 1;
       entry.lastUsed = now;
+      if (richText) entry.rich = richText;
       this.phrases.set(normalized, entry);
       this._rebuildTrie();
       await this.save();
@@ -558,10 +574,27 @@ class Corpus {
       source,
       importedAt: now,
       lastUsed: now,
+      ...(richText ? { rich: richText } : {}),
     });
     this._rebuildTrie();
     await this.save();
     return { added: true, bumped: false, phrase: normalized };
+  }
+
+  // The formatted version of a phrase (Markdown), or null for plain text.
+  getRich(phrase) {
+    const data = this.phrases.get(phrase);
+    return (data && data.rich) || null;
+  }
+
+  // Sets or (with null) clears a phrase's formatting.
+  async setRich(phrase, rich) {
+    const data = this.phrases.get(phrase);
+    if (!data) return false;
+    if (rich) data.rich = rich;
+    else delete data.rich;
+    await this.save();
+    return true;
   }
 
   async recordUsage(phrase) {
@@ -631,8 +664,25 @@ class Corpus {
     }
   }
 
+  // One phrase per line; a formatted phrase as "md: " + its Markdown,
+  // which importPhrases reads back.
   exportText() {
-    return [...this.phrases.keys()].join('\n');
+    return [...this.phrases].map(([phrase, data]) => Corpus.phraseLine(phrase, data)).join('\n');
+  }
+
+  static phraseLine(phrase, data) {
+    return data && data.rich ? PhraseFormat.toBackupLine(data.rich) : phrase;
+  }
+
+  // { phrase, rich } from one line of a backup or bulk import.
+  static readPhraseLine(line) {
+    const md = PhraseFormat.fromBackupLine(line);
+    if (md === null) return { phrase: line, rich: null };
+    const blocks = PhraseFormat.parse(md);
+    return {
+      phrase: PhraseFormat.plainText(blocks),
+      rich: PhraseFormat.isPlain(blocks) ? null : PhraseFormat.serialize(blocks),
+    };
   }
 
   getAllPhrases(filter = '') {
@@ -730,7 +780,7 @@ class Corpus {
     for (const [phrase, data] of this.phrases) {
       if (!data.followedBy || !data.followedBy.length) continue;
       for (const follower of data.followedBy) {
-        lines.push(phrase + ' -> ' + follower);
+        lines.push(Corpus.bopKey(phrase) + ' -> ' + Corpus.bopKey(follower));
       }
     }
     return lines.join('\n');
@@ -765,8 +815,8 @@ class Corpus {
       const m = line.match(sepRe);
       if (!m) { skipped++; continue; }
 
-      const source = line.slice(0, m.index).trim();
-      const follower = line.slice(m.index + m[0].length).trim();
+      const source = this._readBopKey(line.slice(0, m.index).trim());
+      const follower = this._readBopKey(line.slice(m.index + m[0].length).trim());
       if (!source || !follower) { skipped++; continue; }
       if (!this.phrases.has(source) || !this.phrases.has(follower)) {
         skipped++;
@@ -782,6 +832,17 @@ class Corpus {
       added += list.length;
     }
     return { added, skipped };
+  }
+
+  // A formatted phrase's key has line breaks; a bop line writes them as \n.
+  static bopKey(phrase) {
+    return phrase.replace(/\n/g, '\\n');
+  }
+
+  _readBopKey(written) {
+    if (this.phrases.has(written)) return written;
+    const multiLine = written.replace(/\\n/g, '\n');
+    return this.phrases.has(multiLine) ? multiLine : written;
   }
 
   getStats() {
