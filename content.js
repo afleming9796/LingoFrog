@@ -65,6 +65,11 @@
   let successToastBox = null;
   let successToastTimer = null;
 
+  // Looked up now, while this script is connected to the extension
+  // (see extensionConnected below), so the suggestion box can still
+  // draw its icon in a tab left open across an update.
+  const ICON_URL = chrome.runtime.getURL('icons/icon48.png');
+
   // ── Initialization ──────────────────────────────────────────
 
   function init() {
@@ -106,6 +111,31 @@
         console.warn('[LingoFrog] corpus.load() failed:', err);
       }
     );
+  }
+
+  // ── Extension updates ──────────────────────────────────────
+  //
+  // When LingoFrog is updated or reloaded, Chrome leaves this script
+  // running in Gmail tabs that were already open but cuts it off from
+  // the extension: chrome.runtime.id goes away and every chrome.* call
+  // throws "Extension context invalidated." Page-only work (suggestions
+  // from the in-memory corpus, inserting links) keeps going, but saving
+  // can't until the tab is reloaded and gets the new script.
+
+  function extensionConnected() {
+    try {
+      return !!(chrome.runtime && chrome.runtime.id);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Toast text for a save chip whose write failed (`what` is "link" or
+  // "phrase").
+  function saveFailedMessage(what) {
+    return extensionConnected()
+      ? `Couldn't save the ${what}`
+      : 'LingoFrog was updated. Reload Gmail to save.';
   }
 
   // ── Cross-frame overlay helpers ────────────────────────────
@@ -211,7 +241,7 @@
     const header = document.createElement('div');
     header.className = 'lingofrog-header';
     const headerIcon = document.createElement('img');
-    headerIcon.src = chrome.runtime.getURL('icons/icon48.png');
+    headerIcon.src = ICON_URL;
     headerIcon.className = 'lingofrog-header-icon';
     headerIcon.alt = '';
     header.appendChild(headerIcon);
@@ -987,17 +1017,33 @@
     // Re-check for an existing rule now that the map is populated;
     // the flag captured at chip-show time may be stale if the chip
     // opened before load resolved.
-    const wasReplace = corpus.linkRules.rules.has(trigger);
-
-    corpus.linkRules.addRule(trigger, url);
-    await corpus.linkRules.save();
-    console.log('[LingoFrog] Saved link rule');
+    const previous = corpus.linkRules.rules.get(trigger);
+    const wasReplace = !!previous;
 
     // Capture the chip's position before hiding so the toast anchors
     // to where the user's eye already is.
     const chipRect = saveRuleChipBox && saveRuleChipBox.style.display !== 'none'
       ? saveRuleChipBox.getBoundingClientRect()
       : null;
+
+    // A failed write used to leave the chip up with a Save button that
+    // did nothing, most often in a tab left open across an update.
+    // Close the chip either way and say what happened.
+    try {
+      corpus.linkRules.addRule(trigger, url);
+      await corpus.linkRules.save();
+    } catch (err) {
+      // Undo the in-memory change so this tab doesn't use a rule that
+      // was never stored.
+      if (previous) corpus.linkRules.rules.set(trigger, previous);
+      else corpus.linkRules.rules.delete(trigger);
+      console.warn('[LingoFrog] Saving the link rule failed:', err);
+      hideSaveRuleChip();
+      showSuccessToast(saveFailedMessage('link'), chipRect, { warning: true });
+      return;
+    }
+    console.log('[LingoFrog] Saved link rule');
+
     hideSaveRuleChip();
     showSuccessToast(wasReplace ? '✓ Link replaced' : '✓ Link saved', chipRect);
   }
@@ -1104,7 +1150,22 @@
     await corpusReady;
     if (!pendingSavePhraseChip) return; // chip may have been dismissed in the meantime
     const { text, rich } = pendingSavePhraseChip;
-    const result = await corpus.addOrBumpPhrase(text, 'highlight', rich);
+    // Same failure handling as acceptSaveRuleChip.
+    let result;
+    try {
+      // Checked first so a tab left open across an update doesn't add
+      // the phrase to its in-memory corpus without storing it.
+      if (!extensionConnected()) throw new Error('Extension context invalidated.');
+      result = await corpus.addOrBumpPhrase(text, 'highlight', rich);
+    } catch (err) {
+      console.warn('[LingoFrog] Saving the phrase failed:', err);
+      const chipRect = savePhraseChipBox && savePhraseChipBox.style.display !== 'none'
+        ? savePhraseChipBox.getBoundingClientRect()
+        : null;
+      hideSavePhraseChip();
+      showSuccessToast(saveFailedMessage('phrase'), chipRect, { warning: true });
+      return;
+    }
     let toastMessage = null;
     if (result.added) {
       console.log('[LingoFrog] Saved new phrase');
@@ -1160,9 +1221,12 @@
     successToastBox = getOrCreateOverlay('lingofrog-success-toast', 'lingofrog-success-toast');
   }
 
-  function showSuccessToast(message, anchorRect) {
+  // `warning` shows a failure instead (amber, and up longer so there's
+  // time to read it).
+  function showSuccessToast(message, anchorRect, { warning = false } = {}) {
     if (!successToastBox) return;
     successToastBox.textContent = message;
+    successToastBox.classList.toggle('lingofrog-success-toast-warning', warning);
 
     // anchorRect from a chip's getBoundingClientRect is already in
     // top-window coords (chips live in topDoc). The fallback
@@ -1200,7 +1264,7 @@
     if (successToastTimer) clearTimeout(successToastTimer);
     successToastTimer = setTimeout(() => {
       successToastBox.classList.remove('lingofrog-success-toast-visible');
-    }, 1500);
+    }, warning ? 5000 : 1500);
   }
 
   function checkForLinkTriggers() {
@@ -1648,7 +1712,10 @@
       insertPlainCompletion(completion, sel);
     }
 
-    corpus.recordUsage(selected.full);
+    // Fails in a tab left open across an update; the phrase is already in.
+    corpus.recordUsage(selected.full).catch((err) => {
+      console.warn('[LingoFrog] Recording phrase usage failed:', err);
+    });
     showBops(selected.full);
   }
 
