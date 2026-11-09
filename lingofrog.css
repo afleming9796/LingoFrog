@@ -182,6 +182,12 @@
   opacity: 1;
   transform: translateY(0);
 }
+/* A save that failed, e.g. "Reload Gmail to save" after an update. */
+.lingofrog-success-toast.lingofrog-success-toast-warning {
+  color: #9a5b00;
+  border-color: #e0a43a;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(224, 164, 58, 0.15);
+}
 
 .lingofrog-save-rule-chip {
   display: none;
