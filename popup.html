@@ -324,7 +324,7 @@
       border-top: 1px solid #ececec;
       padding-top: 14px; margin-top: 4px; margin-bottom: 12px;
     }
-    /* Sized for the 3-character tag. input.xxx beats the generic
+    /* Sized for the 4-character tag. input.xxx beats the generic
        input[type="text"] width. */
     input.phrase-form-tag-input {
       width: 72px;
@@ -442,13 +442,12 @@
     .phrase-edit-row { display: flex; align-items: flex-start; gap: 8px; padding: 3px 0; }
     .phrase-edit-bops-row { padding-left: 0; }
     .phrase-edit-follows-label { color: #7a7a7a; font-size: 10px; flex-shrink: 0; padding-top: 5px; }
-    .phrase-bop-badge {
+    .phrase-tag-badge {
       background: #e7f0dc; color: #4d7a2e;
       border-radius: 4px; padding: 0 5px;
       font-size: 9px; font-weight: 600;
-      flex-shrink: 0; letter-spacing: 0.3px;
+      flex-shrink: 0; letter-spacing: 0.5px; white-space: nowrap;
     }
-    .phrase-tag-badge { letter-spacing: 0.5px; white-space: nowrap; }
     .phrase-words { color: #9a9a9a; font-size: 10px; flex-shrink: 0; white-space: nowrap; }
     .phrase-edit-bops-box {
       flex: 1; min-width: 0;
@@ -749,8 +748,8 @@
     <div class="form-optional-header">Optional</div>
 
     <label class="form-label" for="phrase-form-tag">Tag</label>
-    <input type="text" id="phrase-form-tag" class="phrase-form-tag-input" maxlength="3" placeholder="FYI" autocomplete="off" spellcheck="false">
-    <div class="form-helper phrase-form-tag-helper">Up to 3 characters. It shows next to the phrase here and in Gmail suggestions, so similar phrases are easy to tell apart.</div>
+    <input type="text" id="phrase-form-tag" class="phrase-form-tag-input" maxlength="4" placeholder="frog" autocomplete="off" spellcheck="false">
+    <div class="form-helper phrase-form-tag-helper">Up to 4 characters. It shows next to the phrase here and in Gmail suggestions, so similar phrases are easy to tell apart.</div>
 
     <div class="form-section-header">
       <label class="form-label" for="phrase-form-bops-search">Bops</label>

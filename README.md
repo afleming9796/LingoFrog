@@ -40,7 +40,7 @@ Autocomplete matches the start of a phrase's first line, as with any phrase. The
 
 ## Tags
 
-A phrase can have one tag of up to 3 characters, like `FYI` or `CS`. Add it under **Optional** when you add or edit a phrase. The tag shows next to the phrase in the Phrases tab and in the Gmail suggestions, and searching the Phrases tab matches tags too. Copy all doesn't include tags yet, so a restore from a backup leaves phrases untagged.
+A phrase can have one tag of up to 4 characters, like `frog`. Add it under **Optional** when you add or edit a phrase. The tag shows next to the phrase in the Phrases tab and in the Gmail suggestions, and searching the Phrases tab matches tags too. Copy all doesn't include tags yet, so a restore from a backup leaves phrases untagged.
 
 ## Settings
 

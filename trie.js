@@ -908,4 +908,4 @@ class Corpus {
 }
 
 Corpus.MAX_FOLLOWED_BY = 1;
-Corpus.MAX_TAG_LENGTH = 3;
+Corpus.MAX_TAG_LENGTH = 4;

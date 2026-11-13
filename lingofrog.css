@@ -94,7 +94,7 @@
   white-space: nowrap;
 }
 
-/* A phrase's tag: the popup's bop-badge pill, just left of the word
+/* A phrase's tag: the popup's tag pill, just left of the word
    count. It takes the word count's auto margin so the two sit
    together at the right. */
 .lingofrog-tag {

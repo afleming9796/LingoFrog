@@ -189,25 +189,15 @@ function updatePhraseList() {
     text.addEventListener('click', () => openPhraseForm('edit', item.phrase));
 
     li.appendChild(text);
-    // The phrase's tag, if it has one, in the same pill as the bop
-    // badge.
+    // The phrase's tag, if it has one. (Phrases with bops used to get
+    // a "bop" pill here; it was dropped so the only pill is the tag.)
     const tag = corpus.getTag(item.phrase);
     if (tag) {
       const tagBadge = document.createElement('span');
-      tagBadge.className = 'phrase-bop-badge phrase-tag-badge';
+      tagBadge.className = 'phrase-tag-badge';
       tagBadge.textContent = tag;
       tagBadge.title = `Tag: ${tag}`;
       li.appendChild(tagBadge);
-    }
-    // Small badge if this phrase has any follow-ups configured, so
-    // users can scan the list and see which entries are bopped.
-    const followCount = corpus.getFollowedBy(item.phrase).length;
-    if (followCount) {
-      const badge = document.createElement('span');
-      badge.className = 'phrase-bop-badge';
-      badge.textContent = followCount === 1 ? 'bop' : `bop ×${followCount}`;
-      badge.title = 'This phrase bops to ' + followCount + ' follow-up phrase' + (followCount === 1 ? '' : 's');
-      li.appendChild(badge);
     }
     // Word count, so phrases that start the same are easy to tell
     // apart. It sits just left of the copy icon so the counts line up.
@@ -216,7 +206,7 @@ function updatePhraseList() {
     const count = PhraseFormat.wordCount(item.phrase);
     words.textContent = `${count} ${count === 1 ? 'word' : 'words'}`;
     li.appendChild(words);
-    // Copy icon lives on the right — after the bop badge — so both
+    // Copy icon lives on the right — after the word count — so both
     // Phrases and Links share the "icon actions on the right" layout.
     li.appendChild(copyBtn);
     phraseList.appendChild(li);
