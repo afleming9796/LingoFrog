@@ -278,6 +278,15 @@
 
       item.appendChild(num);
       item.appendChild(text);
+      // The phrase's tag, if it has one, so similar phrases are easy
+      // to tell apart.
+      const tag = corpus.getTag(s.full);
+      if (tag) {
+        const tagEl = document.createElement('span');
+        tagEl.className = 'lingofrog-tag';
+        tagEl.textContent = tag;
+        item.appendChild(tagEl);
+      }
       item.appendChild(words);
 
       item.addEventListener('mousedown', (e) => {

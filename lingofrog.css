@@ -94,6 +94,26 @@
   white-space: nowrap;
 }
 
+/* A phrase's tag: the popup's tag pill, just left of the word
+   count. It takes the word count's auto margin so the two sit
+   together at the right. */
+.lingofrog-tag {
+  margin-left: auto;
+  flex-shrink: 0;
+  background: #e7f0dc;
+  color: #4d7a2e;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.lingofrog-tag + .lingofrog-words { margin-left: 0; }
+/* The selected row is the pill's own green, so the pill goes white. */
+.lingofrog-item.lingofrog-selected .lingofrog-tag { background: #ffffff; }
+
 .lingofrog-hint {
   color: #a0a0a0;
   font-size: 10px;
