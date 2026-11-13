@@ -189,6 +189,16 @@ function updatePhraseList() {
     text.addEventListener('click', () => openPhraseForm('edit', item.phrase));
 
     li.appendChild(text);
+    // The phrase's tag, if it has one, in the same pill as the bop
+    // badge.
+    const tag = corpus.getTag(item.phrase);
+    if (tag) {
+      const tagBadge = document.createElement('span');
+      tagBadge.className = 'phrase-bop-badge phrase-tag-badge';
+      tagBadge.textContent = tag;
+      tagBadge.title = `Tag: ${tag}`;
+      li.appendChild(tagBadge);
+    }
     // Small badge if this phrase has any follow-ups configured, so
     // users can scan the list and see which entries are bopped.
     const followCount = corpus.getFollowedBy(item.phrase).length;
@@ -1050,6 +1060,7 @@ const phraseLinkRow = document.getElementById('phrase-link-row');
 const phraseLinkUrl = document.getElementById('phrase-link-url');
 const btnPhraseLinkRemove = document.getElementById('btn-phrase-link-remove');
 const phraseFormTitle = document.getElementById('phrase-form-title');
+const phraseFormTag = document.getElementById('phrase-form-tag');
 const phraseFormBopsBox = document.getElementById('phrase-form-bops-box');
 const phraseFormBopsSearch = document.getElementById('phrase-form-bops-search');
 const phraseFormBopsDropdown = document.getElementById('phrase-form-bops-dropdown');
@@ -1073,6 +1084,7 @@ function openPhraseForm(mode, phrase) {
   fillPhraseEditor(phrase);
   closePhraseLink(false);
   workingBops = phrase ? corpus.getFollowedBy(phrase).slice() : [];
+  phraseFormTag.value = (phrase && corpus.getTag(phrase)) || '';
   phraseFormBopsSearch.value = '';
   phraseFormStatus.className = 'status';
 
@@ -1101,18 +1113,19 @@ function closePhraseForm() {
 function updatePhraseFormSaveEnabled() {
   const { text, rich } = readPhraseEditor();
   // Disable save if empty, or if we're editing and nothing changed
-  // (same text and formatting AND same bops list).
+  // (same text and formatting, tag, AND bops list).
   let dirty = true;
   if (phraseFormOriginal !== null) {
     const originalBops = corpus.getFollowedBy(phraseFormOriginal);
     const sameBops =
       originalBops.length === workingBops.length &&
       originalBops.every((b, i) => b === workingBops[i]);
+    const sameTag = Corpus.cleanTag(phraseFormTag.value) === (corpus.getTag(phraseFormOriginal) || '');
     // Compared in the editor's own spelling of the Markdown (a phrase
     // with line breaks but no formatting reads back as Markdown too).
     const originalBlocks = PhraseFormat.blocksOf(phraseFormOriginal, corpus.getRich(phraseFormOriginal));
     const originalRich = PhraseFormat.isPlain(originalBlocks) ? null : PhraseFormat.serialize(originalBlocks);
-    dirty = text !== phraseFormOriginal || rich !== originalRich || !sameBops;
+    dirty = text !== phraseFormOriginal || rich !== originalRich || !sameBops || !sameTag;
   }
   btnPhraseFormSave.disabled = text.length === 0 || !dirty;
 }
@@ -1241,6 +1254,10 @@ async function savePhraseForm() {
     statusMsg = '✓ Saved';
   }
 
+  // Adding a phrase that's already saved keeps its tag unless a new
+  // one was typed.
+  const tag = Corpus.cleanTag(phraseFormTag.value);
+  if (phraseFormOriginal !== null || tag) await corpus.setTag(targetPhrase, tag);
   await corpus.setFollowedBy(targetPhrase, workingBops);
   updateStats();
   showStatus(corpusStatus, statusMsg, 'success');
@@ -1504,6 +1521,18 @@ btnPhraseLinkRemove.addEventListener('click', () => {
   selectInEditor(target.range);
   document.execCommand('unlink');
   getSelection().collapseToEnd();
+});
+
+phraseFormTag.addEventListener('input', updatePhraseFormSaveEnabled);
+phraseFormTag.addEventListener('keydown', (e) => {
+  if (e.isComposing) return;
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (!btnPhraseFormSave.disabled) savePhraseForm();
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    closePhraseForm();
+  }
 });
 
 phraseFormBopsSearch.addEventListener('input', () =>

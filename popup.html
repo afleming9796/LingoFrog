@@ -318,6 +318,21 @@
     .form-section-counter { font-size: 10px; color: #7a7a7a; }
     .form-helper { font-size: 11px; color: #7a7a7a; line-height: 1.4; margin-top: 8px; margin-bottom: 8px; }
 
+    /* "Optional" heading over the phrase form's tag and bops. */
+    .form-optional-header {
+      font-size: 12px; font-weight: 600; color: #1a1a1a;
+      border-top: 1px solid #ececec;
+      padding-top: 14px; margin-top: 4px; margin-bottom: 12px;
+    }
+    /* Sized for the 3-character tag. input.xxx beats the generic
+       input[type="text"] width. */
+    input.phrase-form-tag-input {
+      width: 72px;
+      font-size: 12px;
+      text-align: center;
+    }
+    .phrase-form-tag-helper { margin-bottom: 16px; }
+
     .phrase-form-bops-box {
       min-height: 38px;
       padding: 6px 8px;
@@ -433,6 +448,7 @@
       font-size: 9px; font-weight: 600;
       flex-shrink: 0; letter-spacing: 0.3px;
     }
+    .phrase-tag-badge { letter-spacing: 0.5px; white-space: nowrap; }
     .phrase-words { color: #9a9a9a; font-size: 10px; flex-shrink: 0; white-space: nowrap; }
     .phrase-edit-bops-box {
       flex: 1; min-width: 0;
@@ -729,6 +745,12 @@
       <button class="btn-link" id="btn-phrase-link-remove" hidden>Remove link</button>
     </div>
     <div class="form-helper phrase-form-hint" id="phrase-form-hint"></div>
+
+    <div class="form-optional-header">Optional</div>
+
+    <label class="form-label" for="phrase-form-tag">Tag</label>
+    <input type="text" id="phrase-form-tag" class="phrase-form-tag-input" maxlength="3" placeholder="FYI" autocomplete="off" spellcheck="false">
+    <div class="form-helper phrase-form-tag-helper">Up to 3 characters. It shows next to the phrase here and in Gmail suggestions, so similar phrases are easy to tell apart.</div>
 
     <div class="form-section-header">
       <label class="form-label" for="phrase-form-bops-search">Bops</label>
