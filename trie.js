@@ -401,7 +401,7 @@ UtmRules.MAX_PARAMS = 3;
 class Corpus {
   constructor() {
     this.trie = new PhraseTrie();
-    // original phrase -> { frequency, source, importedAt, lastUsed, followedBy?: string[], rich?: string }
+    // original phrase -> { frequency, source, importedAt, lastUsed, followedBy?: string[], rich?: string, tag?: string }
     // A formatted phrase (line breaks, lists, bold, links; see
     // phrase-format.js) is keyed by its plain text, which is what
     // matching uses, and keeps its Markdown in `rich`.
@@ -597,6 +597,32 @@ class Corpus {
     return true;
   }
 
+  // The phrase's tag (a short label, see setTag), or null.
+  getTag(phrase) {
+    const data = this.phrases.get(phrase);
+    return (data && data.tag) || null;
+  }
+
+  // Sets or (with an empty tag) clears a phrase's tag: a label of up
+  // to MAX_TAG_LENGTH characters shown beside the phrase in the popup
+  // and in Gmail suggestions. A phrase has at most one.
+  async setTag(phrase, tag) {
+    const data = this.phrases.get(phrase);
+    if (!data) return false;
+    const clean = Corpus.cleanTag(tag);
+    if (clean) data.tag = clean;
+    else delete data.tag;
+    await this.save();
+    return true;
+  }
+
+  // Trimmed and cut to MAX_TAG_LENGTH characters (counting an emoji
+  // as one).
+  static cleanTag(tag) {
+    const chars = [...String(tag || '').trim()];
+    return chars.slice(0, Corpus.MAX_TAG_LENGTH).join('').trim();
+  }
+
   async recordUsage(phrase) {
     // Find by case-insensitive match, update the original entry
     const lower = phrase.toLowerCase();
@@ -689,7 +715,11 @@ class Corpus {
     const result = [];
     const filterLower = filter.toLowerCase();
     for (const [phrase, data] of this.phrases) {
-      if (filterLower && !phrase.toLowerCase().includes(filterLower)) continue;
+      if (
+        filterLower &&
+        !phrase.toLowerCase().includes(filterLower) &&
+        !(data.tag && data.tag.toLowerCase().includes(filterLower))
+      ) continue;
       result.push({
         phrase,
         frequency: data.frequency,
@@ -878,3 +908,4 @@ class Corpus {
 }
 
 Corpus.MAX_FOLLOWED_BY = 1;
+Corpus.MAX_TAG_LENGTH = 4;
