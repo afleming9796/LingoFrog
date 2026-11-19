@@ -4,6 +4,10 @@
  * Tab       → accept autocomplete suggestion
  * Cmd+L     → accept link prompt (linkify detected phrase)
  *              OR open link search when text is selected
+ * Cmd+Shift+L → with text selected, the same link search; otherwise
+ *              quick-insert.js's link picker
+ * Cmd+Shift+P → with text selected, offer to save it as a phrase;
+ *              otherwise quick-insert.js's phrase picker
  * Esc       → dismiss either
  * Keep typing → dismisses link prompt
  */
@@ -95,6 +99,7 @@
     createSavePhraseChipUI();
     createSuccessToastUI();
     attachListeners();
+    registerQuickInsertHost();
     initialized = true;
 
     corpusReady = corpus.load().then(
@@ -136,6 +141,49 @@
     return extensionConnected()
       ? `Couldn't save the ${what}`
       : 'LingoFrog was updated. Reload Gmail to save.';
+  }
+
+  // ── Cmd+Shift+L / Cmd+Shift+P (quick-insert.js) ────────────
+  //
+  // With nothing highlighted these open quick-insert.js's link and
+  // phrase pickers, which also work on other sites. In Gmail,
+  // highlighted text keeps its own meaning: Cmd+Shift+L links it (as
+  // Cmd+L does) and Cmd+Shift+P offers to save it, in a received email
+  // too (#52).
+
+  function inQuickPicker(node) {
+    return typeof LingoFrogQuick !== 'undefined' && LingoFrogQuick.contains(node);
+  }
+
+  function registerQuickInsertHost() {
+    if (typeof LingoFrogQuick === 'undefined') return;
+    LingoFrogQuick.setHost({
+      // Gmail's compose box takes direct edits, as autocomplete makes.
+      usePaste: false,
+      handleShortcut(kind) {
+        const sel = window.getSelection();
+        if (!sel || sel.isCollapsed || !sel.toString().trim()) return false;
+        if (kind === 'phrase') {
+          maybeShowSavePhraseChip();
+          return true;
+        }
+        const el = document.activeElement;
+        if (!isEditableField(el)) return false;
+        activeElement = el;
+        // Dismiss any floating link prompt so it doesn't overlap the
+        // link-search popup.
+        if (pendingLink) hideLinkPrompt();
+        showLinkSearch();
+        return true;
+      },
+      // Before a picker saves the cursor: no grey preview text in the
+      // way, and none of the other popups showing.
+      beforeOpen() {
+        removeGhostText();
+        hideSuggestions();
+        hideLinkPrompt();
+      },
+    });
   }
 
   // ── Cross-frame overlay helpers ────────────────────────────
@@ -1658,7 +1706,7 @@
       }
 
       const el = document.activeElement;
-      if (!isEditableField(el)) {
+      if (!isEditableField(el) || inQuickPicker(el)) {
         hideSuggestions();
         hideLinkPrompt();
         return;
@@ -1851,12 +1899,15 @@
 
   function attachListeners() {
     document.addEventListener('input', (e) => {
-      if (isEditableField(e.target)) {
+      if (isEditableField(e.target) && !inQuickPicker(e.target)) {
         handleInput();
       }
     }, true);
 
     document.addEventListener('keydown', (e) => {
+      // Keys typed in a Cmd+Shift+L / Cmd+Shift+P picker are its own.
+      if (inQuickPicker(e.target)) return;
+
       // ── Autocomplete: Tab, arrows, Esc ──
       if (currentSuggestions.length) {
         if (e.key === 'Tab') {
@@ -1934,18 +1985,18 @@
         }
       }
 
-      // ── Cmd+Shift+P with selected text: save phrase to corpus ──
-      // Allowed in editable AND non-editable contexts (per issue #52
-      // — supports saving from received-email bodies, not just
-      // composes).
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'p' || e.key === 'P')) {
-        const sel = window.getSelection();
-        if (sel && !sel.isCollapsed && sel.toString().trim()) {
-          e.preventDefault();
-          e.stopPropagation();
-          maybeShowSavePhraseChip();
-          return;
-        }
+      // ── Cmd+Shift+L / Cmd+Shift+P ──
+      // Chrome normally runs these as the extension's shortcuts
+      // (background.js). They also arrive here as keys if they're
+      // unassigned at chrome://extensions/shortcuts. Either way they go
+      // to LingoFrogQuick.handleCommand, which acts once per press and
+      // hands highlighted text back to handleShortcut above.
+      const quickKind = typeof LingoFrogQuick !== 'undefined' && LingoFrogQuick.shortcutKind(e);
+      if (quickKind) {
+        e.preventDefault();
+        e.stopPropagation();
+        LingoFrogQuick.handleCommand(quickKind);
+        return;
       }
 
       // ── Cmd+L with selected text: open link search ──

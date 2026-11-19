@@ -3,7 +3,7 @@
   "name": "LingoFrog",
   "version": "1.3.0",
   "description": "Gmail autocomplete powered by you. Your links, your phrases, at your service.",
-  "permissions": ["storage"],
+  "permissions": ["storage", "activeTab", "scripting"],
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -25,7 +25,7 @@
   "content_scripts": [
     {
       "matches": ["https://mail.google.com/*"],
-      "js": ["phrase-format.js", "trie.js", "content.js"],
+      "js": ["phrase-format.js", "trie.js", "quick-insert.js", "content.js"],
       "css": ["lingofrog.css"],
       "all_frames": true
     }
@@ -48,6 +48,18 @@
         "default": "Alt+P"
       },
       "description": "Open LingoFrog on the Phrases tab"
+    },
+    "insert_link": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+L"
+      },
+      "description": "Insert a link in the text box you're in (in Gmail, links highlighted text)"
+    },
+    "insert_phrase": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+P"
+      },
+      "description": "Insert a phrase in the text box you're in (in Gmail, saves highlighted text)"
     }
   }
 }
