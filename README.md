@@ -34,9 +34,9 @@ Like a best friend, LingoFrog finishes your sentences and inserts relevant hyper
 Two shortcuts open a search of your links or phrases in the text box you're in, in Gmail or on any other site:
 
 - **Option + Shift + L** inserts a link. In a rich text box (Gmail and most web apps) it's clickable, with the URL as its text, or the highlighted text if you've highlighted some. A plain text box gets the bare URL. Your UTM rules are added if **Include UTM parameters when copying or inserting links** is on in Settings, the same setting the popup's copy button uses. You can also paste or type a URL into the search to insert it.
-- **Option + Shift + P** inserts a phrase, with its formatting if it has any. The search matches tags too. For linked text other than a URL, save a phrase with a link in it.
+- **Option + Shift + P** inserts a phrase, with its formatting if it has any. In a rich text box, your link rules link any text in it that matches, as autocomplete does in Gmail (when **Auto-link hyperlinks** is on), with UTM rules following the same setting as Option + Shift + L. The search matches tags too. For linked text other than a URL, save a phrase with a link in it, or a link rule for that text.
 
-Outside Gmail, what you pick goes in like a paste, so each site handles it the way it handles any paste. Link rules aren't applied to a phrase inserted this way. In Gmail, autocomplete still applies them.
+Outside Gmail, what you pick goes in like a paste, so each site handles it the way it handles any paste.
 
 In Gmail, highlighted text works as before: Option + Shift + P (or Cmd + Shift + P) offers to save it as a phrase, and Option + Shift + L links it, like Cmd + L.
 

@@ -8,9 +8,10 @@
  * Copy URL button copies it. In a rich text box it's clickable, with
  * the URL as its text, or the highlighted text if there is some; a
  * plain text box gets the bare URL. A phrase goes in with its
- * formatting, as the popup's copy button copies it. Outside Gmail it
- * all goes in as a paste, so each site's editor treats it like any
- * other paste.
+ * formatting, and with your link rules linking any text they match
+ * (when "Auto-link hyperlinks" is on), as autocomplete does in Gmail.
+ * Outside Gmail it all goes in as a paste, so each site's editor
+ * treats it like any other paste.
  *
  * In Gmail this loads with the content script, which hooks in through
  * setHost() for its own cases: with text highlighted, ⌥⇧L links it and
@@ -175,12 +176,17 @@
 
   // ── What goes in ─────────────────────────────────────────────
 
-  // A link: its URL, as the popup's Copy URL button copies it. In a rich
-  // text box it's a clickable link whose text is the URL (an email
-  // address for a mailto: link), or the highlighted text if any.
+  // A link's address with UTM tags, if "Include UTM parameters when
+  // copying or inserting links" is on, as the popup's Copy URL makes it.
+  function linkHref(corpus, url) {
+    return corpus.config.applyUtmOnCopy !== false ? corpus.utmRules.applyTo(url) : url;
+  }
+
+  // A link: its URL. In a rich text box it's a clickable link whose text
+  // is the URL (an email address for a mailto: link), or the
+  // highlighted text if any.
   function linkContent(corpus, url, el, saved) {
-    const applyUtm = corpus.config.applyUtmOnCopy !== false;
-    const href = applyUtm ? corpus.utmRules.applyTo(url) : url;
+    const href = linkHref(corpus, url);
     if (isTextControl(el) || !PhraseFormat.safeHref(href)) return { text: href };
     const highlighted = saved.range ? saved.range.toString() : '';
     const label = highlighted.trim() ? highlighted : href.replace(/^(mailto|tel):/i, '');
@@ -188,16 +194,27 @@
     return { text: href, html: `<a href="${esc(href)}">${esc(label)}</a>`, link: true };
   }
 
-  // A phrase: its text, and for a formatted or multi-line one, HTML too.
-  function phraseContent(corpus, phrase) {
-    const rich = corpus.getRich(phrase);
-    if (!rich && !phrase.includes('\n')) return { text: phrase };
-    const blocks = PhraseFormat.blocksOf(phrase, rich);
+  // A phrase: its text, and in a rich text box, HTML for its formatting
+  // and for links. Text matching a link rule is linked, as autocomplete
+  // does in Gmail, when "Auto-link hyperlinks" is on.
+  function phraseContent(corpus, phrase, el) {
+    if (isTextControl(el)) return { text: phrase };
+    let blocks = PhraseFormat.blocksOf(phrase, corpus.getRich(phrase));
+    if (corpus.config.autoLink !== false) {
+      blocks = PhraseFormat.linkify(
+        blocks,
+        (text) => corpus.linkRules.findLinks(text),
+        (url) => linkHref(corpus, url)
+      );
+    }
+    if (PhraseFormat.isPlain(blocks)) return { text: phrase };
+    const html = PhraseFormat.toHtml(blocks);
     return {
       text: phrase,
-      html: PhraseFormat.toHtml(blocks),
+      html,
       // For inserting directly: the first line joins the cursor's line.
       inlineHtml: PhraseFormat.toHtml(blocks, { inlineFirst: true }),
+      link: /<a /.test(html),
     };
   }
 
@@ -254,8 +271,9 @@
     }
   }
 
-  // After a link goes in, the caret sits at the end of the link's text,
-  // inside it, and whatever's typed next would become part of the link.
+  // After a link goes in (or a phrase ending in one), the caret sits at
+  // the end of the link's text, inside it, and whatever's typed next
+  // would become part of the link.
   function moveCaretPastLink(el) {
     const sel = selectionFor(el);
     if (!sel || !sel.rangeCount) return;
@@ -610,7 +628,7 @@
     if (!r) return;
     const content = p.kind === 'link'
       ? linkContent(p.corpus, r.url, p.el, p.saved)
-      : phraseContent(p.corpus, r.phrase);
+      : phraseContent(p.corpus, r.phrase, p.el);
     closePicker({ restore: true });
     try {
       insert(p.el, content);
