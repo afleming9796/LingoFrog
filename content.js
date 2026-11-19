@@ -4,9 +4,10 @@
  * Tab       → accept autocomplete suggestion
  * Cmd+L     → accept link prompt (linkify detected phrase)
  *              OR open link search when text is selected
- * Cmd+Shift+L → with text selected, the same link search; otherwise
- *              quick-insert.js's link picker
- * Cmd+Shift+P → with text selected, offer to save it as a phrase;
+ * Cmd+Shift+P → with text selected, offer to save it as a phrase
+ * Opt+Shift+L → with text selected, the same link search as Cmd+L;
+ *              otherwise quick-insert.js's link picker
+ * Opt+Shift+P → with text selected, the same as Cmd+Shift+P;
  *              otherwise quick-insert.js's phrase picker
  * Esc       → dismiss either
  * Keep typing → dismisses link prompt
@@ -143,13 +144,13 @@
       : 'LingoFrog was updated. Reload Gmail to save.';
   }
 
-  // ── Cmd+Shift+L / Cmd+Shift+P (quick-insert.js) ────────────
+  // ── Opt+Shift+L / Opt+Shift+P (quick-insert.js) ────────────
   //
   // With nothing highlighted these open quick-insert.js's link and
   // phrase pickers, which also work on other sites. In Gmail,
-  // highlighted text keeps its own meaning: Cmd+Shift+L links it (as
-  // Cmd+L does) and Cmd+Shift+P offers to save it, in a received email
-  // too (#52).
+  // highlighted text keeps its own meaning: Opt+Shift+L links it (as
+  // Cmd+L does) and Opt+Shift+P offers to save it (as Cmd+Shift+P
+  // does), in a received email too (#52).
 
   function inQuickPicker(node) {
     return typeof LingoFrogQuick !== 'undefined' && LingoFrogQuick.contains(node);
@@ -1905,7 +1906,7 @@
     }, true);
 
     document.addEventListener('keydown', (e) => {
-      // Keys typed in a Cmd+Shift+L / Cmd+Shift+P picker are its own.
+      // Keys typed in an Opt+Shift+L / Opt+Shift+P picker are its own.
       if (inQuickPicker(e.target)) return;
 
       // ── Autocomplete: Tab, arrows, Esc ──
@@ -1985,7 +1986,21 @@
         }
       }
 
-      // ── Cmd+Shift+L / Cmd+Shift+P ──
+      // ── Cmd+Shift+P with selected text: save phrase to corpus ──
+      // Allowed in editable AND non-editable contexts (per issue #52
+      // — supports saving from received-email bodies, not just
+      // composes).
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'p' || e.key === 'P')) {
+        const sel = window.getSelection();
+        if (sel && !sel.isCollapsed && sel.toString().trim()) {
+          e.preventDefault();
+          e.stopPropagation();
+          maybeShowSavePhraseChip();
+          return;
+        }
+      }
+
+      // ── Opt+Shift+L / Opt+Shift+P ──
       // Chrome normally runs these as the extension's shortcuts
       // (background.js). They also arrive here as keys if they're
       // unassigned at chrome://extensions/shortcuts. Either way they go

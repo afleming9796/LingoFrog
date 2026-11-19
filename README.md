@@ -1,6 +1,6 @@
 # LingoFrog — Chrome Extension
 
-Like a best friend, LingoFrog finishes your sentences and inserts relevant hyperlinks. Accept suggested completions with "tab". Add suggested hyperlinks with cmd + L. Autocomplete works in Chrome + Gmail (on browser), and cmd + shift + L and cmd + shift + P insert your links and phrases in any text box (see [Insert links and phrases anywhere](#insert-links-and-phrases-anywhere)).
+Like a best friend, LingoFrog finishes your sentences and inserts relevant hyperlinks. Accept suggested completions with "tab". Add suggested hyperlinks with cmd + L. Autocomplete works in Chrome + Gmail (on browser), and option + shift + L and option + shift + P insert your links and phrases in any text box (see [Insert links and phrases anywhere](#insert-links-and-phrases-anywhere)).
 
 ## Install (Developer Mode)
 
@@ -27,20 +27,20 @@ Like a best friend, LingoFrog finishes your sentences and inserts relevant hyper
 - **Cmd+L** accepts hyperlink suggestions
 - **Highlight + Cmd + P** to add new phrases
 - **Highlight + CMD + L** brings up dropdown of your links to insert and let's you insert ad-hoc links. 
-- **Cmd + Shift + L** / **Cmd + Shift + P** with nothing highlighted search your links or phrases and insert one, on any site (below)
+- **Option + Shift + L** / **Option + Shift + P** search your links or phrases and insert one, on any site (below)
 
 ## Insert links and phrases anywhere
 
 Two shortcuts open a search of your links or phrases in the text box you're in, in Gmail or on any other site:
 
-- **Cmd + Shift + L** inserts a link's URL. Your UTM rules are added if **Include UTM parameters when copying links** is on in Settings, as with the popup's copy button. You can also paste or type a URL into the search to insert it with your UTM rules.
-- **Cmd + Shift + P** inserts a phrase, with its formatting if it has any. The search matches tags too.
+- **Option + Shift + L** inserts a link. In a rich text box (Gmail and most web apps) it's clickable, with the URL as its text, or the highlighted text if you've highlighted some. A plain text box gets the bare URL. Your UTM rules are added if **Include UTM parameters when copying or inserting links** is on in Settings, the same setting the popup's copy button uses. You can also paste or type a URL into the search to insert it.
+- **Option + Shift + P** inserts a phrase, with its formatting if it has any. The search matches tags too. For linked text other than a URL, save a phrase with a link in it.
 
-What goes in is what the popup's copy buttons copy, and it goes in like a paste, so each site handles it the way it handles any paste. Many editors turn a pasted URL into a link, or link the highlighted text with it. Link rules aren't applied to a phrase inserted this way. In Gmail, autocomplete still applies them.
+Outside Gmail, what you pick goes in like a paste, so each site handles it the way it handles any paste. Link rules aren't applied to a phrase inserted this way. In Gmail, autocomplete still applies them.
 
-In Gmail, highlighted text works as before: Cmd + Shift + P offers to save it as a phrase, and Cmd + Shift + L links it, like Cmd + L. Cmd + Shift + L replaces Gmail's own shortcut for aligning text left.
+In Gmail, highlighted text works as before: Option + Shift + P (or Cmd + Shift + P) offers to save it as a phrase, and Option + Shift + L links it, like Cmd + L.
 
-On Windows and Linux, use Ctrl instead of Cmd. To check or change the shortcuts, go to `chrome://extensions/shortcuts`; Chrome won't assign one that another extension already uses. Outside Gmail, LingoFrog only runs in a tab when you press one of these shortcuts. It can't run on Chrome's own pages or the Chrome Web Store, or in a text box inside another site's embedded frame.
+On Windows and Linux, use Alt instead of Option. To check or change the shortcuts, go to `chrome://extensions/shortcuts`. Chrome gives each shortcut to only one extension, so if one does nothing, another extension may already have it. Outside Gmail, LingoFrog only runs in a tab when you press one of these shortcuts. It can't run on Chrome's own pages or the Chrome Web Store, or in a text box inside another site's embedded frame.
 
 ## Formatted phrases
 

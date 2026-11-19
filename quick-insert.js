@@ -1,16 +1,20 @@
 /**
- * quick-insert.js — ⌘⇧L and ⌘⇧P: search your links or phrases and put
- * one into the text box you're in, on any site.
+ * quick-insert.js — ⌥⇧L and ⌥⇧P (Alt+Shift on Windows and Linux):
+ * search your links or phrases and put one into the text box you're
+ * in, on any site.
  *
- * What goes in is what the popup's copy buttons copy: a link's URL
- * (with your UTM rules if "Include UTM parameters when copying links"
- * is on), or a phrase with its formatting. Outside Gmail it goes in as
- * a paste, so each site's editor treats it like any other paste (many
- * turn a pasted URL into a link, or link the highlighted text with it).
+ * A link goes in as its URL, with your UTM rules if "Include UTM
+ * parameters when copying or inserting links" is on, as the popup's
+ * Copy URL button copies it. In a rich text box it's clickable, with
+ * the URL as its text, or the highlighted text if there is some; a
+ * plain text box gets the bare URL. A phrase goes in with its
+ * formatting, as the popup's copy button copies it. Outside Gmail it
+ * all goes in as a paste, so each site's editor treats it like any
+ * other paste.
  *
  * In Gmail this loads with the content script, which hooks in through
- * setHost() for its own cases: with text highlighted, ⌘⇧L links it and
- * ⌘⇧P offers to save it. On other sites nothing of LingoFrog runs until
+ * setHost() for its own cases: with text highlighted, ⌥⇧L links it and
+ * ⌥⇧P offers to save it. On other sites nothing of LingoFrog runs until
  * one of the shortcuts is pressed. background.js then injects this file
  * (after phrase-format.js and trie.js) into the focused frame of that
  * tab only, through the activeTab permission the shortcut grants.
@@ -171,10 +175,17 @@
 
   // ── What goes in ─────────────────────────────────────────────
 
-  // A link: its URL, as the popup's Copy URL button copies it.
-  function linkContent(corpus, url) {
+  // A link: its URL, as the popup's Copy URL button copies it. In a rich
+  // text box it's a clickable link whose text is the URL (an email
+  // address for a mailto: link), or the highlighted text if any.
+  function linkContent(corpus, url, el, saved) {
     const applyUtm = corpus.config.applyUtmOnCopy !== false;
-    return { text: applyUtm ? corpus.utmRules.applyTo(url) : url };
+    const href = applyUtm ? corpus.utmRules.applyTo(url) : url;
+    if (isTextControl(el) || !PhraseFormat.safeHref(href)) return { text: href };
+    const highlighted = saved.range ? saved.range.toString() : '';
+    const label = highlighted.trim() ? highlighted : href.replace(/^(mailto|tel):/i, '');
+    const esc = PhraseFormat.escapeHtml;
+    return { text: href, html: `<a href="${esc(href)}">${esc(label)}</a>`, link: true };
   }
 
   // A phrase: its text, and for a formatted or multi-line one, HTML too.
@@ -237,9 +248,26 @@
     }
     if (content.html) {
       document.execCommand('insertHTML', false, content.inlineHtml || content.html);
+      if (content.link) moveCaretPastLink(el);
     } else {
       document.execCommand('insertText', false, content.text);
     }
+  }
+
+  // After a link goes in, the caret sits at the end of the link's text,
+  // inside it, and whatever's typed next would become part of the link.
+  function moveCaretPastLink(el) {
+    const sel = selectionFor(el);
+    if (!sel || !sel.rangeCount) return;
+    const node = sel.getRangeAt(0).endContainer;
+    const elNode = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+    const a = elNode && elNode.closest('a');
+    if (!a || !el.contains(a)) return;
+    const range = document.createRange();
+    range.setStartAfter(a);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
   }
 
   // ── Picker ───────────────────────────────────────────────────
@@ -580,7 +608,9 @@
     const p = picker;
     const r = p && p.results[p.index];
     if (!r) return;
-    const content = p.kind === 'link' ? linkContent(p.corpus, r.url) : phraseContent(p.corpus, r.phrase);
+    const content = p.kind === 'link'
+      ? linkContent(p.corpus, r.url, p.el, p.saved)
+      : phraseContent(p.corpus, r.phrase);
     closePicker({ restore: true });
     try {
       insert(p.el, content);
@@ -627,12 +657,13 @@
 
   // ── Entry points ─────────────────────────────────────────────
 
-  // 'link' for ⌘⇧L, 'phrase' for ⌘⇧P (Ctrl on Windows and Linux).
+  // 'link' for ⌥⇧L, 'phrase' for ⌥⇧P (Alt+Shift on Windows and Linux).
+  // By code too, since on a Mac Option changes the key typed (Ò, ∏).
   function shortcutKind(e) {
-    if (!(e.metaKey || e.ctrlKey) || !e.shiftKey || e.altKey) return null;
+    if (!e.altKey || !e.shiftKey || e.metaKey || e.ctrlKey) return null;
     const key = (e.key || '').toLowerCase();
-    if (key === 'l' || e.code === 'KeyL') return 'link';
-    if (key === 'p' || e.code === 'KeyP') return 'phrase';
+    if (e.code === 'KeyL' || key === 'l') return 'link';
+    if (e.code === 'KeyP' || key === 'p') return 'phrase';
     return null;
   }
 

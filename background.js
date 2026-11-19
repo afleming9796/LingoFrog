@@ -16,9 +16,9 @@
  * — if popup.js is loaded it responds, otherwise sendMessage rejects
  * with "no receiving end" and we fall back to openPopup().
  *
- * Cmd+Shift+L and Cmd+Shift+P (Ctrl on Windows and Linux) open the
- * link and phrase pickers from quick-insert.js in the text box you're
- * in, on any site. See runQuickInsert below.
+ * Option+Shift+L and Option+Shift+P (Alt+Shift on Windows and Linux)
+ * open the link and phrase pickers from quick-insert.js in the text box
+ * you're in, on any site. See runQuickInsert below.
  */
 
 const QUICK_COMMANDS = { insert_link: 'link', insert_phrase: 'phrase' };

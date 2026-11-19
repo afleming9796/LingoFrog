@@ -51,13 +51,13 @@
     },
     "insert_link": {
       "suggested_key": {
-        "default": "Ctrl+Shift+L"
+        "default": "Alt+Shift+L"
       },
       "description": "Insert a link in the text box you're in (in Gmail, links highlighted text)"
     },
     "insert_phrase": {
       "suggested_key": {
-        "default": "Ctrl+Shift+P"
+        "default": "Alt+Shift+P"
       },
       "description": "Insert a phrase in the text box you're in (in Gmail, saves highlighted text)"
     }
