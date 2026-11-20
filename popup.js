@@ -420,7 +420,8 @@ const IMPORT_TYPES = {
     button: 'Restore Backup',
     empty: 'Paste a backup first',
     hint: 'Paste everything <b>Copy All to Clipboard</b> copied. Your links, phrases, UTM rules, Bops and tags all come back at once, added to what you already have. Nothing is deleted.',
-    placeholder: 'Paste your backup here...\n\n# Links\n\ndocs; https://docs.example.com\n\n# Phrases\n\nThanks for the quick turnaround\n\n# Tags\n\nThanks for the quick turnaround -> frog',
+    // Every section, in the order Copy All writes them.
+    placeholder: 'Paste your backup here...\n\n# Links\n\ndocs; https://docs.example.com\n\n# Phrases\n\nThanks for the quick turnaround\nLet me know if you have any questions\n\n# UTM Parameters\n\nexample.com; utm_source=lingofrog\n\n# Bops\n\nThanks for the quick turnaround -> Let me know if you have any questions\n\n# Tags\n\nThanks for the quick turnaround -> frog',
   },
   phrases: {
     label: 'Phrases',
