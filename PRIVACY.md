@@ -1,10 +1,11 @@
 # Privacy Policy
 
-_Last updated: 2026-06-08_
+_Last updated: 2026-11-19_
 
 LingoFrog is a Chrome extension that provides autocomplete and link
 suggestions inside Gmail's compose, drawn from phrases the user has
-imported or saved.
+imported or saved. Its Option+Shift+L and Option+Shift+P shortcuts also
+insert those links and phrases on other sites.
 
 ## What LingoFrog stores
 
@@ -20,6 +21,13 @@ All data LingoFrog uses lives locally on your device via Chrome's
 While you are typing in Gmail's compose, the content script reads
 your in-progress text to match it against your local phrase and
 link rules. This matching happens entirely on your device.
+
+On other sites, LingoFrog runs only in a tab where you press
+Option+Shift+L or Option+Shift+P (through Chrome's `activeTab`
+permission). It
+shows a search of your links or phrases and puts the one you choose
+into the text box you're in. It doesn't read or keep the page's
+text.
 
 ## What LingoFrog transmits
 

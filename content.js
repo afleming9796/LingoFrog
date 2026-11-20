@@ -4,6 +4,11 @@
  * Tab       → accept autocomplete suggestion
  * Cmd+L     → accept link prompt (linkify detected phrase)
  *              OR open link search when text is selected
+ * Cmd+Shift+P → with text selected, offer to save it as a phrase
+ * Opt+Shift+L → with text selected, the same link search as Cmd+L;
+ *              otherwise quick-insert.js's link picker
+ * Opt+Shift+P → with text selected, the same as Cmd+Shift+P;
+ *              otherwise quick-insert.js's phrase picker
  * Esc       → dismiss either
  * Keep typing → dismisses link prompt
  */
@@ -95,6 +100,7 @@
     createSavePhraseChipUI();
     createSuccessToastUI();
     attachListeners();
+    registerQuickInsertHost();
     initialized = true;
 
     corpusReady = corpus.load().then(
@@ -136,6 +142,49 @@
     return extensionConnected()
       ? `Couldn't save the ${what}`
       : 'LingoFrog was updated. Reload Gmail to save.';
+  }
+
+  // ── Opt+Shift+L / Opt+Shift+P (quick-insert.js) ────────────
+  //
+  // With nothing highlighted these open quick-insert.js's link and
+  // phrase pickers, which also work on other sites. In Gmail,
+  // highlighted text keeps its own meaning: Opt+Shift+L links it (as
+  // Cmd+L does) and Opt+Shift+P offers to save it (as Cmd+Shift+P
+  // does), in a received email too (#52).
+
+  function inQuickPicker(node) {
+    return typeof LingoFrogQuick !== 'undefined' && LingoFrogQuick.contains(node);
+  }
+
+  function registerQuickInsertHost() {
+    if (typeof LingoFrogQuick === 'undefined') return;
+    LingoFrogQuick.setHost({
+      // Gmail's compose box takes direct edits, as autocomplete makes.
+      usePaste: false,
+      handleShortcut(kind) {
+        const sel = window.getSelection();
+        if (!sel || sel.isCollapsed || !sel.toString().trim()) return false;
+        if (kind === 'phrase') {
+          maybeShowSavePhraseChip();
+          return true;
+        }
+        const el = document.activeElement;
+        if (!isEditableField(el)) return false;
+        activeElement = el;
+        // Dismiss any floating link prompt so it doesn't overlap the
+        // link-search popup.
+        if (pendingLink) hideLinkPrompt();
+        showLinkSearch();
+        return true;
+      },
+      // Before a picker saves the cursor: no grey preview text in the
+      // way, and none of the other popups showing.
+      beforeOpen() {
+        removeGhostText();
+        hideSuggestions();
+        hideLinkPrompt();
+      },
+    });
   }
 
   // ── Cross-frame overlay helpers ────────────────────────────
@@ -1658,7 +1707,7 @@
       }
 
       const el = document.activeElement;
-      if (!isEditableField(el)) {
+      if (!isEditableField(el) || inQuickPicker(el)) {
         hideSuggestions();
         hideLinkPrompt();
         return;
@@ -1851,12 +1900,15 @@
 
   function attachListeners() {
     document.addEventListener('input', (e) => {
-      if (isEditableField(e.target)) {
+      if (isEditableField(e.target) && !inQuickPicker(e.target)) {
         handleInput();
       }
     }, true);
 
     document.addEventListener('keydown', (e) => {
+      // Keys typed in an Opt+Shift+L / Opt+Shift+P picker are its own.
+      if (inQuickPicker(e.target)) return;
+
       // ── Autocomplete: Tab, arrows, Esc ──
       if (currentSuggestions.length) {
         if (e.key === 'Tab') {
@@ -1946,6 +1998,20 @@
           maybeShowSavePhraseChip();
           return;
         }
+      }
+
+      // ── Opt+Shift+L / Opt+Shift+P ──
+      // Chrome normally runs these as the extension's shortcuts
+      // (background.js). They also arrive here as keys if they're
+      // unassigned at chrome://extensions/shortcuts. Either way they go
+      // to LingoFrogQuick.handleCommand, which acts once per press and
+      // hands highlighted text back to handleShortcut above.
+      const quickKind = typeof LingoFrogQuick !== 'undefined' && LingoFrogQuick.shortcutKind(e);
+      if (quickKind) {
+        e.preventDefault();
+        e.stopPropagation();
+        LingoFrogQuick.handleCommand(quickKind);
+        return;
       }
 
       // ── Cmd+L with selected text: open link search ──
