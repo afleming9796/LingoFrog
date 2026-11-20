@@ -407,18 +407,26 @@ function openImportView(defaultType) {
   importStatus.className = 'status';
 }
 
-btnImportAll.addEventListener('click', () => openImportView('links'));
+btnImportAll.addEventListener('click', () => openImportView('all'));
 
 // ── Import: Type Toggle ───────────────────────────────────
 
 // Per-type config for hint, placeholder, button label, and empty-
 // paste error. Keeps setImportType + submit-handler small.
 const IMPORT_TYPES = {
+  // A whole backup, as Settings → Copy All to Clipboard writes it.
+  all: {
+    label: 'All',
+    button: 'Restore Backup',
+    empty: 'Paste a backup first',
+    hint: 'Paste everything <b>Copy All to Clipboard</b> copied. Your links, phrases, UTM rules, Bops and tags all come back at once, added to what you already have. Nothing is deleted.',
+    placeholder: 'Paste your backup here...\n\n# Links\n\ndocs; https://docs.example.com\n\n# Phrases\n\nThanks for the quick turnaround\n\n# Tags\n\nThanks for the quick turnaround -> frog',
+  },
   phrases: {
     label: 'Phrases',
     button: 'Import Phrases',
     empty: 'Paste some phrases first',
-    hint: 'One phrase per line. Casing is preserved on insertion.<br>e.g. <code>Thanks for the quick turnaround</code><br>A formatted phrase (line breaks, lists, bold, links) is one line starting with <code>md:</code>, the way Copy all writes it. It\'s easier to add one with + on the Phrases tab.<br><br>Tip: when you highlight text in Gmail, press <code>⌘ + Shift + P</code> to save it directly or press <code>⌘ + L</code> to insert a link. Search existing links or paste a new one.',
+    hint: 'One phrase per line. Casing is preserved on insertion.<br>e.g. <code>Thanks for the quick turnaround</code><br>A formatted phrase (line breaks, lists, bold, links) is one line starting with <code>md:</code>, the way Copy all writes it. It\'s easier to add one with + on the Phrases tab.<br><br>Tip: when you highlight text in Gmail, press <code>⌘ + Shift + P</code> to save it directly or press <code>⌘ + L</code> to insert a link. Search existing links or paste a new one.<br><br>With nothing highlighted, <code>⌥ + Shift + L</code> and <code>⌥ + Shift + P</code> insert one of your links or phrases in any text box, on any site.',
     placeholder: 'Add your phrases here, one per line...\n\nThanks for the quick turnaround\nPlease see the attached document\nThese pretzels are making me thirsty\n\nThen start typing in Gmail to see the magic',
   },
   links: {
@@ -508,6 +516,20 @@ document.addEventListener('click', (e) => {
 
 // ── Import: Submit ────────────────────────────────────────
 
+// "✓ Restored 12 links, 40 phrases, 1 UTM rule, 5 Bops, 8 tags": each
+// section the backup had, with what came back from it.
+function restoredMessage(r) {
+  const n = (count, one, many) => `${count} ${count === 1 ? one : many}`;
+  const parts = [];
+  if (r.links != null) parts.push(n(r.links, 'link', 'links'));
+  if (r.phrases != null) parts.push(n(r.phrases, 'phrase', 'phrases'));
+  if (r.utms != null) parts.push(n(r.utms, 'UTM rule', 'UTM rules'));
+  if (r.bops != null) parts.push(n(r.bops, 'Bop', 'Bops'));
+  if (r.tags != null) parts.push(n(r.tags, 'tag', 'tags'));
+  const skipped = r.skipped ? ` (${r.skipped} skipped)` : '';
+  return `\u2713 Restored ${parts.join(', ') || 'nothing'}${skipped}`;
+}
+
 btnImport.addEventListener('click', async () => {
   const cfg = IMPORT_TYPES[importType];
   const text = pasteArea.value.trim();
@@ -520,7 +542,17 @@ btnImport.addEventListener('click', async () => {
   btnImport.textContent = 'Importing\u2026';
 
   try {
-    if (importType === 'phrases') {
+    // A full backup restores everything, whichever type is picked, so
+    // its headers and other sections don't become phrases or links.
+    const restored = await corpus.restoreBackup(text);
+    if (importType === 'all' && !restored) {
+      showStatus(importStatus, 'That isn\u2019t a backup. Paste what Copy All to Clipboard copied.', 'error');
+    } else if (restored) {
+      showStatus(importStatus, restoredMessage(restored), 'success');
+      updatePhraseList();
+      updateLinkRuleList();
+      updateUtmList();
+    } else if (importType === 'phrases') {
       const added = await corpus.importPhrases(text, 'paste');
       showStatus(importStatus, `\u2713 ${added} new phrase${added === 1 ? '' : 's'} added`, 'success');
       updatePhraseList();
@@ -539,7 +571,7 @@ btnImport.addEventListener('click', async () => {
       showStatus(importStatus, `\u2713 ${added} UTM rule${added === 1 ? '' : 's'} imported${skipNote}`, 'success');
       updateUtmList();
     }
-    pasteArea.value = '';
+    if (restored || importType !== 'all') pasteArea.value = '';
     updateStats();
   } catch (e) {
     showStatus(importStatus, 'Import failed: ' + e.message, 'error');
@@ -661,6 +693,7 @@ btnExportAll.addEventListener('click', async () => {
   const linksText = corpus.linkRules.exportText();
   const utmsText = corpus.utmRules.exportText();
   const bopsText = corpus.exportBops();
+  const tagsText = corpus.exportTags();
 
   if (!phrasesText && !linksText && !utmsText && !bopsText) {
     showStatus(backupStatus, 'Nothing to copy', 'error');
@@ -672,6 +705,7 @@ btnExportAll.addEventListener('click', async () => {
   if (phrasesText) sections.push(`# Phrases\n\n${phrasesText}`);
   if (utmsText) sections.push(`# UTM Parameters\n\n${utmsText}`);
   if (bopsText) sections.push(`# Bops\n\n${bopsText}`);
+  if (tagsText) sections.push(`# Tags\n\n${tagsText}`);
 
   await navigator.clipboard.writeText(sections.join('\n\n'));
 
@@ -679,11 +713,13 @@ btnExportAll.addEventListener('click', async () => {
   const linkCount = corpus.linkRules.rules.size;
   const utmCount = [...corpus.utmRules.rules.values()].filter((p) => p && p.length).length;
   const bopCount = bopsText ? bopsText.split('\n').length : 0;
+  const tagCount = tagsText ? tagsText.split('\n').length : 0;
   const parts = [
     `${linkCount} link rule${linkCount === 1 ? '' : 's'}`,
     `${phraseCount} phrase${phraseCount === 1 ? '' : 's'}`,
     `${utmCount} UTM rule${utmCount === 1 ? '' : 's'}`,
     `${bopCount} bop${bopCount === 1 ? '' : 's'}`,
+    `${tagCount} tag${tagCount === 1 ? '' : 's'}`,
   ];
   showStatus(backupStatus, `✓ Copied ${parts.join(', ')}`, 'success');
 });

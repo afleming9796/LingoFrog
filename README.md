@@ -16,7 +16,7 @@ Like a best friend, LingoFrog finishes your sentences and inserts relevant hyper
 1. Add your favorite phrases and links via the import tab or by highlighting them in Gmail and selecting cmd + shift + p.
 2. Start typing in Gmail and suggestions will appear. You might need to refresh your screen
 3. Use Cmd+L to insert hyperlinks based on matches. If you highlight a phrase, CMD+L will open a drop down of links to insert. You can also insert ad-hoc links via highlight + cmd + L and save those ad-hoc links for future use. 
-4. You should occasionally export your phrases and links to a Google doc or local txt file as a backup. (Bulk import is easy). 
+4. Every so often, back everything up to a Google doc or local txt file (see [Backup and restore](#backup-and-restore)).
 
 ## How It Works
 
@@ -54,7 +54,15 @@ Autocomplete matches the start of a phrase's first line, as with any phrase. The
 
 ## Tags
 
-A phrase can have one tag of up to 4 characters, like `frog`. Add it under **Optional** when you add or edit a phrase. The tag shows next to the phrase in the Phrases tab and in the Gmail suggestions, and searching the Phrases tab matches tags too. Copy all doesn't include tags yet, so a restore from a backup leaves phrases untagged.
+A phrase can have one tag of up to 4 characters, like `frog`. Add it under **Optional** when you add or edit a phrase. The tag shows next to the phrase in the Phrases tab and in the Gmail suggestions, and searching the Phrases tab matches tags too. Backups include tags, in a `# Tags` section with one `phrase -> tag` line each (a formatted phrase's line breaks written as `\n`), and restoring a backup puts them back.
+
+## Backup and restore
+
+Settings → **Copy All to Clipboard** copies everything: links, phrases, UTM rules, Bops and tags, each under a `# Section` header. Keep it in a doc or a text file.
+
+To restore, go to Settings → **Import from backup** and paste the whole thing under **All**. Everything comes back at once, added to what you already have. Nothing is deleted, and phrases you already have keep their place in your suggestions. Pasting a full backup into one of the other import types restores all of it too, rather than turning its headers into phrases.
+
+The other import types are for adding a batch of one kind, like a list of phrases from a doc or links a teammate shares.
 
 ## Settings
 
@@ -75,4 +83,4 @@ Hyperlinks get added to phrases based on matching link text, and formatted phras
 GitHub issues are welcome.
 
 ## If Developing
-While developing and testing different versions, you may find yourself needing remove the extension via chrome://extensions and then add it back in, in which case you'll lose your attached corpous of phrases and links. It's best to export your phrases and links in this case and then import them back.
+While developing and testing different versions, you may find yourself needing remove the extension via chrome://extensions and then add it back in, in which case you'll lose your attached corpous of phrases and links. It's best to copy a backup first and restore it afterwards (see [Backup and restore](#backup-and-restore)).
