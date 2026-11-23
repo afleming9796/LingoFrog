@@ -714,7 +714,8 @@ btnExportAll.addEventListener('click', async () => {
   if (tagsText) sections.push(`# Tags\n\n${tagsText}`);
   if (usageText) sections.push(`# Usage\n\n${usageText}`);
 
-  await navigator.clipboard.writeText(sections.join('\n\n'));
+  // A note on the format goes first; restoring skips it.
+  await navigator.clipboard.writeText(Corpus.backupNote() + '\n\n' + sections.join('\n\n'));
 
   const phraseCount = corpus.phrases.size;
   const linkCount = corpus.linkRules.rules.size;

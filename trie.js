@@ -1270,6 +1270,31 @@ class Corpus {
   }
 
   /**
+   * The note Copy All puts above a backup's first section, for whoever
+   * edits the backup later, by hand or with AI. splitBackup ignores
+   * everything above the first header, so restoring never reads it.
+   * Bump "format 1" if the backup format changes in a way an older
+   * restore can't read.
+   */
+  static backupNote(date = new Date()) {
+    const pad = (n) => String(n).padStart(2, '0');
+    const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+    return [
+      `LingoFrog backup, format 1, copied ${day}.`,
+      'To restore it: open LingoFrog, click the gear (Settings), then Import from backup, and paste all of this under All.',
+      '',
+      'Notes for anyone editing this backup, by hand or with AI:',
+      '- Restoring adds to what\'s saved and deletes nothing. To rename or remove phrases or links, first use Delete all phrases and Delete all links (in the ⋯ menu on the Phrases and Links tabs), then restore the edited backup. Keep the original until the restore looks right.',
+      '- A phrase is matched by its exact text. If you change one, change it the same way under Phrases, Bops, Tags and Usage. The same goes for a link\'s trigger under Links and Usage. Lines naming a phrase or link that isn\'t saved are skipped.',
+      '- Links: trigger; URL. UTM Parameters: host; key=value; key=value.',
+      '- Phrases: one per line. A line starting with "md: " is a formatted phrase in Markdown, with line breaks written as \\n.',
+      '- Bops: phrase -> next phrase. Tags: phrase -> tag (up to 4 characters). Here and in Usage, a formatted phrase is written as plain text: no "md: " and no Markdown, list items starting with "• " or "1. ", and line breaks as \\n.',
+      '- Usage is how LingoFrog ranks suggestions. Leave it as it is, or delete the whole section.',
+      '- Everything above the first line starting with "# " is ignored when restoring.',
+    ].join('\n');
+  }
+
+  /**
    * Splits a full backup (Settings → Copy All to Clipboard) into its
    * sections, by their "# Links", "# Phrases", "# UTM Parameters",
    * "# Bops", "# Tags" and "# Usage" headers. Returns { links, phrases,

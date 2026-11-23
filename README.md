@@ -70,7 +70,7 @@ Usage stays on this device, apart from your phrases and links, and backups inclu
 
 ## Backup and restore
 
-Settings → **Copy All to Clipboard** copies everything: links, phrases, UTM rules, Bops, tags and usage, each under a `# Section` header. Keep it in a doc or a text file.
+Settings → **Copy All to Clipboard** copies everything: links, phrases, UTM rules, Bops, tags and usage, each under a `# Section` header. Keep it in a doc or a text file. It starts with a short note on how to restore it and how the format works, for anyone editing it by hand or with AI. Restoring skips the note.
 
 To restore, go to Settings → **Import from backup** and paste the whole thing under **All**. Everything comes back at once, added to what you already have. Nothing is deleted, and phrases you already have keep their place in your suggestions. Pasting a full backup into one of the other import types restores all of it too, rather than turning its headers into phrases.
 
