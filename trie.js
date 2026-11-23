@@ -493,8 +493,11 @@ class Corpus {
    * Each non-empty line is stored as-is, preserving original casing,
    * except a formatted phrase's line ("md: " + its Markdown, as
    * exportText writes it).
+   *
+   * A phrase that's already saved counts as used once more, unless
+   * `bump` is false (restoring a backup shouldn't reorder suggestions).
    */
-  async importPhrases(text, source = 'import') {
+  async importPhrases(text, source = 'import', { bump = true } = {}) {
     const lines = text.split('\n');
     let added = 0;
     const now = Date.now();
@@ -510,8 +513,10 @@ class Corpus {
       if (!phrase) continue;
       if (this.phrases.has(phrase)) {
         const entry = this.phrases.get(phrase);
-        entry.frequency += 1;
-        entry.lastUsed = now;
+        if (bump) {
+          entry.frequency += 1;
+          entry.lastUsed = now;
+        }
         if (rich) entry.rich = rich;
         this.phrases.set(phrase, entry);
       } else {
@@ -864,7 +869,108 @@ class Corpus {
     return { added, skipped };
   }
 
+  /**
+   * Tags as text, one "phrase -> tag" line per tagged phrase. The
+   * phrase is written the way a Bop line writes it (line breaks as \n).
+   */
+  exportTags() {
+    const lines = [];
+    for (const [phrase, data] of this.phrases) {
+      if (data.tag) lines.push(Corpus.bopKey(phrase) + ' -> ' + data.tag);
+    }
+    return lines.join('\n');
+  }
+
+  /**
+   * Parse a paste of tags (round-trip counterpart to exportTags) and
+   * tag the phrases it names. The tag is what follows the last " -> ",
+   * so a phrase may contain the arrow itself. Returns { added, skipped }:
+   * blank and '#' lines are ignored; lines without an arrow or a tag, or
+   * naming a phrase that isn't saved, are skipped.
+   */
+  async importTags(text) {
+    const sepRe = /\s+->\s+/g;
+    let added = 0;
+    let skipped = 0;
+    for (let line of text.split('\n')) {
+      line = line.trim();
+      if (!line || line.startsWith('#')) continue;
+      let last = null;
+      for (const m of line.matchAll(sepRe)) last = m;
+      if (!last) { skipped++; continue; }
+      const phrase = this._readBopKey(line.slice(0, last.index).trim());
+      const tag = Corpus.cleanTag(line.slice(last.index + last[0].length));
+      const data = this.phrases.get(phrase);
+      if (!data || !tag) { skipped++; continue; }
+      data.tag = tag;
+      added++;
+    }
+    if (added) await this.save();
+    return { added, skipped };
+  }
+
+  /**
+   * Splits a full backup (Settings → Copy All to Clipboard) into its
+   * sections, by their "# Links", "# Phrases", "# UTM Parameters",
+   * "# Bops" and "# Tags" headers. Returns { links, phrases, utms, bops,
+   * tags } with the text of each section present, or null when there are
+   * no section headers (so it isn't a backup).
+   */
+  static splitBackup(text) {
+    const names = { links: 'links', phrases: 'phrases', 'utm parameters': 'utms', bops: 'bops', tags: 'tags' };
+    const sections = {};
+    let current = null;
+    for (const line of String(text || '').split('\n')) {
+      const m = line.trim().match(/^#\s*(links|phrases|utm parameters|bops|tags)$/i);
+      if (m) {
+        current = names[m[1].toLowerCase()];
+        sections[current] = sections[current] || [];
+      } else if (current) {
+        sections[current].push(line);
+      }
+    }
+    if (!current) return null;
+    return Object.fromEntries(Object.entries(sections).map(([k, lines]) => [k, lines.join('\n')]));
+  }
+
+  /**
+   * Restores a full backup in one go, adding to what's saved and
+   * deleting nothing. Sections go in dependency order: links and
+   * phrases first, since Bops and tags name phrases. Returns counts per
+   * section present ({ links, phrases, utms, bops, tags, skipped }), or
+   * null if the text isn't a backup.
+   */
+  async restoreBackup(text) {
+    const sections = Corpus.splitBackup(text);
+    if (!sections) return null;
+    const result = { skipped: 0 };
+    if (sections.links != null) {
+      result.links = await this.linkRules.importBulk(sections.links);
+    }
+    if (sections.phrases != null) {
+      await this.importPhrases(sections.phrases, 'import', { bump: false });
+      result.phrases = sections.phrases.split('\n').filter((l) => l.trim()).length;
+    }
+    if (sections.utms != null) {
+      const { added, skipped } = await this.utmRules.importBulk(sections.utms);
+      result.utms = added;
+      result.skipped += skipped;
+    }
+    if (sections.bops != null) {
+      const { added, skipped } = await this.importBops(sections.bops);
+      result.bops = added;
+      result.skipped += skipped;
+    }
+    if (sections.tags != null) {
+      const { added, skipped } = await this.importTags(sections.tags);
+      result.tags = added;
+      result.skipped += skipped;
+    }
+    return result;
+  }
+
   // A formatted phrase's key has line breaks; a bop line writes them as \n.
+  // Tag lines write phrases the same way.
   static bopKey(phrase) {
     return phrase.replace(/\n/g, '\\n');
   }
