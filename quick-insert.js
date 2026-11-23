@@ -200,10 +200,16 @@
   function phraseContent(corpus, phrase, el) {
     if (isTextControl(el)) return { text: phrase };
     let blocks = PhraseFormat.blocksOf(phrase, corpus.getRich(phrase));
+    // The link rules it used, to count as used too.
+    const linkTriggers = [];
     if (corpus.config.autoLink !== false) {
       blocks = PhraseFormat.linkify(
         blocks,
-        (text) => corpus.linkRules.findLinks(text),
+        (text) => {
+          const found = corpus.linkRules.findLinks(text);
+          linkTriggers.push(...found.map((m) => m.trigger));
+          return found;
+        },
         (url) => linkHref(corpus, url)
       );
     }
@@ -212,6 +218,7 @@
     return {
       text: phrase,
       html,
+      linkTriggers,
       // For inserting directly: the first line joins the cursor's line.
       inlineHtml: PhraseFormat.toHtml(blocks, { inlineFirst: true }),
       link: /<a /.test(html),
@@ -317,20 +324,18 @@
     }
   }
 
+  // With nothing typed, the most used first; with a search, the best
+  // match first, the most used first among equally good matches (see
+  // Corpus.rankResults).
   function findResults(kind, corpus, filter) {
-    const lower = filter.trim().toLowerCase();
     if (kind === 'link') {
       const results = [];
       const url = parseUrlInput(filter);
       if (url) results.push({ url, typed: true });
-      for (const r of corpus.linkRules.getAll()) {
-        if (!lower || r.trigger.includes(lower) || r.url.toLowerCase().includes(lower)) {
-          results.push({ trigger: r.trigger, url: r.url });
-        }
-      }
+      for (const r of corpus.searchLinks(filter)) results.push({ trigger: r.trigger, url: r.url });
       return results.slice(0, MAX_RESULTS);
     }
-    return corpus.getAllPhrases(lower).slice(0, MAX_RESULTS).map((r) => ({ phrase: r.phrase }));
+    return corpus.getAllPhrases(filter).slice(0, MAX_RESULTS).map((r) => ({ phrase: r.phrase }));
   }
 
   function buildPicker() {
@@ -636,9 +641,14 @@
       console.warn('[LingoFrog] Insert failed:', e);
       return;
     }
+    // Count what went in as used. Fails in a tab left open across an
+    // update; it's in anyway.
     if (p.kind === 'phrase') {
-      // Fails in a tab left open across an update; the phrase is in.
-      p.corpus.recordUsage(r.phrase).catch(() => {});
+      p.corpus.recordUsage(r.phrase)
+        .then(() => p.corpus.recordLinkUsage(content.linkTriggers || []))
+        .catch(() => {});
+    } else if (!r.typed) {
+      p.corpus.recordLinkUsage(r.trigger).catch(() => {});
     }
   }
 

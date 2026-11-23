@@ -532,11 +532,21 @@
       if (activeElement) {
         activeElement.dispatchEvent(new Event('input', { bubbles: true }));
       }
+      recordLinkUses([trigger]);
     } catch (e) {
       console.error('[LingoFrog] Link prompt apply error:', e);
     }
 
     hideLinkPrompt();
+  }
+
+  // Counts links as used (see Usage in trie.js). Fails quietly in a tab
+  // left open across an update; the link is already in.
+  function recordLinkUses(triggers) {
+    if (!triggers.length) return;
+    corpus.recordLinkUsage(triggers).catch((err) => {
+      console.warn('[LingoFrog] Recording link usage failed:', err);
+    });
   }
 
   // ── Link Search Popup ────────────────────────────────────────
@@ -671,11 +681,8 @@
   }
 
   function renderLinkSearchResults(filter) {
-    const all = corpus.linkRules.getAll();
-    const lower = filter.toLowerCase();
-    const ruleMatches = lower
-      ? all.filter((r) => r.trigger.includes(lower) || r.url.toLowerCase().includes(lower))
-      : all;
+    // Most used first, or with a search, best match first.
+    const ruleMatches = corpus.searchLinks(filter);
 
     // Detect URL-shaped input and prepend a synthetic "Insert URL" row.
     const urlCandidate = parseUrlInput(filter);
@@ -815,6 +822,8 @@
     }
 
     hideLinkSearch();
+
+    if (inserted && chosen.kind === 'rule') recordLinkUses([chosen.trigger]);
 
     if (inserted) {
       // Restore the cursor to just-after the inserted <a> regardless
@@ -1492,6 +1501,7 @@
 
     parent.insertBefore(frag, textNode);
     parent.removeChild(textNode);
+    recordLinkUses(matches.map((m) => m.trigger));
 
     return lastNode;
   }
@@ -1800,7 +1810,14 @@
     }
     blocks = PhraseFormat.continueFrom(blocks, typed, { keepTyped: selected.bop || replaceTyped });
     if (corpus.config.autoLink !== false) {
-      blocks = PhraseFormat.linkify(blocks, (t) => corpus.linkRules.findLinks(t), (url) => corpus.utmRules.applyTo(url));
+      const triggers = [];
+      const findLinks = (t) => {
+        const found = corpus.linkRules.findLinks(t);
+        triggers.push(...found.map((m) => m.trigger));
+        return found;
+      };
+      blocks = PhraseFormat.linkify(blocks, findLinks, (url) => corpus.utmRules.applyTo(url));
+      recordLinkUses(triggers);
     }
     document.execCommand('insertHTML', false, PhraseFormat.toHtml(blocks, { inlineFirst: true }));
   }
@@ -2088,7 +2105,14 @@
   }
 
   chrome.storage.onChanged.addListener((changes) => {
+    // Usage alone (a use recorded here or in another tab): just re-rank.
+    const only = Object.keys(changes);
+    if (only.length === 1 && changes.lingofrog_usage) {
+      corpus.reloadUsage().catch(() => {});
+      return;
+    }
     if (
+      changes.lingofrog_usage ||
       changes.lingofrog_phrases ||
       changes.lingofrog_link_rules ||
       changes.lingofrog_utm_rules ||

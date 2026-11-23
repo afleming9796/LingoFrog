@@ -2,7 +2,8 @@
  * trie.js — Prefix trie, corpus manager, and link rules for LingoFrog.
  *
  * Exact prefix matching only. Case-insensitive matching,
- * case-preserving insertion. Score = frequency × recencyBoost.
+ * case-preserving insertion. Phrases and links rank by how often and
+ * how recently they've been used (see Usage).
  */
 
 class TrieNode {
@@ -118,10 +119,16 @@ class LinkRules {
     });
   }
 
+  // Adds or replaces a rule. `addedAt` records when it was first added,
+  // so a new link isn't mistaken for an unused one.
   addRule(phrase, url, label = null) {
-    this.rules.set(phrase.toLowerCase().trim(), {
+    const key = phrase.toLowerCase().trim();
+    const prev = this.rules.get(key);
+    this.rules.set(key, {
+      ...prev,
       url: url.trim(),
       label: label || phrase.trim(),
+      addedAt: (prev && prev.addedAt) || Date.now(),
     });
   }
 
@@ -142,7 +149,7 @@ class LinkRules {
       err.code = 'DUPLICATE_TRIGGER';
       throw err;
     }
-    const next = { url: url.trim(), label: trigger.trim() };
+    const next = { ...this.rules.get(oldKey), url: url.trim(), label: trigger.trim() };
     if (newKey !== oldKey) this.rules.delete(oldKey);
     this.rules.set(newKey, next);
   }
@@ -396,6 +403,196 @@ class UtmRules {
 UtmRules.MAX_PARAMS = 3;
 
 
+// ── Usage ─────────────────────────────────────────────────────
+//
+// How often and how recently each phrase and link has been put into
+// something: an autocomplete or Bop accepted, a link prompt or link
+// search pick, Option+Shift+L/P, or the popup's copy buttons (not
+// imports or edits). Search and autocomplete rank by it.
+//
+// It's kept in its own storage key, apart from the phrases and links,
+// so recording a use from a Gmail tab never rewrites them. Entries are
+// keyed like the items themselves (a phrase by its text, a link by its
+// trigger) and move with them when they're renamed.
+//
+//   lingofrog_usage: { since, phrases: { [phrase]: entry },
+//                      links: { [trigger]: entry } }
+//   entry: { uses, last, score }
+//
+// `since` is when tracking started. `score` is a recency-weighted
+// count as of `last`: each use adds 1, and the total halves every
+// Usage.HALF_LIFE_DAYS, so what's used now outranks what was used a
+// lot long ago.
+
+class Usage {
+  constructor() {
+    this.data = Usage.empty();
+    // Writes are read-modify-write of the whole store, so they run one
+    // at a time; a phrase and its links recorded together both count.
+    this._queue = Promise.resolve();
+  }
+
+  _serial(fn) {
+    const run = this._queue.then(fn, fn);
+    this._queue = run.catch(() => {});
+    return run;
+  }
+
+  static empty() {
+    return { since: null, phrases: Object.create(null), links: Object.create(null) };
+  }
+
+  // Null-prototype maps, so any phrase can be a key.
+  static normalize(stored) {
+    const data = Usage.empty();
+    if (stored && typeof stored === 'object') {
+      data.since = stored.since || null;
+      Object.assign(data.phrases, stored.phrases);
+      Object.assign(data.links, stored.links);
+    }
+    return data;
+  }
+
+  static _read() {
+    return new Promise((resolve, reject) => {
+      try {
+        chrome.storage.local.get(['lingofrog_usage'], (stored) => {
+          resolve(Usage.normalize(stored && stored.lingofrog_usage));
+        });
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }
+
+  static _write(data) {
+    return new Promise((resolve, reject) => {
+      try {
+        chrome.storage.local.set({ lingofrog_usage: data }, resolve);
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }
+
+  // An entry's score now.
+  static decayed(entry, now = Date.now()) {
+    if (!entry || !entry.score) return 0;
+    const days = Math.max(0, now - (entry.last || 0)) / 86400000;
+    return entry.score * Math.pow(0.5, days / Usage.HALF_LIFE_DAYS);
+  }
+
+  // Two entries for the same item as one: the uses added up, or with
+  // `keepMost`, the larger count (a backup restored over what it came
+  // from shouldn't double it).
+  static merge(a, b, { keepMost = false } = {}) {
+    if (!a) return b;
+    if (!b) return a;
+    const last = Math.max(a.last || 0, b.last || 0);
+    const uses = keepMost ? Math.max(a.uses || 0, b.uses || 0) : (a.uses || 0) + (b.uses || 0);
+    const score = keepMost
+      ? Math.max(Usage.decayed(a, last), Usage.decayed(b, last))
+      : Usage.decayed(a, last) + Usage.decayed(b, last);
+    return { uses, last, score };
+  }
+
+  load() {
+    return this._serial(async () => {
+      this.data = await Usage._read();
+      if (!this.data.since) {
+        this.data.since = Date.now();
+        await Usage._write(this.data);
+      }
+    });
+  }
+
+  get(kind, key) {
+    return this.data[kind][key] || null;
+  }
+
+  /**
+   * Records one use of each key, against what's stored now (another tab
+   * may have recorded uses since this one loaded). `startScore(key)` is
+   * the score to start from for a key with no entry yet.
+   */
+  record(kind, keys, startScore = () => 0) {
+    const list = [].concat(keys).filter((k) => k);
+    if (!list.length) return Promise.resolve();
+    return this._serial(() => this._record(kind, list, startScore));
+  }
+
+  async _record(kind, list, startScore) {
+    const fresh = await Usage._read();
+    const now = Date.now();
+    for (const key of list) {
+      const prev = fresh[kind][key];
+      const base = prev ? Usage.decayed(prev, now) : startScore(key);
+      fresh[kind][key] = { uses: (prev ? prev.uses || 0 : 0) + 1, last: now, score: base + 1 };
+    }
+    if (!fresh.since) fresh.since = now;
+    await Usage._write(fresh);
+    this.data = fresh;
+  }
+
+  // An item was renamed: its usage moves with it, merging into any the
+  // new name already had.
+  rename(kind, oldKey, newKey) {
+    if (oldKey === newKey) return Promise.resolve();
+    return this._serial(() => this._rename(kind, oldKey, newKey));
+  }
+
+  async _rename(kind, oldKey, newKey) {
+    const fresh = await Usage._read();
+    const moved = fresh[kind][oldKey];
+    if (!moved) return;
+    delete fresh[kind][oldKey];
+    fresh[kind][newKey] = Usage.merge(fresh[kind][newKey], moved);
+    await Usage._write(fresh);
+    this.data = fresh;
+  }
+
+  remove(kind, key) {
+    return this._serial(() => this._remove(kind, key));
+  }
+
+  async _remove(kind, key) {
+    const fresh = await Usage._read();
+    if (!(key in fresh[kind])) return;
+    delete fresh[kind][key];
+    await Usage._write(fresh);
+    this.data = fresh;
+  }
+
+  clear(kind) {
+    return this._serial(() => this._clear(kind));
+  }
+
+  async _clear(kind) {
+    const fresh = await Usage._read();
+    fresh[kind] = Object.create(null);
+    await Usage._write(fresh);
+    this.data = fresh;
+  }
+
+  // Merges restored entries ({ kind, key, entry }) into what's stored.
+  restore(items) {
+    if (!items.length) return Promise.resolve();
+    return this._serial(() => this._restore(items));
+  }
+
+  async _restore(items) {
+    const fresh = await Usage._read();
+    for (const { kind, key, entry } of items) {
+      fresh[kind][key] = Usage.merge(fresh[kind][key], entry, { keepMost: true });
+    }
+    await Usage._write(fresh);
+    this.data = fresh;
+  }
+}
+
+Usage.HALF_LIFE_DAYS = 30;
+
+
 // ── Corpus ────────────────────────────────────────────────────
 
 class Corpus {
@@ -408,6 +605,7 @@ class Corpus {
     this.phrases = new Map();
     this.linkRules = new LinkRules();
     this.utmRules = new UtmRules();
+    this.usage = new Usage();
     this.config = {
       maxSuggestions: 5,
       triggerAfterChars: 8,
@@ -442,7 +640,7 @@ class Corpus {
   }
 
   async load() {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       chrome.storage.local.get(['lingofrog_phrases', 'lingofrog_config'], (data) => {
         if (data.lingofrog_config) {
           Object.assign(this.config, Corpus.migrateConfig(data.lingofrog_config));
@@ -453,9 +651,19 @@ class Corpus {
         }
 
         this._rebuildTrie();
-        Promise.all([this.linkRules.load(), this.utmRules.load()]).then(() => resolve());
+        Promise.all([this.linkRules.load(), this.utmRules.load(), this.usage.load()]).then(() => {
+          // Again, now that usage (which ranks the phrases) has loaded.
+          this._rebuildTrie();
+          resolve();
+        }, reject);
       });
     });
+  }
+
+  // Reloads just the usage, when another tab recorded some.
+  async reloadUsage() {
+    await this.usage.load();
+    this._rebuildTrie();
   }
 
   async save() {
@@ -466,26 +674,77 @@ class Corpus {
   }
 
   /**
-   * Score = frequency × recencyBoost
-   *
-   *   recencyBoost:
-   *     < 7 days  → ×1.5
-   *     < 30 days → ×1.2
-   *     older     → ×1.0
+   * A phrase's ranking score: its recency-weighted uses (see Usage). A
+   * phrase not used since tracking started starts from its old
+   * frequency, which counted half a point per autocomplete accepted, so
+   * the order people are used to carries over.
    */
-  _computeScore(phrase, data) {
-    let recencyBoost = 1.0;
-    const now = Date.now();
-    const lastActive = data.lastUsed || data.importedAt || 0;
-    const daysSince = (now - lastActive) / (1000 * 60 * 60 * 24);
+  phraseScore(phrase, now = Date.now()) {
+    const entry = this.usage.get('phrases', phrase);
+    if (entry) return Usage.decayed(entry, now);
+    const data = this.phrases.get(phrase);
+    if (!data) return 0;
+    const legacyUses = Math.max(0, ((data.frequency || 1) - 1) * 2);
+    return Usage.decayed({ score: legacyUses, last: data.lastUsed || data.importedAt || 0 }, now);
+  }
 
-    if (daysSince < 7) {
-      recencyBoost = 1.5;
-    } else if (daysSince < 30) {
-      recencyBoost = 1.2;
+  linkScore(trigger, now = Date.now()) {
+    return Usage.decayed(this.usage.get('links', trigger), now);
+  }
+
+  /**
+   * How well `text` matches a search (already lowercased): 0 for the
+   * whole text, 1 its start, 2 the start of a word in it, 3 anywhere in
+   * it, or -1 for no match.
+   */
+  static matchTier(text, query) {
+    const t = String(text || '').toLowerCase();
+    let at = t.indexOf(query);
+    if (at === -1) return -1;
+    if (t === query) return 0;
+    if (at === 0) return 1;
+    while (at !== -1) {
+      if (!/[\p{L}\p{N}]/u.test(t[at - 1])) return 2;
+      at = t.indexOf(query, at + 1);
     }
+    return 3;
+  }
 
-    return data.frequency * recencyBoost;
+  /**
+   * Orders search results. By default (order 'usage'): with no search,
+   * the most used first; with one, the best match first
+   * (Corpus.matchTier), the most used first among equally good
+   * matches, then A to Z. Order 'az' is A to Z only, for the popup's
+   * lists.
+   */
+  static rankResults(items, query, order = 'usage') {
+    if (order === 'az') return items.sort((a, b) => a.name.localeCompare(b.name));
+    return items.sort((a, b) =>
+      (query ? a.tier - b.tier : 0) ||
+      b.score - a.score ||
+      a.name.localeCompare(b.name)
+    );
+  }
+
+  /**
+   * Links for a search box: [{ trigger, url, label, score }], best first
+   * (see rankResults; pass { order: 'az' } for A to Z). A link matches
+   * on its trigger, or less well, on its URL.
+   */
+  searchLinks(filter = '', { order = 'usage' } = {}) {
+    const query = filter.trim().toLowerCase();
+    const now = Date.now();
+    const results = [];
+    for (const r of this.linkRules.getAll()) {
+      let tier = 0;
+      if (query) {
+        tier = Corpus.matchTier(r.trigger, query);
+        if (tier === -1) tier = r.url.toLowerCase().includes(query) ? 4 : -1;
+        if (tier === -1) continue;
+      }
+      results.push({ ...r, name: r.trigger, tier, score: this.linkScore(r.trigger, now) });
+    }
+    return Corpus.rankResults(results, query, order);
   }
 
   /**
@@ -628,18 +887,47 @@ class Corpus {
     return chars.slice(0, Corpus.MAX_TAG_LENGTH).join('').trim();
   }
 
+  // Records that a phrase was used (matched case-insensitively). Writes
+  // only the usage store, never the phrases.
   async recordUsage(phrase) {
-    // Find by case-insensitive match, update the original entry
-    const lower = phrase.toLowerCase();
-    for (const [key, data] of this.phrases) {
-      if (key.toLowerCase() === lower) {
-        data.frequency += 0.5;
-        data.lastUsed = Date.now();
-        this.phrases.set(key, data);
-        break;
+    let key = this.phrases.has(phrase) ? phrase : null;
+    if (!key) {
+      const lower = phrase.toLowerCase();
+      for (const k of this.phrases.keys()) {
+        if (k.toLowerCase() === lower) { key = k; break; }
       }
     }
-    await this.save();
+    if (!key) return;
+    await this.usage.record('phrases', key, (k) => this.phraseScore(k));
+    this._rebuildTrie();
+  }
+
+  // Records that links were used, by trigger.
+  async recordLinkUsage(triggers) {
+    const keys = [].concat(triggers)
+      .map((t) => String(t || '').toLowerCase().trim())
+      .filter((t) => this.linkRules.rules.has(t));
+    await this.usage.record('links', [...new Set(keys)]);
+  }
+
+  // Link edits that keep usage in step: renaming carries a link's usage
+  // to its new trigger, deleting drops it.
+  async updateLink(oldTrigger, { trigger, url }) {
+    this.linkRules.updateRule(oldTrigger, { trigger, url });
+    await this.linkRules.save();
+    await this.usage.rename('links', oldTrigger.toLowerCase().trim(), trigger.toLowerCase().trim());
+  }
+
+  async removeLink(trigger) {
+    this.linkRules.removeRule(trigger);
+    await this.linkRules.save();
+    await this.usage.remove('links', trigger.toLowerCase().trim());
+  }
+
+  async clearLinks() {
+    this.linkRules.clear();
+    await this.linkRules.save();
+    await this.usage.clear('links');
   }
 
   /**
@@ -688,8 +976,9 @@ class Corpus {
 
   _rebuildTrie() {
     this.trie.clear();
-    for (const [phrase, data] of this.phrases) {
-      const score = this._computeScore(phrase, data);
+    const now = Date.now();
+    for (const [phrase] of this.phrases) {
+      const score = this.phraseScore(phrase, now);
       // phrase is the original-cased key; trie indexes lowercase, stores original
       this.trie.insert(phrase, phrase, score);
     }
@@ -716,27 +1005,38 @@ class Corpus {
     };
   }
 
-  getAllPhrases(filter = '') {
+  /**
+   * Phrases for a search box: [{ phrase, frequency, score }], best
+   * first (see rankResults; the Phrases tab passes { order: 'az' } for
+   * A to Z). A phrase matches on its text or its tag; a tag counts as
+   * well as the same match in the text.
+   */
+  getAllPhrases(filter = '', { order = 'usage' } = {}) {
+    const query = filter.trim().toLowerCase();
+    const now = Date.now();
     const result = [];
-    const filterLower = filter.toLowerCase();
     for (const [phrase, data] of this.phrases) {
-      if (
-        filterLower &&
-        !phrase.toLowerCase().includes(filterLower) &&
-        !(data.tag && data.tag.toLowerCase().includes(filterLower))
-      ) continue;
+      let tier = 0;
+      if (query) {
+        const tiers = [Corpus.matchTier(phrase, query), data.tag ? Corpus.matchTier(data.tag, query) : -1]
+          .filter((t) => t !== -1);
+        if (!tiers.length) continue;
+        tier = Math.min(...tiers);
+      }
       result.push({
         phrase,
+        name: phrase,
+        tier,
         frequency: data.frequency,
-        score: this._computeScore(phrase, data),
+        score: this.phraseScore(phrase, now),
       });
     }
-    result.sort((a, b) => b.score - a.score);
-    return result;
+    return Corpus.rankResults(result, query, order);
   }
 
   async deletePhrase(phrase) {
     this.phrases.delete(phrase);
+    await this.usage.remove('phrases', phrase);
     // Sweep dangling bop references so the followedBy lists of
     // other phrases don't accumulate cruft pointing at a phrase that
     // no longer exists.
@@ -757,6 +1057,7 @@ class Corpus {
     if (!data) return false;
     this.phrases.delete(oldPhrase);
     this.phrases.set(newPhrase, data);
+    await this.usage.rename('phrases', oldPhrase, newPhrase);
     // Update any followedBy lists that pointed at the old phrase
     // so the bops stay intact through a rename.
     for (const [, other] of this.phrases) {
@@ -910,18 +1211,77 @@ class Corpus {
   }
 
   /**
+   * Usage as text, one line per phrase or link that's been used:
+   *
+   *   phrase: Thanks for reaching out -> 14 uses; last 2026-11-20; score 6.31
+   *   link: docs -> 9 uses; last 2026-11-18; score 3.4
+   *
+   * A phrase is written the way a Bop line writes it. `score` is the
+   * recency-weighted score as of the last use (see Usage).
+   */
+  exportUsage() {
+    const line = (kind, name, e) =>
+      `${kind}: ${name} -> ${e.uses} ${e.uses === 1 ? 'use' : 'uses'}; ` +
+      `last ${new Date(e.last).toISOString().slice(0, 10)}; score ${Math.round(e.score * 100) / 100}`;
+    const lines = [];
+    for (const phrase of this.phrases.keys()) {
+      const e = this.usage.get('phrases', phrase);
+      if (e && e.uses) lines.push(line('phrase', Corpus.bopKey(phrase), e));
+    }
+    for (const trigger of this.linkRules.rules.keys()) {
+      const e = this.usage.get('links', trigger);
+      if (e && e.uses) lines.push(line('link', trigger, e));
+    }
+    return lines.join('\n');
+  }
+
+  /**
+   * Reads usage lines (exportUsage's format) back, merging them into
+   * what's recorded: the larger count and the later date win, so
+   * restoring a backup twice doesn't double anything. Returns
+   * { added, skipped }; lines for phrases or links that aren't saved
+   * are skipped.
+   */
+  async importUsage(text) {
+    const items = [];
+    let skipped = 0;
+    for (let line of text.split('\n')) {
+      line = line.trim();
+      if (!line || line.startsWith('#')) continue;
+      const m = line.match(/^(phrase|link):\s*(.*)$/i);
+      let last = null;
+      for (const arrow of (m ? m[2] : '').matchAll(/\s+->\s+/g)) last = arrow;
+      if (!m || !last) { skipped++; continue; }
+      const kind = m[1].toLowerCase() === 'phrase' ? 'phrases' : 'links';
+      const name = m[2].slice(0, last.index).trim();
+      const stats = m[2].slice(last.index + last[0].length);
+      const uses = Number((stats.match(/(\d+)\s*uses?\b/i) || [])[1]);
+      const date = stats.match(/last\s+(\d{4})-(\d{2})-(\d{2})/i);
+      const score = Number((stats.match(/score\s+([\d.]+)/i) || [])[1]);
+      const key = kind === 'phrases' ? this._readBopKey(name) : name.toLowerCase();
+      const exists = kind === 'phrases' ? this.phrases.has(key) : this.linkRules.rules.has(key);
+      if (!exists || !uses || !date) { skipped++; continue; }
+      const lastUsed = Date.UTC(Number(date[1]), Number(date[2]) - 1, Number(date[3]));
+      items.push({ kind, key, entry: { uses, last: lastUsed, score: Number.isFinite(score) ? score : uses } });
+    }
+    await this.usage.restore(items);
+    this._rebuildTrie();
+    return { added: items.length, skipped };
+  }
+
+  /**
    * Splits a full backup (Settings → Copy All to Clipboard) into its
    * sections, by their "# Links", "# Phrases", "# UTM Parameters",
-   * "# Bops" and "# Tags" headers. Returns { links, phrases, utms, bops,
-   * tags } with the text of each section present, or null when there are
-   * no section headers (so it isn't a backup).
+   * "# Bops", "# Tags" and "# Usage" headers. Returns { links, phrases,
+   * utms, bops, tags, usage } with the text of each section present, or
+   * null when there are no section headers (so it isn't a backup).
    */
   static splitBackup(text) {
-    const names = { links: 'links', phrases: 'phrases', 'utm parameters': 'utms', bops: 'bops', tags: 'tags' };
+    const names = { links: 'links', phrases: 'phrases', 'utm parameters': 'utms', bops: 'bops', tags: 'tags', usage: 'usage' };
     const sections = {};
     let current = null;
     for (const line of String(text || '').split('\n')) {
-      const m = line.trim().match(/^#\s*(links|phrases|utm parameters|bops|tags)$/i);
+      const m = line.trim().match(/^#\s*(links|phrases|utm parameters|bops|tags|usage)$/i);
       if (m) {
         current = names[m[1].toLowerCase()];
         sections[current] = sections[current] || [];
@@ -936,9 +1296,9 @@ class Corpus {
   /**
    * Restores a full backup in one go, adding to what's saved and
    * deleting nothing. Sections go in dependency order: links and
-   * phrases first, since Bops and tags name phrases. Returns counts per
-   * section present ({ links, phrases, utms, bops, tags, skipped }), or
-   * null if the text isn't a backup.
+   * phrases first, since Bops, tags and usage name them. Returns counts
+   * per section present ({ links, phrases, utms, bops, tags, usage,
+   * skipped }), or null if the text isn't a backup.
    */
   async restoreBackup(text) {
     const sections = Corpus.splitBackup(text);
@@ -966,6 +1326,11 @@ class Corpus {
       result.tags = added;
       result.skipped += skipped;
     }
+    if (sections.usage != null) {
+      const { added, skipped } = await this.importUsage(sections.usage);
+      result.usage = added;
+      result.skipped += skipped;
+    }
     return result;
   }
 
@@ -990,7 +1355,7 @@ class Corpus {
       topPhrases.push({
         phrase,
         frequency: data.frequency,
-        score: this._computeScore(phrase, data),
+        score: this.phraseScore(phrase),
       });
     }
 
@@ -1007,6 +1372,7 @@ class Corpus {
   async clear() {
     this.phrases.clear();
     this.trie.clear();
+    await this.usage.clear('phrases');
     await new Promise((resolve) => {
       chrome.storage.local.remove(['lingofrog_phrases'], resolve);
     });
