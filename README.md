@@ -56,9 +56,20 @@ Autocomplete matches the start of a phrase's first line, as with any phrase. The
 
 A phrase can have one tag of up to 4 characters, like `frog`. Add it under **Optional** when you add or edit a phrase. The tag shows next to the phrase in the Phrases tab and in the Gmail suggestions, and searching the Phrases tab matches tags too. Backups include tags, in a `# Tags` section with one `phrase -> tag` line each (a formatted phrase's line breaks written as `\n`), and restoring a backup puts them back.
 
+## Search order and usage
+
+LingoFrog counts each time you use a phrase or link: accepting an autocomplete suggestion or a Bop, accepting a link prompt with Cmd + L, picking a link from a link search, inserting one with Option + Shift + L or P (including the links your link rules add to a phrase), or the popup's copy buttons. Importing, adding and editing don't count.
+
+- **With nothing typed**, the Option + Shift + L and P pickers and Gmail's Cmd + L link search list what you use most first. Recent use counts more: a use counts half as much after 30 days, so what you use now outranks what you used a lot long ago. Things you haven't used come after, A to Z.
+- **Once you type**, the best match comes first: the whole name, then its start, then the start of a word in it, then anywhere in it. A phrase's tag counts like its text, and a link's URL counts after its trigger. Among equally good matches, the most used comes first.
+- **Autocomplete and the Phrases tab** rank the same way. Phrases you used before usage tracking start from their old count, so the order you're used to carries over.
+- **Editing** a phrase or link keeps its usage, and **deleting** it drops it.
+
+Usage stays on this device, apart from your phrases and links, and backups include it. A way to find and remove phrases and links you don't use is planned next.
+
 ## Backup and restore
 
-Settings → **Copy All to Clipboard** copies everything: links, phrases, UTM rules, Bops and tags, each under a `# Section` header. Keep it in a doc or a text file.
+Settings → **Copy All to Clipboard** copies everything: links, phrases, UTM rules, Bops, tags and usage, each under a `# Section` header. Keep it in a doc or a text file.
 
 To restore, go to Settings → **Import from backup** and paste the whole thing under **All**. Everything comes back at once, added to what you already have. Nothing is deleted, and phrases you already have keep their place in your suggestions. Pasting a full backup into one of the other import types restores all of it too, rather than turning its headers into phrases.
 

@@ -175,7 +175,11 @@ function updatePhraseList() {
         showStatus(corpusStatus, '✓ Phrase copied', 'success');
       } catch (err) {
         showStatus(corpusStatus, 'Copy failed: ' + err.message, 'error');
+        return;
       }
+      // Copying counts as a use. The list keeps its order until it's
+      // next drawn, so the row doesn't jump out from under the cursor.
+      corpus.recordUsage(item.phrase).catch(() => {});
     });
 
     // Real <button> (was <span>) so Tab traverses the phrase list and
@@ -312,7 +316,10 @@ function renderLinkRuleRow(rule) {
       showStatus(linkStatus, '\u2713 URL copied', 'success');
     } catch (e) {
       showStatus(linkStatus, 'Copy failed: ' + e.message, 'error');
+      return;
     }
+    // Copying counts as a use.
+    corpus.recordLinkUsage(rule.trigger).catch(() => {});
   });
 
   li.appendChild(trigger);
@@ -419,9 +426,9 @@ const IMPORT_TYPES = {
     label: 'All',
     button: 'Restore Backup',
     empty: 'Paste a backup first',
-    hint: 'Paste everything <b>Copy All to Clipboard</b> copied. Your links, phrases, UTM rules, Bops and tags all come back at once, added to what you already have. Nothing is deleted.',
+    hint: 'Paste everything <b>Copy All to Clipboard</b> copied. Your links, phrases, UTM rules, Bops, tags and usage all come back at once, added to what you already have. Nothing is deleted.',
     // Every section, in the order Copy All writes them.
-    placeholder: 'Paste your backup here...\n\n# Links\n\ndocs; https://docs.example.com\n\n# Phrases\n\nThanks for the quick turnaround\nLet me know if you have any questions\n\n# UTM Parameters\n\nexample.com; utm_source=lingofrog\n\n# Bops\n\nThanks for the quick turnaround -> Let me know if you have any questions\n\n# Tags\n\nThanks for the quick turnaround -> frog',
+    placeholder: 'Paste your backup here...\n\n# Links\n\ndocs; https://docs.example.com\n\n# Phrases\n\nThanks for the quick turnaround\nLet me know if you have any questions\n\n# UTM Parameters\n\nexample.com; utm_source=lingofrog\n\n# Bops\n\nThanks for the quick turnaround -> Let me know if you have any questions\n\n# Tags\n\nThanks for the quick turnaround -> frog\n\n# Usage\n\nphrase: Thanks for the quick turnaround -> 3 uses; last 2026-11-20; score 2.6',
   },
   phrases: {
     label: 'Phrases',
@@ -527,6 +534,7 @@ function restoredMessage(r) {
   if (r.utms != null) parts.push(n(r.utms, 'UTM rule', 'UTM rules'));
   if (r.bops != null) parts.push(n(r.bops, 'Bop', 'Bops'));
   if (r.tags != null) parts.push(n(r.tags, 'tag', 'tags'));
+  if (r.usage != null) parts.push(`usage for ${n(r.usage, 'item', 'items')}`);
   const skipped = r.skipped ? ` (${r.skipped} skipped)` : '';
   return `\u2713 Restored ${parts.join(', ') || 'nothing'}${skipped}`;
 }
@@ -625,8 +633,7 @@ async function clearAllLinks() {
   const count = corpus.linkRules.rules.size;
   if (count === 0) return;
   if (!confirm(`Delete all ${count} link rules? This cannot be undone.`)) return;
-  corpus.linkRules.clear();
-  await corpus.linkRules.save();
+  await corpus.clearLinks();
   updateStats();
   updateLinkRuleList();
 }
@@ -695,6 +702,7 @@ btnExportAll.addEventListener('click', async () => {
   const utmsText = corpus.utmRules.exportText();
   const bopsText = corpus.exportBops();
   const tagsText = corpus.exportTags();
+  const usageText = corpus.exportUsage();
 
   if (!phrasesText && !linksText && !utmsText && !bopsText) {
     showStatus(backupStatus, 'Nothing to copy', 'error');
@@ -707,6 +715,7 @@ btnExportAll.addEventListener('click', async () => {
   if (utmsText) sections.push(`# UTM Parameters\n\n${utmsText}`);
   if (bopsText) sections.push(`# Bops\n\n${bopsText}`);
   if (tagsText) sections.push(`# Tags\n\n${tagsText}`);
+  if (usageText) sections.push(`# Usage\n\n${usageText}`);
 
   await navigator.clipboard.writeText(sections.join('\n\n'));
 
@@ -715,12 +724,14 @@ btnExportAll.addEventListener('click', async () => {
   const utmCount = [...corpus.utmRules.rules.values()].filter((p) => p && p.length).length;
   const bopCount = bopsText ? bopsText.split('\n').length : 0;
   const tagCount = tagsText ? tagsText.split('\n').length : 0;
+  const usageCount = usageText ? usageText.split('\n').length : 0;
   const parts = [
     `${linkCount} link rule${linkCount === 1 ? '' : 's'}`,
     `${phraseCount} phrase${phraseCount === 1 ? '' : 's'}`,
     `${utmCount} UTM rule${utmCount === 1 ? '' : 's'}`,
     `${bopCount} bop${bopCount === 1 ? '' : 's'}`,
     `${tagCount} tag${tagCount === 1 ? '' : 's'}`,
+    `usage for ${usageCount} item${usageCount === 1 ? '' : 's'}`,
   ];
   showStatus(backupStatus, `✓ Copied ${parts.join(', ')}`, 'success');
 });
@@ -1683,10 +1694,11 @@ async function saveLinkForm() {
         return;
       }
       corpus.linkRules.addRule(text, url);
+      await corpus.linkRules.save();
     } else {
-      corpus.linkRules.updateRule(linkFormOriginal, { trigger: text, url });
+      // Keeps the link's usage with it if the trigger changed.
+      await corpus.updateLink(linkFormOriginal, { trigger: text, url });
     }
-    await corpus.linkRules.save();
   } catch (e) {
     showStatus(linkFormStatus, e.message, 'error');
     return;
@@ -1702,8 +1714,7 @@ async function saveLinkForm() {
 async function deleteLinkFromForm() {
   if (linkFormOriginal === null) return;
   if (!confirm(`Delete "${linkFormOriginal}"? This cannot be undone.`)) return;
-  corpus.linkRules.removeRule(linkFormOriginal);
-  await corpus.linkRules.save();
+  await corpus.removeLink(linkFormOriginal);
   updateStats();
   showStatus(linkStatus, '✓ Deleted', 'success');
   closeLinkForm();
