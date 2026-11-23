@@ -62,7 +62,8 @@ LingoFrog counts each time you use a phrase or link: accepting an autocomplete s
 
 - **With nothing typed**, the Option + Shift + L and P pickers and Gmail's Cmd + L link search list what you use most first. Recent use counts more: a use counts half as much after 30 days, so what you use now outranks what you used a lot long ago. Things you haven't used come after, A to Z.
 - **Once you type**, the best match comes first: the whole name, then its start, then the start of a word in it, then anywhere in it. A phrase's tag counts like its text, and a link's URL counts after its trigger. Among equally good matches, the most used comes first.
-- **Autocomplete and the Phrases tab** rank the same way. Phrases you used before usage tracking start from their old count, so the order you're used to carries over.
+- **Autocomplete** ranks by the same count. Phrases you used before usage tracking start from their old count, so the suggestions you're used to carry over.
+- **The popup's Phrases and Links tabs** list A to Z, with or without a search.
 - **Editing** a phrase or link keeps its usage, and **deleting** it drops it.
 
 Usage stays on this device, apart from your phrases and links, and backups include it. A way to find and remove phrases and links you don't use is planned next.

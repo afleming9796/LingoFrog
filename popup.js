@@ -141,7 +141,8 @@ async function copyPhrase(phrase) {
 
 function updatePhraseList() {
   const filter = phraseSearch ? phraseSearch.value.trim() : '';
-  const allPhrases = corpus.getAllPhrases(filter);
+  // A to Z. Usage order is for the pickers and suggestions.
+  const allPhrases = corpus.getAllPhrases(filter, { order: 'az' });
   phraseList.innerHTML = '';
   // Reset the scroll wrapper's max-height. startEditPhrase bumps it
   // up while editing so the Bop row isn't clipped.
@@ -177,8 +178,7 @@ function updatePhraseList() {
         showStatus(corpusStatus, 'Copy failed: ' + err.message, 'error');
         return;
       }
-      // Copying counts as a use. The list keeps its order until it's
-      // next drawn, so the row doesn't jump out from under the cursor.
+      // Copying counts as a use.
       corpus.recordUsage(item.phrase).catch(() => {});
     });
 
@@ -219,13 +219,10 @@ function updatePhraseList() {
 
 
 function updateLinkRuleList() {
-  const filter = linkSearch ? linkSearch.value.trim().toLowerCase() : '';
-  const rules = corpus.linkRules.getAll();
+  const filter = linkSearch ? linkSearch.value.trim() : '';
+  // A to Z, matching a search on the trigger or the URL.
+  const filtered = corpus.searchLinks(filter, { order: 'az' });
   linkRuleList.innerHTML = '';
-
-  const filtered = filter
-    ? rules.filter((r) => r.trigger.includes(filter) || r.url.toLowerCase().includes(filter))
-    : rules;
 
   if (filtered.length === 0) {
     const msg = filter ? 'No links match your search.' : 'No link rules yet. Click + to add one.';

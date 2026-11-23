@@ -711,11 +711,14 @@ class Corpus {
   }
 
   /**
-   * Orders search results. With no search, the most used first; with
-   * one, the best match first (Corpus.matchTier), the most used first
-   * among equally good matches, then A to Z.
+   * Orders search results. By default (order 'usage'): with no search,
+   * the most used first; with one, the best match first
+   * (Corpus.matchTier), the most used first among equally good
+   * matches, then A to Z. Order 'az' is A to Z only, for the popup's
+   * lists.
    */
-  static rankResults(items, query) {
+  static rankResults(items, query, order = 'usage') {
+    if (order === 'az') return items.sort((a, b) => a.name.localeCompare(b.name));
     return items.sort((a, b) =>
       (query ? a.tier - b.tier : 0) ||
       b.score - a.score ||
@@ -725,10 +728,10 @@ class Corpus {
 
   /**
    * Links for a search box: [{ trigger, url, label, score }], best first
-   * (see rankResults). A link matches on its trigger, or less well, on
-   * its URL.
+   * (see rankResults; pass { order: 'az' } for A to Z). A link matches
+   * on its trigger, or less well, on its URL.
    */
-  searchLinks(filter = '') {
+  searchLinks(filter = '', { order = 'usage' } = {}) {
     const query = filter.trim().toLowerCase();
     const now = Date.now();
     const results = [];
@@ -741,7 +744,7 @@ class Corpus {
       }
       results.push({ ...r, name: r.trigger, tier, score: this.linkScore(r.trigger, now) });
     }
-    return Corpus.rankResults(results, query);
+    return Corpus.rankResults(results, query, order);
   }
 
   /**
@@ -1003,12 +1006,12 @@ class Corpus {
   }
 
   /**
-   * Phrases for a search box (and the Phrases tab): [{ phrase,
-   * frequency, score }], best first (see rankResults). A phrase matches
-   * on its text or its tag; a tag counts as well as the same match in
-   * the text.
+   * Phrases for a search box: [{ phrase, frequency, score }], best
+   * first (see rankResults; the Phrases tab passes { order: 'az' } for
+   * A to Z). A phrase matches on its text or its tag; a tag counts as
+   * well as the same match in the text.
    */
-  getAllPhrases(filter = '') {
+  getAllPhrases(filter = '', { order = 'usage' } = {}) {
     const query = filter.trim().toLowerCase();
     const now = Date.now();
     const result = [];
@@ -1028,7 +1031,7 @@ class Corpus {
         score: this.phraseScore(phrase, now),
       });
     }
-    return Corpus.rankResults(result, query);
+    return Corpus.rankResults(result, query, order);
   }
 
   async deletePhrase(phrase) {
